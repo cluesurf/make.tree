@@ -1,5 +1,5 @@
 {
-  "name": "@termsurf/mesh",
+  "name": "@termsurf/make",
   "main": "./host",
   "type": "module",
   "version": "0.1.0",

@@ -34,14 +34,14 @@ hook /logout, task logout
 ```
 
 ```
-# host/base.link
+# host/base.tree
 
 host platform, term vercel
 host database, term postgres
 ```
 
 ```
-# host/hide.link
+# host/hide.tree
 # environment secrets
 
 host wikidata-client-key, 123123
@@ -113,84 +113,7 @@ It gets saved into a terraform "state" file.
 - https://github.com/mdb/terraform-example/blob/master/terraform/terraform.tfstate
 - [Example Terraform State Files](https://gist.github.com/lancejpollard/1fbf133fdfd2bfcf96a29705ffd2e385)
 
-Saved locally to `bind.link`.
-
-```
-/.gitignore
-/back # backend
-  /note # mailers
-  /work # jobs
-  /time # cron jobs
-  /task # handle API calls
-  /hook # REST and webhook handlers
-/bind # configuration
-  /lock.link # commit this
-  /role.link
-  /text.link # copy
-  /kink.link # errors
-  /form # schema
-    /user
-  /rule # policies/permissions
-  /take.link # query allowance
-  /vibe.link # global styles
-  /base # database
-    /seed # seeding data
-    /move # migrations
-  /site # infrastructure
-    /hold.link # don't commit this
-    /move # migrations
-  /host # env variables, don't commit
-    /test.link
-    /base.link
-    /work.link # dev
-    /beat.link # prod
-/note # guides
-/deck # custom packages
-/face # frontend
-  /dock # ui components
-  /vibe # styles/themes
-  /wall # pages
-    /host
-      /base.link
-      /case.link
-      /deck
-        /base.link
-        /case.link
-  /text # copy
-/file # public directory
-  /text # fonts
-  /view # images
-/hook # api
-  /take
-  /save
-  /task # queries
-/line # command line processing
-/link
-  /hint.link
-  /head
-  /tree
-/make
-  /javascript
-    /browser
-    /node
-/flow # logs
-  /work.link # dev logs
-  /test.link # test logs
-  /beat.link # prod logs
-/task # dev helpers
-/test
-/host # shared
-  /tree
-/base.link # commit this
-/hold # scratchpad/tmp folder
-```
-
-For libraries, you have:
-
-```
-/code
-/task
-```
+Saved locally to `bind.tree`.
 
 For sites, you have:
 
@@ -278,10 +201,10 @@ tree try
 ```
 
 ```
-bind.link # Platform Bindings
-bolt.link # Standard Library
-loom.link # Compiler Framework / TypeChecking / etc.
-fish.link # Linting/Printing Framework (Language Server)
+bind.tree # Platform Bindings
+bolt.tree # Standard Library
+loom.tree # Compiler Framework / TypeChecking / etc.
+fish.tree # Linting/Printing Framework (Language Server)
   note <Takes the compiler output and generates code from it.>
   /code
     /text
@@ -289,20 +212,20 @@ fish.link # Linting/Printing Framework (Language Server)
         /rule
           /:rule
     /task
-tree.link # Content Grammars and Parsing
+tree.tree # Content Grammars and Parsing
   /code
     /content
       /pdf
     /task
-star.link # Third-party library like with GitHub and Vercel
-snow.link # Modeling Framework / Querying
-moon.link # Resource Provisioning
-crow.link # UI Framework like React
-nest.link # Site Framework (last remaining folders)
-seed.link # Math Framework
-wolf.link # CLI/REPL Framework
-base.link # Package Framework
-door.link # Security/User/Rate Limiting Framework
+star.tree # Third-party library like with GitHub and Vercel
+snow.tree # Modeling Framework / Querying
+moon.tree # Resource Provisioning
+crow.tree # UI Framework like React
+nest.tree # Site Framework (last remaining folders)
+seed.tree # Math Framework
+wolf.tree # CLI/REPL Framework
+base.tree # Package Framework
+door.tree # Security/User/Rate Limiting Framework
 ```
 
 Compiler needs to know about:
@@ -485,7 +408,7 @@ All objects in the AST need to be bindable / emit events.
 
 A Bindable Fulfillment Library for Compiler AST Generation
 
-So then in mesh.link, it will create a new
+So then in mesh.tree, it will create a new
 FillModule.hook().bind('foo/bar').bindList('form')
 
 Then it will notify everything that gets attached in the future if it is
@@ -496,7 +419,7 @@ complete.
 - if bindings don't exist until after it's been fulfilled, then trigger
   immediately
 
-Then in mesh.link
+Then in mesh.tree
 
     // base.ts
     class Base {
