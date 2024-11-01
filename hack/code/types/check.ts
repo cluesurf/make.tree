@@ -43,6 +43,8 @@ import {
   Tele,
   Oper,
   Found,
+  Fill,
+  Check,
 } from '.'
 import {
   envFail,
@@ -53,7 +55,7 @@ import {
   envSusp,
   envTakeSusp,
 } from './env'
-import { reduce } from './reduce'
+import { bind, reduce } from './reduce'
 import { equal, incompatible, replace } from './equal'
 import {
   checkValidType,
@@ -157,11 +159,10 @@ export function infer(
         if (term.flag) {
           return check(sus, src, term.expr, term.type, dep)
         }
-        return new Env(state => ({
-          state,
-          tag: 'Done',
-          value: new Ann(false, term.expr, term.type),
-        }))
+        return new Env(
+          state =>
+            new Done(state, new Ann(false, term.expr, term.type)),
+        )
       }
 
       case 'Slf': {
@@ -1306,11 +1307,10 @@ export function check(
         dep + 1,
       ).bind(
         restArgsA =>
-          new Env(state => ({
-            state,
-            tag: 'Done',
-            value: [new Bnd(arg.name, argA), ...restArgsA],
-          })),
+          new Env(
+            state =>
+              new Done(state, [new Bnd(arg.name, argA), ...restArgsA]),
+          ),
       ),
     )
   }
@@ -1323,11 +1323,7 @@ export function check(
   ): Env<[string, Term]> {
     // This typically would log a warning that the case is unreachable
     // For now just return the case unchanged
-    return new Env(state => ({
-      state,
-      tag: 'Done',
-      value: [name, body],
-    }))
+    return new Env(state => new Done(state, [name, body]))
   }
 
   function sequence<T>(envs: Array<Env<T>>): Env<Array<T>> {
@@ -1336,14 +1332,10 @@ export function check(
         acc.bind(results =>
           curr.bind(
             result =>
-              new Env(state => ({
-                state,
-                tag: 'Done',
-                value: [...results, result],
-              })),
+              new Env(state => new Done(state, [...results, result])),
           ),
         ),
-      new Env(state => ({ state, tag: 'Done', value: [] as Array<T> })),
+      new Env(state => new Done(state, [] as Array<T>)),
     )
   }
 }
@@ -1358,12 +1350,7 @@ export function checkTele(
 ): Env<Tele> {
   if (tele.tag === 'TRet') {
     return check(sus, src, tele.term, typ, dep).bind(
-      termA =>
-        new Env(state => ({
-          state,
-          tag: 'Done',
-          value: new TRet(termA),
-        })),
+      termA => new Env(state => new Done(state, new TRet(termA))),
     )
   } else {
     return check(sus, src, tele.paramType, new SetType(), dep).bind(
@@ -1378,11 +1365,10 @@ export function checkTele(
           dep + 1,
         ).bind(
           bodA =>
-            new Env(state => ({
-              state,
-              tag: 'Done',
-              value: new TExt(tele.name, inpA, x => bodA),
-            })),
+            new Env(
+              state =>
+                new Done(state, new TExt(tele.name, inpA, x => bodA)),
+            ),
         ),
     )
   }
@@ -1448,12 +1434,7 @@ export function checkLater(
     return check(false, src, term, typx, dep)
   }
   return envSusp(new Check(src, term, typx, dep)).bind(
-    () =>
-      new Env(state => ({
-        state,
-        tag: 'Done',
-        value: new Met(0, []),
-      })),
+    () => new Env(state => new Done(state, new Met(0, []))),
   )
 }
 
@@ -1502,11 +1483,13 @@ export function doAnnotate(term: Term): Env<[Term, Fill]> {
     .bind(checkedTerm =>
       envGetFill().bind(
         fill =>
-          new Env(state => ({
-            state,
-            tag: 'Done',
-            value: [bind(checkedTerm, []), fill] as [Term, Fill],
-          })),
+          new Env(
+            state =>
+              new Done(state, [bind(checkedTerm, []), fill] as [
+                Term,
+                Fill,
+              ]),
+          ),
       ),
     )
 }
