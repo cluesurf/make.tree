@@ -1,5 +1,5 @@
 import { minimatch } from 'minimatch'
-import { Base } from '../form.js'
+import { Base } from '../types/index.js'
 import tool from '../tool.js'
 
 export * from './deck/index.js'

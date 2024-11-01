@@ -1,4 +1,4 @@
-import { MeshLoad } from '../form.js'
+import { MeshLoad } from '../types/index.js'
 import card from '../card.js'
 import tool from '../tool.js'
 
