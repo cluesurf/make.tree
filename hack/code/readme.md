@@ -454,3 +454,10 @@ Bind tree.
 
 When you save the deeply nested object, it triggers the fill card which
 is bound to it, and it marks it off.
+
+- parse the tree-code into simple AST
+- convert the simple AST (CodeTree) into typed AST (TermTree)
+  - use tree.text DSLs to convert the tree to data objects
+- typecheck on it, report any errors
+- compile to JavaScript
+- compile to swift
