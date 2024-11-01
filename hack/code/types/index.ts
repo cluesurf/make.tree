@@ -1,458 +1,419 @@
+// https://github.com/termsurf/make.tree/tree/465133c1daa64cd231c5ce4d8daef9d5173577e0/hack/code/types
+
+// Term types, representing different syntax tree nodes in a type system
 export type Term =
-  | All
-  | Lam
-  | App
-  | Bnd
-  | Ann
-  | Slf
-  | Ins
-  | ADT
-  | Con
-  | Mat
-  | Ref
-  | Let
-  | Nil
-  | Use
-  | SetType
-  | U64
-  | F64
-  | Num
-  | Flt
-  | Op2
-  | Swi
+  | UniversalType
+  | Function
+  | Call
+  | Binding
+  | Annotation
+  | Self
+  | SelfInstance
+  | AlgebraicDataType
+  | Constructor
+  | PatternMatch
+  | Reference
+  | LocalDefinition
+  | LocalUsage
+  | Base
+  | UInt64
+  | Float64
+  | Integer
+  | Float
+  | BinaryOperation
+  | SwitchCase
   | MapType
-  | KVs
-  | Get
-  | Put
-  | Hol
-  | Met
-  | Log
-  | Var
-  | Src
-  | Txt
-  | Lst
-  | Nat
-  | Sub
+  | KeyValueMap
+  | MapGetter
+  | MapSetter
+  | Placeholder
+  | MetaVariable
+  | Logger
+  | Variable
+  | SourceCode
+  | Text
+  | List
+  | NaturalNumber
+  | Substitution
 
-// Product: ∀(x: A) B
-export class All {
-  readonly tag = 'All'
-
-  constructor(
-    public name: string,
-    public paramType: Term,
-    public bodyFn: (param: Term) => Term,
-  ) {}
+// Universal Type (e.g., ∀(x: A) B)
+export type UniversalType = {
+  bodyFn: (param: Term) => Term
+  name: string
+  paramType: Term
+  tag: 'UniversalType'
 }
 
-// Lambda: λx f
-export class Lam {
-  readonly tag = 'Lam'
-
-  constructor(
-    public name: string,
-    public bodyFn: (param: Term) => Term,
-  ) {}
+// Function (e.g., λx f)
+export type Function = {
+  bodyFn: (param: Term) => Term
+  name: string
+  tag: 'Function'
 }
 
-export class Nil {
-  readonly tag = 'Nil'
+// Empty Value
+export type Void = {
+  tag: 'Void'
 }
 
-// Application: (fun arg)
-export class App {
-  readonly tag = 'App'
-
-  constructor(public func: Term, public arg: Term) {}
+// Call of a function to an argument
+export type Call = {
+  arg: Term
+  func: Term
+  tag: 'Call'
 }
 
-// Annotation: {x: T}
-export class Ann {
-  readonly tag = 'Ann'
-
-  constructor(
-    public flag: boolean,
-    public expr: Term,
-    public type: Term,
-  ) {}
+// Type Annotation (e.g., {x: T})
+export type Annotation = {
+  expr: Term
+  flag: boolean
+  tag: 'Annotation'
+  type: Term
 }
 
-// Self-Type: $(x: A) B
-export class Slf {
-  readonly tag = 'Slf'
-
-  constructor(
-    public name: string,
-    public paramType: Term,
-    public bodyFn: (param: Term) => Term,
-  ) {}
+// Self Type (e.g., $(x: A) B)
+export type Self = {
+  bodyFn: (param: Term) => Term
+  name: string
+  paramType: Term
+  tag: 'Self'
 }
 
-// Self-Inst: ~x
-export class Ins {
-  readonly tag = 'Ins'
-
-  constructor(public term: Term) {}
+// Instance of a Self Type (e.g., ~x)
+export type SelfInstance = {
+  tag: 'SelfInstance'
+  term: Term
 }
 
-// Constructor information
-export type ConstructorParam = {
+// Constructor Parameter
+export type ConstructorParameter = {
   name: string | null
   type: Term
 }
 
-// Constructor definition
-export class Ctr {
-  constructor(public name: string, public tele: Tele) {}
+// Constructor Definition
+export type ConstructorDefinition = {
+  name: string
+  params: Array<ConstructorParameter>
 }
 
-// Datatype: #[i0 i1...]{ #C0 Tele0 #C1 Tele1 ... }
-export class ADT {
-  readonly tag = 'ADT'
-
-  constructor(
-    public indices: Array<Term>,
-    public constructors: Array<Ctr>,
-    public term: Term,
-  ) {}
+// Algebraic Data Type (e.g., #[i0 i1...]{ #C0 Tele0 #C1 Tele1 ... })
+export type AlgebraicDataType = {
+  constructors: Array<ConstructorDefinition>
+  indices: Array<Term>
+  tag: 'AlgebraicDataType'
+  term: Term
 }
 
-// Constructor: #CN { x0 x1 ... }
-export class Con {
-  readonly tag = 'Con'
-
-  constructor(public name: string, public params: Array<Bnd>) {}
+// Constructor
+export type Constructor = {
+  name: string
+  params: Array<Binding>
+  tag: 'Constructor'
 }
 
-export class Bnd {
-  readonly tag = 'Bnd'
-
-  constructor(public name: string, public value: Term) {}
+// Binding
+export type Binding = {
+  name: string
+  tag: 'Binding'
+  value: Term
 }
 
-// Lambda-Match: λ{ #C0:B0 #C1:B1 ... }
-export class Mat {
-  readonly tag = 'Mat'
-
-  constructor(public cases: Array<Bnd>) {}
+// Pattern Matching (e.g., λ{ #C0:B0 #C1:B1 ... })
+export type PatternMatch = {
+  cases: Array<Binding>
+  tag: 'PatternMatch'
 }
 
-// Top-Level Reference: Foo
-export class Ref {
-  readonly tag = 'Ref'
-
-  constructor(public name: string) {}
+// Top-Level Reference
+export type Reference = {
+  name: string
+  tag: 'Reference'
 }
 
-// Local let-definition: let x = val body
-export class Let {
-  readonly tag = 'Let'
-
-  constructor(
-    public name: string,
-    public value: Term,
-    public bodyFn: (val: Term) => Term,
-  ) {}
+// Local Definition (e.g., let x = val body)
+export type LocalDefinition = {
+  bodyFn: (val: Term) => Term
+  name: string
+  tag: 'LocalDefinition'
+  value: Term
 }
 
-// Local use-definition: use x = val body
-export class Use {
-  readonly tag = 'Use'
-
-  constructor(
-    public name: string,
-    public value: Term,
-    public bodyFn: (val: Term) => Term,
-  ) {}
+// Local Usage (e.g., use x = val body)
+export type LocalUsage = {
+  bodyFn: (val: Term) => Term
+  name: string
+  tag: 'LocalUsage'
+  value: Term
 }
 
-// Universe: Set
-export class SetType {
-  readonly tag = 'Set'
+// Type Universe
+export type Base = {
+  tag: 'Base'
 }
 
-// U64 Type: U64
-export class U64 {
-  readonly tag = 'U64'
+// UInt64 Type
+export type UInt64 = {
+  tag: 'UInt64'
 }
 
-// F64 Type: F64
-export class F64 {
-  readonly tag = 'F64'
+// Float64 Type
+export type Float64 = {
+  tag: 'Float64'
 }
 
-// U64 Value: 123
-export class Num {
-  readonly tag = 'Num'
-
-  constructor(public value: number) {}
+// Integer Value (e.g., 123)
+export type Integer = {
+  tag: 'Integer'
+  value: number
 }
 
-// F64 Value: 1.5
-export class Flt {
-  readonly tag = 'Flt'
-
-  constructor(public value: number) {}
+// Floating Point Value (e.g., 1.5)
+export type Float = {
+  tag: 'Float'
+  value: number
 }
 
-// Numeric Operators
-export enum Oper {
+// Binary Operation Enum
+export enum Operation {
   ADD,
-  SUB,
-  MUL,
-  DIV,
-  MOD,
-  EQ,
-  NE,
-  LT,
-  GT,
-  LTE,
-  GTE,
+  SUBTRACT,
+  MULTIPLY,
+  DIVIDE,
+  MODULO,
+  EQUAL,
+  NOT_EQUAL,
+  LESS_THAN,
+  GREATER_THAN,
+  LESS_THAN_OR_EQUAL,
+  GREATER_THAN_OR_EQUAL,
   AND,
   OR,
   XOR,
-  LSH,
-  RSH,
+  LEFT_SHIFT,
+  RIGHT_SHIFT,
 }
 
-// Binary Operation: (+ x y)
-export class Op2 {
-  readonly tag = 'Op2'
-
-  constructor(
-    public operator: Oper,
-    public left: Term,
-    public right: Term,
-  ) {}
+// Binary Operation (e.g., (+ x y))
+export type BinaryOperation = {
+  left: Term
+  operator: Operation
+  right: Term
+  tag: 'BinaryOperation'
 }
 
-// U64 Elimination: λ{ 0:A 1+p:B }
-export class Swi {
-  readonly tag = 'Swi'
-
-  constructor(public zero: Term, public succ: Term) {}
+// Switch Case (e.g., λ{ 0:A 1+p:B })
+export type SwitchCase = {
+  successorCase: Term
+  tag: 'SwitchCase'
+  zeroCase: Term
 }
 
-// Linear Map Type: (Map T)
-export class MapType {
-  readonly tag = 'Map'
-
-  constructor(public elemType: Term) {}
+// Map Type (e.g., (Map T))
+export type MapType = {
+  elementType: Term
+  tag: 'MapType'
 }
 
-// Linear Map Value: { k0:v0 k1:v1 ... | default }
-export class KVs {
-  readonly tag = 'KVs'
-
-  constructor(
-    public entries: Map<number, Term>,
-    public defaultValue: Term,
-  ) {}
+// Key-Value Map
+export type KeyValueMap = {
+  defaultValue: Term
+  entries: Map<number, Term>
+  tag: 'KeyValueMap'
 }
 
-// Linear Map Getter
-export class Get {
-  readonly tag = 'Get'
-
-  constructor(
-    public got: string,
-    public name: string,
-    public map: Term,
-    public key: Term,
-    public bodyFn: (value: Term, map: Term) => Term,
-  ) {}
+// Map Getter
+export type MapGetter = {
+  accessor: string
+  bodyFn: (value: Term, map: Term) => Term
+  key: Term
+  map: Term
+  mapName: string
+  tag: 'MapGetter'
 }
 
-// Map Swapper
-export class Put {
-  readonly tag = 'Put'
-
-  constructor(
-    public got: string,
-    public name: string,
-    public map: Term,
-    public key: Term,
-    public value: Term,
-    public bodyFn: (oldValue: Term, newMap: Term) => Term,
-  ) {}
+// Map Setter
+export type MapSetter = {
+  accessor: string
+  bodyFn: (oldValue: Term, newMap: Term) => Term
+  key: Term
+  map: Term
+  mapName: string
+  tag: 'MapSetter'
+  value: Term
 }
 
-// Inspection Hole
-export class Hol {
-  readonly tag = 'Hol'
-
-  constructor(public name: string, public terms: Array<Term>) {}
+// Placeholder
+export type Placeholder = {
+  name: string
+  tag: 'Placeholder'
+  terms: Array<Term>
 }
 
-// Unification Metavar
-export class Met {
-  readonly tag = 'Met'
-
-  constructor(public id: number, public terms: Array<Term>) {}
+// Meta Variable for Unification
+export type MetaVariable = {
+  id: number
+  tag: 'MetaVariable'
+  terms: Array<Term>
 }
 
 // Logging
-export class Log {
-  readonly tag = 'Log'
-
-  constructor(public message: Term, public next: Term) {}
+export type Logger = {
+  message: Term
+  next: Term
+  tag: 'Logger'
 }
 
 // Variable
-export class Var {
-  readonly tag = 'Var'
-
-  constructor(public name: string, public index: number) {}
+export type Variable = {
+  index: number
+  name: string
+  tag: 'Variable'
 }
 
 // Source Location
-export class Loc {
-  constructor(
-    public name: string,
-    public line: number,
-    public column: number,
-  ) {}
+export type SourceLocation = {
+  columnNumber: number
+  lineNumber: number
 }
 
-export class Cod {
-  constructor(public start: Loc, public end: Loc) {}
+// Source Code Span
+export type CodeSpan = {
+  end: SourceLocation
+  fileName: string
+  start: SourceLocation
 }
 
-// Source Location Term
-export class Src {
-  readonly tag = 'Src'
-
-  constructor(public code: Cod, public term: Term) {}
+// Source Code Term
+export type SourceCode = {
+  span: CodeSpan
+  tag: 'SourceCode'
+  term: Term
 }
 
 // Text Literal
-export class Txt {
-  readonly tag = 'Txt'
-
-  constructor(public value: string) {}
+export type Text = {
+  tag: 'Text'
+  value: string
 }
 
 // List Literal
-export class Lst {
-  readonly tag = 'Lst'
-
-  constructor(public items: Array<Term>) {}
+export type List = {
+  items: Array<Term>
+  tag: 'List'
 }
 
-// Nat Literal
-export class Nat {
-  readonly tag = 'Nat'
-
-  constructor(public value: number) {}
+// Natural Number Literal
+export type NaturalNumber = {
+  tag: 'NaturalNumber'
+  value: number
 }
 
 // Substitution
-export class Sub {
-  readonly tag = 'Sub'
-
-  constructor(public term: Term) {}
+export type Substitution = {
+  tag: 'Substitution'
+  term: Term
 }
 
-export class TRet {
-  readonly tag = 'TRet'
+// Telescope Types
+export type Telescope = TelescopeReturn | TelescopeExtension
 
-  constructor(public term: Term) {}
+// Return Telescope
+export type TelescopeReturn = {
+  tag: 'Return'
+  term: Term
 }
 
-export class TExt {
-  readonly tag = 'TExt'
-
-  constructor(
-    public bodyFn: (param: Term) => Tele,
-    public name: string,
-    public paramType: Term,
-  ) {}
+// Extend Telescope
+export type TelescopeExtension = {
+  bodyFn: (param: Term) => Telescope
+  name: string
+  paramType: Term
+  tag: 'Extension'
 }
 
-// Telescope
-export type Tele = TRet | TExt
+// Info Types for Type-Checker Outputs
+export type Info =
+  | FoundInfo
+  | SolvedInfo
+  | ErrorInfo
+  | GenericInfo
+  | PrintInfo
 
-export class Found {
-  readonly tag: 'Found' = 'Found'
-
-  constructor(
-    public count: number,
-    public name: string,
-    public term: Term,
-    public terms: Array<Term>,
-  ) {}
+// Found Information
+export type FoundInfo = {
+  name: string
+  occurrence: number
+  tag: 'FoundInfo'
+  term: Term
+  terms: Array<Term>
 }
 
-export class Solve {
-  readonly tag: 'Solve' = 'Solve'
-
-  constructor(
-    public count: number,
-    public id: number,
-    public solution: Term,
-  ) {}
+// Solved Information
+export type SolvedInfo = {
+  id: number
+  occurrence: number
+  solution: Term
+  tag: 'SolvedInfo'
 }
 
-export class Error {
-  readonly tag: 'Error' = 'Error'
-
-  constructor(
-    public code: Cod | null,
-    public expected: Term,
-    public actual: Term,
-    public term: Term,
-    public count: number,
-  ) {}
+// Error Information
+export type ErrorInfo = {
+  actual: Term
+  expected: Term
+  location: CodeSpan | null
+  occurrence: number
+  tag: 'ErrorInfo'
+  term: Term
 }
 
-export class Vague {
-  constructor(public message: string) {}
+// Generic Information
+export type GenericInfo = {
+  message: string
+  tag: 'GenericInfo'
 }
 
-export class Print {
-  readonly tag: 'Print' = 'Print'
-
-  constructor(public count: number, public term: Term) {}
+// Print Information
+export type PrintInfo = {
+  occurrence: number
+  tag: 'PrintInfo'
+  term: Term
 }
-
-// Type-Checker Outputs
-export type Info = Found | Solve | Error | Vague | Print
 
 // Book of Definitions
-export type Book = Map<string, Term>
+export type DefinitionsBook = Map<string, Term>
 
 // Unification Solutions
-export type Fill = Map<number, Term>
+export type SolutionMap = Map<number, Term>
 
 // Checker State
-export class Check {
-  constructor(
-    public code: Cod | null,
-    public expected: Term,
-    public actual: Term,
-    public count: number,
-  ) {}
+export type CheckerState = {
+  checks: Array<CheckerResult>
+  definitions: DefinitionsBook
+  info: Array<Info>
+  solutions: SolutionMap
 }
 
-export class State {
-  constructor(
-    public book: Book,
-    public fill: Fill,
-    public checks: Array<Check>,
-    public info: Array<Info>,
-  ) {}
+// Checker Result
+export type CheckerResult = {
+  actual: Term
+  expected: Term
+  location: CodeSpan | null
+  occurrence: number
 }
 
-export class Done<T> {
-  readonly tag: 'Done' = 'Done'
+// Result Types
+export type Result<T> = Success<T> | Failure
 
-  constructor(public state: State, public value: T) {}
+// Success Result
+export type Success<T> = {
+  state: CheckerState
+  tag: 'Success'
+  value: T
 }
 
-export class Fail {
-  readonly tag: 'Fail' = 'Fail'
-
-  constructor(public state: State) {}
+// Failure Result
+export type Failure = {
+  state: CheckerState
+  tag: 'Failure'
 }
-
-export type Res<T> = Done<T> | Fail
