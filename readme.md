@@ -8,7 +8,7 @@
 
 <h3 align='center'>make.tree</h3>
 <p align='center'>
-  The NoteTree Compiler Library
+  The TextTree Compiler Library
 </p>
 
 <br/>
@@ -18,7 +18,7 @@
 ## Overview
 
 The `make.tree` project aims to be an advanced compiler for TreeCode, as
-part of the NoteTree ecosystem. It will just be a library which takes as
+part of the TextTree ecosystem. It will just be a library which takes as
 input paths to files and outputs compiled data structures. It builds a
 typechecked mesh representation, linked back to source code through
 TreeCode.
@@ -33,9 +33,9 @@ This library is built upon several sub-libraries:
 - `till`: generating output
 
 At first this library is written in TypeScript mostly, until it can be
-ultimately rewritten in NoteTree Text itself. The `hack` folder contains
+ultimately rewritten in TextTree Text itself. The `hack` folder contains
 stuff on finding dependencies which need to be resolved in the folder
-structure defined by the NoteTree spec, and for parsing the parser
+structure defined by the TextTree spec, and for parsing the parser
 definitions. Once we can parse the parser definitions, we can use the
 parser definitions to parse the "code" format.
 

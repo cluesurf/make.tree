@@ -1,6 +1,6 @@
 
 deck @termsurf/make
-  head <The NoteTree Compiler Library>
+  head <The TextTree Compiler Library>
   mark <0.0.1>
   link @termsurf/base, mark <0.x.x>
   link @termsurf/bind, mark <0.x.x>
