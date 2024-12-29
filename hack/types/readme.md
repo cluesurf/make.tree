@@ -45,4 +45,4 @@ make
 
 ## Inspiration
 
-- [Functional TS version of Kind language](https://github.com/termsurf/make.tree/pull/1)
+- [Functional TS version of Kind language](https://github.com/cluesurf/make.tree/pull/1)
