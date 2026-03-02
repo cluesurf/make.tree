@@ -1,0 +1,22 @@
+{
+  global:
+    hvm_init;
+    hvm_free;
+    hvm_prepare;
+    hvm_prepare_text;
+    hvm_wnf;
+    hvm_normalize;
+    hvm_term_new_*;
+    hvm_term_tag;
+    hvm_term_ext;
+    hvm_term_val;
+    hvm_heap_read;
+    hvm_heap_set;
+    hvm_heap_alloc;
+    hvm_table_find;
+    hvm_prim_register;
+    JNI_OnLoad;
+    Java_*;
+  local:
+    *;
+};

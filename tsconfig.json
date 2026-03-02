@@ -1,26 +1,28 @@
 {
   "compilerOptions": {
     "module": "ESNext",
-    "target": "ESNext",
-    "lib": ["es2020"],
-    "outDir": "make",
-    "rootDir": "hack",
+    "target": "ES2015",
+    "lib": ["es2020", "dom"],
+    "outDir": "host",
+    "rootDir": "code",
     "sourceMap": true,
-    "moduleResolution": "node",
+    "declaration": true,
+    "moduleResolution": "bundler",
     "strictNullChecks": true,
     "strict": true,
     "esModuleInterop": true,
     "noUncheckedIndexedAccess": true,
-    "baseUrl": "hack",
+    "baseUrl": ".",
+    "allowJs": false,
     "noErrorTruncation": true,
+    "resolveJsonModule": true,
     "types": ["node"],
     "typeRoots": ["node_modules/@types"],
-    "noImplicitAny": true,
-    "declaration": true,
+    "noImplicitAny": false,
     "paths": {
-      "~/*": ["./*"]
+      "@/*": ["./code/*"]
     }
   },
-  "include": ["*.ts", "**/*.ts", "*.d.ts"],
-  "exclude": ["node_modules", "make", "hold"]
+  "include": ["code/**/*.ts"],
+  "exclude": ["node_modules", "host", "tmp", "test"]
 }
