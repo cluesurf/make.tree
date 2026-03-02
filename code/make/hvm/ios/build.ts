@@ -45,7 +45,7 @@ async function main() {
       '-isysroot', sdkPath({ sdk: 'iphoneos' }),
     ],
   })
-  await exec({ cmd: 'ar', args: ['rcs', deviceLib, deviceObj] })
+  await exec({ cmd: 'libtool', args: ['-static', '-o', deviceLib, deviceObj] })
 
   // Simulator (arm64, Apple Silicon)
   await exec({
@@ -60,7 +60,7 @@ async function main() {
       '-isysroot', sdkPath({ sdk: 'iphonesimulator' }),
     ],
   })
-  await exec({ cmd: 'ar', args: ['rcs', simLib, simObj] })
+  await exec({ cmd: 'libtool', args: ['-static', '-o', simLib, simObj] })
 
   // Prepare headers for XCFramework
   mkdirSync(headerDir, { recursive: true })

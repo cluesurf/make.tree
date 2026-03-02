@@ -1,0 +1,5 @@
+module HVM {
+    header "hvm_lib.h"
+    link "hvm"
+    export *
+}

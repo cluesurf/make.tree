@@ -195,19 +195,16 @@ Copy into your Android project at `app/src/main/jniLibs/`.
 
 ### Prerequisites
 
-1. **Emscripten SDK (emsdk):**
+1. **Emscripten (emcc):**
 
 ```bash
-# Clone emsdk
-git clone https://github.com/emscripten-core/emsdk.git
-cd emsdk
+# macOS
+brew install emscripten
 
-# Install and activate latest
-./emsdk install latest
-./emsdk activate latest
-
-# Add to shell (add to ~/.zshrc or ~/.bashrc for persistence)
-source ./emsdk_env.sh
+# Linux (from source, if no package available)
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest
+source ~/emsdk/emsdk_env.sh  # add to ~/.bashrc for persistence
 
 # Verify
 emcc --version
