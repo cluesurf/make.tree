@@ -1,0 +1,38 @@
+form nat
+  case zero
+  case succ
+    link pred
+
+task fib
+  base n, like nat
+  fork case, loan n
+    hook zero
+      back mark 0
+    hook succ, base pred
+      fork case, loan pred
+        hook zero
+          back mark 1
+        hook succ, base pp
+          save a
+            call fib
+              bind n, loan pred
+          save b
+            call fib
+              bind n, loan pp
+          back call add
+            bind a, loan a
+            bind b, loan b
+
+task make-zero
+  back make zero
+
+task make-succ
+  base p, like nat
+  back make succ
+    bind pred, loan p
+
+task double
+  base n, like u64
+  back call mul
+    bind a, loan n
+    bind b, mark 2

@@ -410,7 +410,7 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).toContain('export function not(b)')
-      expect(result).toContain('$$m.$ === 0')
+      expect(result).toMatch(/\$\$m\d+\.\$ === 0/)
       expect(result).toContain('if (')
       expect(result).toContain('} else {')
       expect(result).not.toContain('switch')
@@ -450,7 +450,7 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).toContain('export function toNum(c)')
-      expect(result).toContain('switch ($$m.$)')
+      expect(result).toMatch(/switch \(\$\$m\d+\.\$\)/)
       expect(result).toContain('case 0:')
       expect(result).toContain('case 1:')
       expect(result).toContain('case 2:')

@@ -199,7 +199,7 @@ function castMatchStmt(input: {
   const { arms, scrutinee, dep, ctx, lines, indent } = input
   const pad = '  '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
-  const scrVar = `$$m`
+  const scrVar = `$$m${dep}`
   lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
 
   const useTag = ctx.tagMap.size > 0
@@ -274,7 +274,7 @@ function castSwiStmt(input: {
   const { zero, succ, scrutinee, dep, ctx, lines, indent } = input
   const pad = '  '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
-  const scrVar = `$$n`
+  const scrVar = `$$n${dep}`
   lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
   lines.push(`${pad}if (${scrVar} === 0) {`)
   castStmt({ term: zero, dep, ctx, lines, indent: indent + 1 })
