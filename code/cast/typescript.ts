@@ -13,6 +13,7 @@
  *   4. App(Swi, x) → inline if/else (no closure for nat switch)
  *   5. Numeric constructor tags for O(1) jump table dispatch
  *   6. Two-mode emission: statement vs expression context
+ *   7. Self-tail-call → while loop (no stack overflow for tail recursion)
  */
 
 import type { Term, Book, Oper, Ctr, Tele } from '@/term/form'
@@ -25,6 +26,12 @@ type EmitCtx = {
   arityMap: Map<string, number>
   book: Book
 }
+
+/** Tail-call context: tracks the current function for self-tail-call optimization. */
+type TailCtx = {
+  refName: string    // original book name (to match Ref nodes)
+  params: string[]   // parameter variable names (for reassignment)
+} | null
 
 // ---- Public API ----
 
@@ -41,9 +48,19 @@ export function castBook(input: { book: Book }): string {
     if (val.form === 'lam') {
       const { params, body } = unwrapLam({ term: val, dep: 0 })
       const paramStr = params.map(p => p.name).join(', ')
+      const paramNames = params.map(p => p.name)
+      const isTailRec = hasSelfTailCall({
+        term: body, refName: name, arity: params.length, dep: params.length,
+      })
+      const tail: TailCtx = isTailRec ? { refName: name, params: paramNames } : null
       const bodyLines: string[] = []
-      castStmt({ term: body, dep: params.length, ctx, lines: bodyLines, indent: 1 })
-      lines.push(`export function ${safeName}(${paramStr}) {\n${bodyLines.join('\n')}\n}`)
+      const bodyIndent = isTailRec ? 2 : 1
+      castStmt({ term: body, dep: params.length, ctx, lines: bodyLines, indent: bodyIndent, tail })
+      if (isTailRec) {
+        lines.push(`export function ${safeName}(${paramStr}) {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
+      } else {
+        lines.push(`export function ${safeName}(${paramStr}) {\n${bodyLines.join('\n')}\n}`)
+      }
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
       lines.push(`export const ${safeName} = ${expr};`)
@@ -109,6 +126,82 @@ function countLamDepth(term: Term): number {
   return count
 }
 
+/**
+ * Detect whether a term contains a self-tail-call in tail position.
+ * Walks only tail positions (let body, match arms, switch branches).
+ */
+function hasSelfTailCall(input: {
+  term: Term
+  refName: string
+  arity: number
+  dep: number
+}): boolean {
+  const { term, refName, arity, dep } = input
+
+  switch (term.form) {
+    case 'let':
+      return hasSelfTailCall({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        refName, arity, dep: dep + 1,
+      })
+
+    case 'app': {
+      const { func, args } = unwrapApp(term)
+
+      // Direct self-tail-call: App(Ref name, args...) with matching arity
+      if (func.form === 'ref' && func.name === refName && args.length === arity) {
+        return true
+      }
+
+      // Tail call inside match arms
+      if (func.form === 'mat' && args.length === 1) {
+        return func.arms.some(([, bod]) => {
+          let inner = bod
+          let d = dep
+          while (inner.form === 'lam') {
+            inner = inner.bod({ form: 'var', name: inner.name, idx: d })
+            d++
+          }
+          return hasSelfTailCall({ term: inner, refName, arity, dep: d })
+        })
+      }
+
+      // Tail call inside numeric switch
+      if (func.form === 'swi' && args.length === 1) {
+        const zeroHas = hasSelfTailCall({ term: func.zero, refName, arity, dep })
+        let succHas = false
+        if (func.succ.form === 'lam') {
+          const succBod = func.succ.bod({ form: 'var', name: func.succ.name, idx: dep })
+          succHas = hasSelfTailCall({ term: succBod, refName, arity, dep: dep + 1 })
+        } else {
+          succHas = hasSelfTailCall({ term: func.succ, refName, arity, dep })
+        }
+        return zeroHas || succHas
+      }
+
+      return false
+    }
+
+    case 'log':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
+
+    case 'ann':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
+
+    case 'ins':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
+
+    case 'src':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
+
+    case 'use':
+      return hasSelfTailCall({ term: term.bod(term.val), refName, arity, dep })
+
+    default:
+      return false
+  }
+}
+
 // ---- Phase B: Statement Mode ----
 
 function castStmt(input: {
@@ -117,8 +210,9 @@ function castStmt(input: {
   ctx: EmitCtx
   lines: string[]
   indent: number
+  tail?: TailCtx
 }): void {
-  const { term, dep, ctx, lines, indent } = input
+  const { term, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
 
   switch (term.form) {
@@ -127,7 +221,7 @@ function castStmt(input: {
       const val = castExpr({ term: term.val, dep, ctx })
       lines.push(`${pad}const ${name} = ${val};`)
       const bodTerm = term.bod({ form: 'var', name, idx: dep })
-      castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent })
+      castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent, tail })
       return
     }
 
@@ -138,7 +232,7 @@ function castStmt(input: {
         castMatchStmt({
           arms: func.arms,
           scrutinee: args[0]!,
-          dep, ctx, lines, indent,
+          dep, ctx, lines, indent, tail,
         })
         return
       }
@@ -148,10 +242,24 @@ function castStmt(input: {
           zero: func.zero,
           succ: func.succ,
           scrutinee: args[0]!,
-          dep, ctx, lines, indent,
+          dep, ctx, lines, indent, tail,
         })
         return
       }
+
+      // Self-tail-call → reassign params + continue
+      if (tail && func.form === 'ref' && func.name === tail.refName && args.length === tail.params.length) {
+        for (let i = 0; i < args.length; i++) {
+          const argExpr = castExpr({ term: args[i]!, dep, ctx })
+          lines.push(`${pad}const $$a${i} = ${argExpr};`)
+        }
+        for (let i = 0; i < tail.params.length; i++) {
+          lines.push(`${pad}${tail.params[i]} = $$a${i};`)
+        }
+        lines.push(`${pad}continue;`)
+        return
+      }
+
       // Fall through to return expression
       break
     }
@@ -159,24 +267,24 @@ function castStmt(input: {
     case 'log': {
       const msg = castExpr({ term: term.msg, dep, ctx })
       lines.push(`${pad}console.log(${msg});`)
-      castStmt({ term: term.val, dep, ctx, lines, indent })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
       return
     }
 
     case 'ann':
-      castStmt({ term: term.val, dep, ctx, lines, indent })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
       return
 
     case 'ins':
-      castStmt({ term: term.val, dep, ctx, lines, indent })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
       return
 
     case 'src':
-      castStmt({ term: term.val, dep, ctx, lines, indent })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
       return
 
     case 'use':
-      castStmt({ term: term.bod(term.val), dep, ctx, lines, indent })
+      castStmt({ term: term.bod(term.val), dep, ctx, lines, indent, tail })
       return
 
     default:
@@ -195,8 +303,9 @@ function castMatchStmt(input: {
   ctx: EmitCtx
   lines: string[]
   indent: number
+  tail?: TailCtx
 }): void {
-  const { arms, scrutinee, dep, ctx, lines, indent } = input
+  const { arms, scrutinee, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
   const scrVar = `$$m${dep}`
@@ -212,9 +321,9 @@ function castMatchStmt(input: {
     const tag0Str = tag0 !== undefined ? String(tag0) : JSON.stringify(arm0[0])
 
     lines.push(`${pad}if (${scrVar}.${tagField} === ${tag0Str}) {`)
-    castArmBody({ name: arm0[0], bod: arm0[1], scrVar, dep, ctx, lines, indent: indent + 1 })
+    castArmBody({ name: arm0[0], bod: arm0[1], scrVar, dep, ctx, lines, indent: indent + 1, tail })
     lines.push(`${pad}} else {`)
-    castArmBody({ name: arm1[0], bod: arm1[1], scrVar, dep, ctx, lines, indent: indent + 1 })
+    castArmBody({ name: arm1[0], bod: arm1[1], scrVar, dep, ctx, lines, indent: indent + 1, tail })
     lines.push(`${pad}}`)
   } else {
     // switch for 3+ arms
@@ -223,7 +332,7 @@ function castMatchStmt(input: {
       const tag = useTag ? ctx.tagMap.get(name) : undefined
       const tagStr = tag !== undefined ? String(tag) : JSON.stringify(name)
       lines.push(`${pad}  case ${tagStr}: {`)
-      castArmBody({ name, bod, scrVar, dep, ctx, lines, indent: indent + 2 })
+      castArmBody({ name, bod, scrVar, dep, ctx, lines, indent: indent + 2, tail })
       lines.push(`${pad}  }`)
     }
     lines.push(`${pad}  default: throw new Error("no match");`)
@@ -239,8 +348,9 @@ function castArmBody(input: {
   ctx: EmitCtx
   lines: string[]
   indent: number
+  tail?: TailCtx
 }): void {
-  const { name, bod, scrVar, dep, ctx, lines, indent } = input
+  const { name, bod, scrVar, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
 
   let armBod = bod
@@ -259,7 +369,7 @@ function castArmBody(input: {
     }
   }
 
-  castStmt({ term: armBod, dep: armDep, ctx, lines, indent })
+  castStmt({ term: armBod, dep: armDep, ctx, lines, indent, tail })
 }
 
 function castSwiStmt(input: {
@@ -270,14 +380,15 @@ function castSwiStmt(input: {
   ctx: EmitCtx
   lines: string[]
   indent: number
+  tail?: TailCtx
 }): void {
-  const { zero, succ, scrutinee, dep, ctx, lines, indent } = input
+  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
   const scrVar = `$$n${dep}`
   lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
   lines.push(`${pad}if (${scrVar} === 0) {`)
-  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1 })
+  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail })
 
   if (succ.form === 'lam') {
     const pName = varName({ name: succ.name, dep })
@@ -285,7 +396,7 @@ function castSwiStmt(input: {
     lines.push(`${pad}} else {`)
     lines.push(`${innerPad}const ${pName} = ${scrVar} - 1;`)
     const succBod = succ.bod({ form: 'var', name: pName, idx: dep })
-    castStmt({ term: succBod, dep: dep + 1, ctx, lines, indent: indent + 1 })
+    castStmt({ term: succBod, dep: dep + 1, ctx, lines, indent: indent + 1, tail })
   } else {
     lines.push(`${pad}} else {`)
     const succExpr = castExpr({ term: succ, dep, ctx })

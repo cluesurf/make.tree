@@ -31,6 +31,21 @@ task make-succ
   back make succ
     bind pred, loan p
 
+task fib-tail
+  base n, like nat
+  base a, like u64
+  base b, like u64
+  fork case, loan n
+    hook zero
+      back loan a
+    hook succ, base pred
+      back call fib-tail
+        bind n, loan pred
+        bind a, loan b
+        bind b, call add
+          bind a, loan a
+          bind b, loan b
+
 task double
   base n, like u64
   back call mul
