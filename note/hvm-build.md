@@ -5,24 +5,27 @@ How to install prerequisites and build `libhvm` for each platform.
 ## Quick Start
 
 ```bash
-cd deck/term/deck/make.tree
-
 # Build all platforms
-npx tsx code/make/hvm/build.ts
+pnpm tsx code/make/hvm/build.ts
 
 # Build one platform
-npx tsx code/make/hvm/build.ts macos
-npx tsx code/make/hvm/build.ts ios
-npx tsx code/make/hvm/build.ts android
-npx tsx code/make/hvm/build.ts wasm
-npx tsx code/make/hvm/build.ts server
-npx tsx code/make/hvm/build.ts windows
+pnpm tsx code/make/hvm/build.ts macos
+pnpm tsx code/make/hvm/build.ts ios
+pnpm tsx code/make/hvm/build.ts android
+pnpm tsx code/make/hvm/build.ts wasm
+pnpm tsx code/make/hvm/build.ts server
+pnpm tsx code/make/hvm/build.ts windows
 
 # Build multiple
-npx tsx code/make/hvm/build.ts macos ios wasm
+pnpm tsx code/make/hvm/build.ts macos ios wasm
 ```
 
-Output goes to `code/make/hvm/build/<platform>/`.
+Output goes to `./host/hvm/<platform>/` in the current working
+directory. Override with `HVM_OUTPUT_PATH`:
+
+```bash
+HVM_OUTPUT_PATH=/absolute/path/to/output pnpm tsx code/make/hvm/build.ts macos
+```
 
 ## Prerequisites (All Platforms)
 
@@ -42,8 +45,8 @@ sudo apt install -y nodejs
 # Windows
 winget install OpenJS.NodeJS.LTS
 
-# Install tsx globally (or use npx)
-npm install -g tsx
+# Install tsx globally (or use pnpm)
+pnpm add -g tsx
 ```
 
 ### HVM4 Fork
@@ -52,7 +55,7 @@ The build scripts expect the HVM4 fork at `../../fork-HVM4/clang`
 relative to `make.tree/`. If the fork is elsewhere, set `HVM_SRC`:
 
 ```bash
-HVM_SRC=/path/to/fork-HVM4/clang npx tsx code/make/hvm/build.ts macos
+HVM_SRC=/path/to/fork-HVM4/clang pnpm tsx code/make/hvm/build.ts macos
 ```
 
 ## Platform: macOS
@@ -73,7 +76,7 @@ That is all. macOS ships with everything needed.
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts macos
+pnpm tsx code/make/hvm/build.ts macos
 ```
 
 ### Options
@@ -84,13 +87,13 @@ npx tsx code/make/hvm/build.ts macos
 
 ```bash
 # arm64 only (faster, smaller)
-MACOS_ARCH=arm64 npx tsx code/make/hvm/build.ts macos
+MACOS_ARCH=arm64 pnpm tsx code/make/hvm/build.ts macos
 ```
 
 ### Output
 
 ```
-code/make/hvm/build/macos/libhvm.a   (~220KB arm64, ~440KB universal)
+host/hvm/macos/libhvm.a   (~220KB arm64, ~440KB universal)
 ```
 
 ## Platform: iOS
@@ -113,7 +116,7 @@ iOS and simulator SDKs are bundled with Xcode.
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts ios
+pnpm tsx code/make/hvm/build.ts ios
 ```
 
 ### Options
@@ -126,13 +129,13 @@ npx tsx code/make/hvm/build.ts ios
 
 ```bash
 # Target older devices with smaller heap
-HEAP_CAP_BITS=28 npx tsx code/make/hvm/build.ts ios
+HEAP_CAP_BITS=28 pnpm tsx code/make/hvm/build.ts ios
 ```
 
 ### Output
 
 ```
-code/make/hvm/build/ios/HVM.xcframework/
+host/hvm/ios/HVM.xcframework/
 ```
 
 Drop the `.xcframework` into an Xcode project. It contains both device
@@ -160,13 +163,13 @@ The build script auto-detects the NDK at
 `ANDROID_NDK`:
 
 ```bash
-ANDROID_NDK=/path/to/ndk npx tsx code/make/hvm/build.ts android
+ANDROID_NDK=/path/to/ndk pnpm tsx code/make/hvm/build.ts android
 ```
 
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts android
+pnpm tsx code/make/hvm/build.ts android
 ```
 
 ### Options
@@ -181,7 +184,7 @@ npx tsx code/make/hvm/build.ts android
 ### Output
 
 ```
-code/make/hvm/build/android/
+host/hvm/android/
   arm64-v8a/libhvm.so
   x86_64/libhvm.so
 ```
@@ -229,7 +232,7 @@ optimization step is skipped.
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts wasm
+pnpm tsx code/make/hvm/build.ts wasm
 ```
 
 ### Options
@@ -241,7 +244,7 @@ npx tsx code/make/hvm/build.ts wasm
 ### Output
 
 ```
-code/make/hvm/build/wasm/
+host/hvm/wasm/
   hvm.mjs          (JS glue module)
   hvm.wasm         (WASM binary, ~50-70KB)
   hvm.opt.wasm     (optimized, if wasm-opt available)
@@ -269,7 +272,7 @@ ar --version
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts server
+pnpm tsx code/make/hvm/build.ts server
 ```
 
 ### Options
@@ -282,22 +285,22 @@ npx tsx code/make/hvm/build.ts server
 
 ```bash
 # Use gcc instead
-CC=gcc npx tsx code/make/hvm/build.ts server
+CC=gcc pnpm tsx code/make/hvm/build.ts server
 
 # Smaller heap for constrained environments
-HEAP_CAP_BITS=32 MAX_THREADS=8 npx tsx code/make/hvm/build.ts server
+HEAP_CAP_BITS=32 MAX_THREADS=8 pnpm tsx code/make/hvm/build.ts server
 ```
 
 ### Output
 
 ```
-code/make/hvm/build/server/libhvm.a   (~220KB)
+host/hvm/server/libhvm.a   (~220KB)
 ```
 
 Link into your application:
 
 ```bash
-clang -O2 my_app.c -L code/make/hvm/build/server -lhvm -lpthread -ldl -lm -o my_app
+clang -O2 my_app.c -L host/hvm/server -lhvm -lpthread -ldl -lm -o my_app
 ```
 
 ## Platform: Windows
@@ -341,7 +344,7 @@ libraries. It comes with Visual Studio Build Tools.
 ### Build
 
 ```bash
-npx tsx code/make/hvm/build.ts windows
+pnpm tsx code/make/hvm/build.ts windows
 ```
 
 ### Options
@@ -355,16 +358,16 @@ npx tsx code/make/hvm/build.ts windows
 
 ```powershell
 # Use MSVC
-$env:CC="cl"; npx tsx code/make/hvm/build.ts windows
+$env:CC="cl"; pnpm tsx code/make/hvm/build.ts windows
 
 # Build DLL too
-$env:BUILD_DLL="1"; npx tsx code/make/hvm/build.ts windows
+$env:BUILD_DLL="1"; pnpm tsx code/make/hvm/build.ts windows
 ```
 
 ### Output
 
 ```
-code/make/hvm/build/windows/
+host/hvm/windows/
   hvm.lib    (static library)
   hvm.dll    (shared library, if BUILD_DLL=1)
 ```
@@ -377,7 +380,7 @@ The build scripts look for the fork at `../../fork-HVM4/clang` relative
 to `make.tree/`. If it is elsewhere:
 
 ```bash
-HVM_SRC=/absolute/path/to/clang npx tsx code/make/hvm/build.ts macos
+HVM_SRC=/absolute/path/to/clang pnpm tsx code/make/hvm/build.ts macos
 ```
 
 ### "lib.c: No such file"
@@ -390,7 +393,7 @@ that `clang/lib.c` and `clang/hvm_lib.h` exist in the fork.
 Set the `ANDROID_NDK` env var to point to the NDK root:
 
 ```bash
-ANDROID_NDK=$HOME/Library/Android/sdk/ndk/27.0.12077973 npx tsx code/make/hvm/build.ts android
+ANDROID_NDK=$HOME/Library/Android/sdk/ndk/27.0.12077973 pnpm tsx code/make/hvm/build.ts android
 ```
 
 ### "emcc: command not found"
@@ -399,7 +402,7 @@ Source the emsdk environment before building WASM:
 
 ```bash
 source /path/to/emsdk/emsdk_env.sh
-npx tsx code/make/hvm/build.ts wasm
+pnpm tsx code/make/hvm/build.ts wasm
 ```
 
 ### "mmap fails / Memory allocation failed"

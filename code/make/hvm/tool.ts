@@ -13,8 +13,11 @@ export const ROOT = resolve(HVM_DIR, '..', '..', '..', '..')
 export const HVM_SRC =
   process.env.HVM_SRC ?? resolve(ROOT, '..', '..', 'fork-HVM4', 'clang')
 
+export const HVM_OUTPUT =
+  process.env.HVM_OUTPUT_PATH ?? resolve(process.cwd(), 'host', 'hvm')
+
 export function buildDir(input: { platform: string }): string {
-  const dir = resolve(HVM_DIR, 'build', input.platform)
+  const dir = resolve(HVM_OUTPUT, input.platform)
   mkdirSync(dir, { recursive: true })
   return dir
 }

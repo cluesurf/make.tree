@@ -1,6 +1,6 @@
 // build.ts - Top-level HVM library build for all platforms.
 //
-// Usage: npx tsx code/make/hvm/build.ts [platform...]
+// Usage: pnpm tsx code/make/hvm/build.ts [platform...]
 //
 // Platforms: macos, ios, android, wasm, server, windows
 // No args = build all platforms.
@@ -46,7 +46,7 @@ async function buildPlatform(input: { platform: string }) {
     'build.ts',
   )
   console.log(`\n=== Building HVM for ${input.platform} ===\n`)
-  await run({ cmd: 'npx', args: ['tsx', script] })
+  await run({ cmd: 'pnpm', args: ['tsx', script] })
 }
 
 async function main() {

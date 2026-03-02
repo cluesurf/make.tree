@@ -6,6 +6,5 @@
     "source.fixAll.eslint": "explicit"
   },
   "eslint.validate": ["javascript", "typescript"],
-  "eslint.nodePath": "./node_modules/eslint",
-  "eslint.packageManager": "npm"
+  "eslint.nodePath": "./node_modules/eslint"
 }
