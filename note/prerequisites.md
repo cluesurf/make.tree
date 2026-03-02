@@ -28,7 +28,11 @@ xcodebuild -runFirstLaunch
 
 ## Android
 
-Install Android Studio from https://developer.android.com/studio.
+```
+brew install --cask android-ndk
+```
+
+Or, install Android Studio from https://developer.android.com/studio.
 
 Then install the NDK: open Android Studio > Settings > Languages &
 Frameworks > Android SDK > SDK Tools > check "NDK (Side by side)" >
