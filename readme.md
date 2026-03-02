@@ -37,7 +37,7 @@ pnpm test
 
 ## License
 
-Copyright 2021-2024 <a href='https://clue.surf'>ClueSurf</a>
+Copyright 2021-2026+ <a href='https://clue.surf'>ClueSurf</a>
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may
 not use this file except in compliance with the License. You may obtain
