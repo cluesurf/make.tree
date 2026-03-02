@@ -14,7 +14,7 @@ const PLATFORMS = [
   'ios',
   'android',
   'wasm',
-  'server',
+  'linux',
   'windows',
 ]
 

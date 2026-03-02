@@ -8,10 +8,7 @@ export const HVM_DIR = resolve(
   dirname(new URL(import.meta.url).pathname),
 )
 
-export const ROOT = resolve(HVM_DIR, '..', '..', '..', '..')
-
-export const HVM_SRC =
-  process.env.HVM_SRC ?? resolve(ROOT, '..', '..', 'fork-HVM4', 'clang')
+export const HVM_SRC = process.env.HVM_SRC
 
 export const HVM_OUTPUT =
   process.env.HVM_OUTPUT_PATH ?? resolve(process.cwd(), 'host', 'hvm')

@@ -13,7 +13,7 @@ pnpm tsx code/make/hvm/build.ts macos
 pnpm tsx code/make/hvm/build.ts ios
 pnpm tsx code/make/hvm/build.ts android
 pnpm tsx code/make/hvm/build.ts wasm
-pnpm tsx code/make/hvm/build.ts server
+pnpm tsx code/make/hvm/build.ts linux
 pnpm tsx code/make/hvm/build.ts windows
 
 # Build multiple
@@ -250,7 +250,7 @@ host/hvm/wasm/
   hvm.opt.wasm     (optimized, if wasm-opt available)
 ```
 
-## Platform: Server (Linux)
+## Platform: Linux
 
 ### Prerequisites
 
@@ -272,7 +272,7 @@ ar --version
 ### Build
 
 ```bash
-pnpm tsx code/make/hvm/build.ts server
+pnpm tsx code/make/hvm/build.ts linux
 ```
 
 ### Options
@@ -285,22 +285,22 @@ pnpm tsx code/make/hvm/build.ts server
 
 ```bash
 # Use gcc instead
-CC=gcc pnpm tsx code/make/hvm/build.ts server
+CC=gcc pnpm tsx code/make/hvm/build.ts linux
 
 # Smaller heap for constrained environments
-HEAP_CAP_BITS=32 MAX_THREADS=8 pnpm tsx code/make/hvm/build.ts server
+HEAP_CAP_BITS=32 MAX_THREADS=8 pnpm tsx code/make/hvm/build.ts linux
 ```
 
 ### Output
 
 ```
-host/hvm/server/libhvm.a   (~220KB)
+host/hvm/linux/libhvm.a   (~220KB)
 ```
 
 Link into your application:
 
 ```bash
-clang -O2 my_app.c -L host/hvm/server -lhvm -lpthread -ldl -lm -o my_app
+clang -O2 my_app.c -L host/hvm/linux -lhvm -lpthread -ldl -lm -o my_app
 ```
 
 ## Platform: Windows
@@ -412,7 +412,7 @@ address space. Mobile and constrained systems need smaller values:
 
 | Environment     | Suggested `HEAP_CAP_BITS` |
 | --------------- | ------------------------- |
-| Server (64GB+)  | 38 (default)              |
+| Linux (64GB+)   | 38 (default)              |
 | Desktop         | 34-38                     |
 | Mobile (iOS)    | 28-30                     |
 | Mobile (Android)| 28-30                     |
