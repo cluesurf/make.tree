@@ -25,7 +25,7 @@ TreeCode.
 
 ## Development
 
-See [note/prereqs.md](note/prereqs.md) for platform prerequisites
+See [prerequisites](note/prerequisites.md) for platform prerequisites
 (Xcode, Android NDK, Emscripten, Docker).
 
 Can run tests with:
