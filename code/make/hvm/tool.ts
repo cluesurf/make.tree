@@ -8,7 +8,11 @@ export const HVM_DIR = resolve(
   dirname(new URL(import.meta.url).pathname),
 )
 
-export const HVM_SRC = process.env.HVM_SRC
+export const HVM_SRC = process.env.HVM_SRC!
+
+if (!HVM_SRC) {
+  throw new Error('No `HVM_SRC` present')
+}
 
 export const HVM_OUTPUT =
   process.env.HVM_OUTPUT_PATH ?? resolve(process.cwd(), 'host', 'hvm')
