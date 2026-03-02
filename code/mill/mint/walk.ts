@@ -388,7 +388,7 @@ function takeValToRaw(val: TakeVal): unknown {
   switch (val.form) {
     case 'text': return val.val
     case 'mark': return val.val
-    case 'road': return val.val
+    case 'path': return val.val
     case 'list': return val.val.map(m => takeMapToObj(m))
     case 'tree': return val.val
     case 'map': return takeMapToObj(val.val)

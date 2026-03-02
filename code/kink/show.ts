@@ -158,10 +158,10 @@ function showKinkRest(kink: Kink, t: TintFn): string[] {
     )
   }
 
-  if (k['road'] && Array.isArray(k['road'])) {
-    const road = (k['road'] as string[]).join(' -> ')
+  if (k['path'] && Array.isArray(k['path'])) {
+    const path = (k['path'] as string[]).join(' -> ')
     lines.push(
-      `  ${t('bind', H)} ${t('road', W)}${t(', <', H)}${t(road, M)}${t('>', H)}`,
+      `  ${t('bind', H)} ${t('path', W)}${t(', <', H)}${t(path, M)}${t('>', H)}`,
     )
   }
 

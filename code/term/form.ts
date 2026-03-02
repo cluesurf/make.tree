@@ -258,9 +258,17 @@ export type Info =
 /** Unification solutions: metavar uid -> solved term. */
 export type Fill = Map<number, Term>
 
+/** A suspended type check (re-checked after metavar solving). */
+export type Susp = {
+  need: Term
+  have: Term
+  dep: number
+}
+
 /** Checker state. */
 export type State = {
   book: Book
   fill: Fill
+  susp: Susp[]
   logs: Info[]
 }

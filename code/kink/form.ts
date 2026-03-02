@@ -62,7 +62,7 @@ export type KinkNameDouble = KinkBase & {
 
 export type KinkLoadCircle = KinkBase & {
   form: 'load-circle'
-  road: string[]
+  path: string[]
 }
 
 // Phase 3: Desugar errors

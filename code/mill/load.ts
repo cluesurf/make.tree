@@ -29,7 +29,7 @@ export type Mill = {
 }
 
 /** Load callback: read a .note file path and return its Tree AST. */
-export type ReadFn = (road: string) => Tree | undefined
+export type ReadFn = (path: string) => Tree | undefined
 
 /**
  * Load all mine/mint definitions from a base.tree mill directory.
@@ -82,8 +82,8 @@ function resolveMineLoads(
   allMine: Map<string, MineForm>,
 ): void {
   for (const load of file.load) {
-    const road = resolveRoad(load.road, basePath)
-    const minePath = `${road}/mine.note`
+    const resolved = resolvePath(load.path, basePath)
+    const minePath = `${resolved}/mine.note`
     const tree = readFn(minePath)
     if (!tree) continue
 
@@ -107,8 +107,8 @@ function resolveMintLoads(
   allMint: Map<string, MintForm>,
 ): void {
   for (const load of file.load) {
-    const road = resolveRoad(load.road, basePath)
-    const mintPath = `${road}/mint.note`
+    const resolved = resolvePath(load.path, basePath)
+    const mintPath = `${resolved}/mint.note`
     const tree = readFn(mintPath)
     if (!tree) continue
 
@@ -124,10 +124,10 @@ function resolveMintLoads(
   }
 }
 
-/** Resolve a relative road (../sift) against a base path. */
-function resolveRoad(road: string, basePath: string): string {
+/** Resolve a relative path (../sift) against a base path. */
+function resolvePath(path: string, basePath: string): string {
   // Remove angle brackets if present
-  const clean = road.replace(/^<|>$/g, '')
+  const clean = path.replace(/^<|>$/g, '')
 
   if (clean.startsWith('../') || clean.startsWith('./')) {
     // Relative path

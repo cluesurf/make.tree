@@ -106,7 +106,7 @@ export type SurfBind = SurfMixin & {
 
 export type SurfSave = SurfMixin & {
   form: 'save'
-  road: string[]
+  path: string[]
   sift?: Surf
   flex?: boolean
 }
@@ -167,7 +167,7 @@ export type SurfHook = SurfMixin & {
 
 export type SurfLoad = SurfMixin & {
   form: 'load'
-  road: string[]
+  path: string[]
   find: SurfFind[]
   hook: SurfLoadHook[]
 }
@@ -188,22 +188,22 @@ export type SurfLoadHook = SurfMixin & {
 
 export type SurfSiftLink = SurfMixin & {
   form: 'sift-link'
-  road: string[]
+  path: string[]
 }
 
 export type SurfSiftMove = SurfMixin & {
   form: 'sift-move'
-  road: string[]
+  path: string[]
 }
 
 export type SurfSiftRead = SurfMixin & {
   form: 'sift-read'
-  road: string[]
+  path: string[]
 }
 
 export type SurfSiftLoan = SurfMixin & {
   form: 'sift-loan'
-  road: string[]
+  path: string[]
 }
 
 export type SurfSiftText = SurfMixin & {

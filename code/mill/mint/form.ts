@@ -185,7 +185,7 @@ export type MintLink = {
  */
 export type MintLoad = {
   form: 'mint-load'
-  road: string
+  path: string
   hook: MintLoadHook[]
   find: MintLoadFind[]
   take: MintLoadTake[]

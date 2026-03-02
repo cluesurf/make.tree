@@ -24,7 +24,7 @@ import type {
   MineFormRule,
   MineHead,
   MineRoom,
-  MineRoad,
+  MinePath,
   MineText,
   MineTake,
 } from './form'
@@ -40,7 +40,7 @@ export type TakeVal =
   | { form: 'mark', val: number, site: Site }
   | { form: 'list', val: TakeMap[], site: Site }
   | { form: 'tree', val: TreeLink, site: Site }
-  | { form: 'road', val: string[], site: Site }
+  | { form: 'path', val: string[], site: Site }
   | { form: 'map', val: TakeMap, site: Site }
 
 /** Context for mine walking. */
@@ -94,8 +94,8 @@ function walkRule(
       return walkMineHead(rule, parent, children, pos, take, ctx)
     case 'mine-room':
       return walkMineRoom(rule, parent, children, pos, take, ctx)
-    case 'mine-road':
-      return walkMineRoad(rule, parent, children, pos, take, ctx)
+    case 'mine-path':
+      return walkMinePath(rule, parent, children, pos, take, ctx)
     case 'mine-text':
       return walkMineText(rule, parent, children, pos, take, ctx)
     case 'mine-take':
@@ -323,12 +323,12 @@ function walkMineRoom(
 }
 
 /**
- * mine road
+ * mine path
  *
  * Extract a slash-separated path from the current position.
  */
-function walkMineRoad(
-  rule: MineRoad,
+function walkMinePath(
+  rule: MinePath,
   parent: TreeLink,
   children: Array<TreeTerm | TreeLink | TreeCord | TreeMark>,
   pos: number,
@@ -338,24 +338,24 @@ function walkMineRoad(
   const child = children[pos]
   if (!child) return { match: false, next: pos }
 
-  // A road is a text value like "@cluesurf/seed/code/show"
+  // A path is a text value like "@cluesurf/seed/code/show"
   // or a TreeCord with slash-separated segments
-  let roadText = ''
+  let pathText = ''
   if (isCord(child)) {
-    roadText = child.text
+    pathText = child.text
   } else if (isTerm(child)) {
-    roadText = termText(child)
+    pathText = termText(child)
   }
 
-  if (!roadText) return { match: false, next: pos }
+  if (!pathText) return { match: false, next: pos }
 
-  const segments = roadText.split('/')
+  const segments = pathText.split('/')
   const site =codeSite(parent, ctx.file)
 
   // Walk child take rules
   for (const sub of rule.list) {
     if (sub.form === 'mine-take') {
-      take.set(sub.name, { form: 'road', val: segments, site })
+      take.set(sub.name, { form: 'path', val: segments, site })
     }
   }
 

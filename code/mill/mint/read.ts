@@ -40,7 +40,7 @@ export function readMintFile(input: { tree: Tree, file: string }): MintFile {
 /** Parse a `load` directive. */
 function readMintLoad(link: TreeLink, file: string): MintLoad {
   const site =linkSite(link, file)
-  const road = readFirstTermText(link) ?? readFirstText(link) ?? ''
+  const path = readFirstTermText(link) ?? readFirstText(link) ?? ''
 
   const hook: MintLoadHook[] = []
   const find: MintLoadFind[] = []
@@ -67,7 +67,7 @@ function readMintLoad(link: TreeLink, file: string): MintLoad {
     }
   }
 
-  return { form: 'mint-load', road, hook, find, take, site }
+  return { form: 'mint-load', path, hook, find, take, site }
 }
 
 /** Parse a named `mint <name>` definition. */

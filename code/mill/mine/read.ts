@@ -43,7 +43,7 @@ export function readMineFile(input: { tree: Tree, file: string }): MineFile {
 /** Parse a `load` directive. */
 function readMineLoad(link: TreeLink, file: string): MineLoad {
   const site =linkSite(link, file)
-  const road = readFirstTermText(link) ?? readFirstText(link) ?? ''
+  const path = readFirstTermText(link) ?? readFirstText(link) ?? ''
 
   const hook: MineLoadHook[] = []
   const find: MineLoadFind[] = []
@@ -69,7 +69,7 @@ function readMineLoad(link: TreeLink, file: string): MineLoad {
     }
   }
 
-  return { form: 'mine-load', road, hook, find, take, site }
+  return { form: 'mine-load', path, hook, find, take, site }
 }
 
 /** Parse a named `mine <name>` definition. */
@@ -209,9 +209,9 @@ function readMineKeyword(link: TreeLink, file: string): MineRule {
         site,
       }
 
-    case 'road':
+    case 'path':
       return {
-        form: 'mine-road',
+        form: 'mine-path',
         list: children,
         site,
       }

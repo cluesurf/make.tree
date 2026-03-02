@@ -23,7 +23,7 @@ export type MineForm = {
  *
  * These correspond to the keywords found in mine.note files:
  *   mine term, mine list, mine case, mine form, mine head,
- *   mine room, mine road, mine text, take, make head, make case,
+ *   mine room, mine path, mine text, take, make head, make case,
  *   tree rest, note
  */
 export type MineRule =
@@ -33,7 +33,7 @@ export type MineRule =
   | MineFormRule
   | MineHead
   | MineRoom
-  | MineRoad
+  | MinePath
   | MineText
   | MineTake
   | MineMakeHead
@@ -121,13 +121,13 @@ export type MineRoom = {
 }
 
 /**
- * mine road
+ * mine path
  *
  * Match a slash-separated path (e.g., `@cluesurf/base/code/show`).
  * Extracts the path segments.
  */
-export type MineRoad = {
-  form: 'mine-road'
+export type MinePath = {
+  form: 'mine-path'
   list: MineRule[]
   site: Site
 }
@@ -215,7 +215,7 @@ export type MineNote = {
  */
 export type MineLoad = {
   form: 'mine-load'
-  road: string
+  path: string
   hook: MineLoadHook[]
   find: MineLoadFind[]
   take: MineLoadTake[]
