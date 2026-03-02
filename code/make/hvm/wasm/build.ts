@@ -12,7 +12,7 @@ import { exec, buildDir } from '../tool'
 import { resolve } from 'path'
 
 const OUT = buildDir({ platform: 'wasm' })
-const HEAP_BITS = process.env.HEAP_CAP_BITS || '26'
+const HEAP_BITS = process.env.HEAP_CAP_BITS ?? '26'
 
 const EXPORTED_FUNCTIONS = [
   '_hvm_init',
