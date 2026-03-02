@@ -9,7 +9,7 @@ brew install node
 pnpm add -g tsx
 ```
 
-## macOS
+## MacOS
 
 ```bash
 xcode-select --install
