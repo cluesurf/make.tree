@@ -110,6 +110,17 @@ recognizable. Eventually it reaches a point where things don't change,
 and if all things are complete, then it was a success, otherwise there
 were potential errors.
 
+## Development
+
+See [note/prereqs.md](note/prereqs.md) for platform prerequisites
+(Xcode, Android NDK, Emscripten, Docker).
+
+Can run tests with:
+
+```bash
+pnpm test
+```
+
 ## License
 
 Copyright 2021-2024 <a href='https://clue.surf'>ClueSurf</a>
