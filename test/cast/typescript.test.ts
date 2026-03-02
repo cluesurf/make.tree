@@ -101,12 +101,12 @@ describe('cast/typescript', () => {
       expect(cast(term)).toBe('(x) => x')
     })
 
-    it('casts nested lambda', () => {
+    it('casts nested lambda as multi-param', () => {
       const term: Term = {
         form: 'lam', name: 'x',
         bod: (_x) => ({ form: 'lam', name: 'y', bod: (y) => y }),
       }
-      expect(cast(term)).toBe('(x) => (y) => y')
+      expect(cast(term)).toBe('(x, y) => y')
     })
 
     it('casts simple application', () => {
@@ -118,7 +118,7 @@ describe('cast/typescript', () => {
       expect(cast(term)).toBe('f(1)')
     })
 
-    it('casts nested application (multi-arg curried)', () => {
+    it('casts nested application as multi-arg call', () => {
       const term: Term = {
         form: 'app',
         func: {
@@ -128,12 +128,12 @@ describe('cast/typescript', () => {
         },
         argm: { form: 'num', val: 2 },
       }
-      expect(cast(term)).toBe('add(1)(2)')
+      expect(cast(term)).toBe('add(1, 2)')
     })
   })
 
   describe('castTerm let and op2', () => {
-    it('casts let binding as IIFE', () => {
+    it('casts let binding as IIFE in expression mode', () => {
       const term: Term = {
         form: 'let', name: 'x',
         val: { form: 'num', val: 10 },
@@ -170,8 +170,8 @@ describe('cast/typescript', () => {
     })
   })
 
-  describe('castTerm constructors and match', () => {
-    it('casts Con with no args as tagged object', () => {
+  describe('castTerm constructors and match (no ctx)', () => {
+    it('casts Con with no args as string-tagged object', () => {
       expect(cast({ form: 'con', name: 'True', args: [] }))
         .toBe('({ tag: "True" })')
     })
@@ -195,7 +195,7 @@ describe('cast/typescript', () => {
       expect(cast(term)).toBe('({ tag: "Pair", _0: 1, _1: 2 })')
     })
 
-    it('casts Mat as switch on tag', () => {
+    it('casts standalone Mat as switch function', () => {
       const term: Term = {
         form: 'mat',
         arms: [
@@ -209,7 +209,7 @@ describe('cast/typescript', () => {
       expect(result).toContain('case "Succ": return (p) => p;')
     })
 
-    it('casts Swi as ternary', () => {
+    it('casts Swi as ternary function', () => {
       const term: Term = {
         form: 'swi',
         zero: { form: 'num', val: 100 },
@@ -241,15 +241,14 @@ describe('cast/typescript', () => {
   })
 
   describe('castTerm misc', () => {
-    it('casts Log as console.log IIFE', () => {
+    it('casts Log as comma expression', () => {
       const term: Term = {
         form: 'log',
         msg: { form: 'txt', val: 'debug' },
         val: { form: 'num', val: 0 },
       }
       const result = cast(term)
-      expect(result).toContain('console.log("debug")')
-      expect(result).toContain('return 0')
+      expect(result).toBe('(console.log("debug"), 0)')
     })
 
     it('casts Hol as throw', () => {
@@ -269,13 +268,8 @@ describe('cast/typescript', () => {
   })
 
   describe('castBook', () => {
-    it('generates TS for a simple book', () => {
+    it('generates TS function for lam definition', () => {
       const book: Book = new Map([
-        ['five', {
-          form: 'ann', done: false,
-          val: { form: 'num', val: 5 },
-          typ: { form: 'u64' },
-        } as Term],
         ['id', {
           form: 'ann', done: false,
           val: { form: 'lam', name: 'x', bod: (x: Term) => x },
@@ -288,8 +282,21 @@ describe('cast/typescript', () => {
       ])
 
       const result = castBook({ book })
+      expect(result).toContain('export function id(x)')
+      expect(result).toContain('return x;')
+    })
+
+    it('generates TS const for non-lam definition', () => {
+      const book: Book = new Map([
+        ['five', {
+          form: 'ann', done: false,
+          val: { form: 'num', val: 5 },
+          typ: { form: 'u64' },
+        } as Term],
+      ])
+
+      const result = castBook({ book })
       expect(result).toContain('export const five = 5;')
-      expect(result).toContain('export const id = (x) => x;')
     })
 
     it('erases type-only definitions', () => {
@@ -303,7 +310,7 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).not.toContain('export const Nat')
-      expect(result).toContain('export const zero = ({ tag: "Zero" });')
+      expect(result).toContain('export const zero')
     })
 
     it('sanitizes names with special chars', () => {
@@ -313,6 +320,140 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).toContain('export const std_math_pi = 3.14;')
+    })
+
+    it('uses numeric tags when ADTs are defined', () => {
+      const book: Book = new Map([
+        ['Bool', {
+          form: 'adt', indx: [],
+          ctrs: [
+            { name: 'true', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+            { name: 'false', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+          ],
+          type: { form: 'set' },
+        } as Term],
+        ['yes', { form: 'con', name: 'true', args: [] } as Term],
+        ['no', { form: 'con', name: 'false', args: [] } as Term],
+      ])
+
+      const result = castBook({ book })
+      expect(result).toContain('{ $: 0 }')
+      expect(result).toContain('{ $: 1 }')
+      expect(result).not.toContain('tag:')
+    })
+
+    it('emits multi-param function for nested lam', () => {
+      const book: Book = new Map([
+        ['add', {
+          form: 'ann', done: false,
+          val: {
+            form: 'lam', name: 'a',
+            bod: (_a: Term) => ({
+              form: 'lam', name: 'b',
+              bod: (b: Term) => b,
+            }),
+          } as Term,
+          typ: { form: 'set' },
+        } as Term],
+      ])
+
+      const result = castBook({ book })
+      expect(result).toContain('export function add(a, b)')
+      expect(result).toContain('return b;')
+    })
+
+    it('emits flat const for let in function body', () => {
+      const book: Book = new Map([
+        ['ten', {
+          form: 'let', name: 'x',
+          val: { form: 'num', val: 10 },
+          bod: (x: Term) => x,
+        } as Term],
+      ])
+
+      const result = castBook({ book })
+      // Non-lam top-level, so emits as const with IIFE
+      expect(result).toContain('export const ten')
+    })
+  })
+
+  describe('castBook with match', () => {
+    it('emits inline if/else for 2-arm match in function', () => {
+      const book: Book = new Map([
+        ['Bool', {
+          form: 'adt', indx: [],
+          ctrs: [
+            { name: 'true', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+            { name: 'false', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+          ],
+          type: { form: 'set' },
+        } as Term],
+        ['not', {
+          form: 'ann', done: false,
+          val: {
+            form: 'lam', name: 'b',
+            bod: (b: Term) => ({
+              form: 'app',
+              func: {
+                form: 'mat',
+                arms: [
+                  ['true', { form: 'con', name: 'false', args: [] }],
+                  ['false', { form: 'con', name: 'true', args: [] }],
+                ],
+              } as Term,
+              argm: b,
+            }),
+          } as Term,
+          typ: { form: 'set' },
+        } as Term],
+      ])
+
+      const result = castBook({ book })
+      expect(result).toContain('export function not(b)')
+      expect(result).toContain('$$m.$ === 0')
+      expect(result).toContain('if (')
+      expect(result).toContain('} else {')
+      expect(result).not.toContain('switch')
+    })
+
+    it('emits switch for 3+ arm match in function', () => {
+      const book: Book = new Map([
+        ['Color', {
+          form: 'adt', indx: [],
+          ctrs: [
+            { name: 'red', tele: { form: 'ret', term: { form: 'ref', name: 'Color' } } },
+            { name: 'green', tele: { form: 'ret', term: { form: 'ref', name: 'Color' } } },
+            { name: 'blue', tele: { form: 'ret', term: { form: 'ref', name: 'Color' } } },
+          ],
+          type: { form: 'set' },
+        } as Term],
+        ['toNum', {
+          form: 'ann', done: false,
+          val: {
+            form: 'lam', name: 'c',
+            bod: (c: Term) => ({
+              form: 'app',
+              func: {
+                form: 'mat',
+                arms: [
+                  ['red', { form: 'num', val: 0 }],
+                  ['green', { form: 'num', val: 1 }],
+                  ['blue', { form: 'num', val: 2 }],
+                ],
+              } as Term,
+              argm: c,
+            }),
+          } as Term,
+          typ: { form: 'set' },
+        } as Term],
+      ])
+
+      const result = castBook({ book })
+      expect(result).toContain('export function toNum(c)')
+      expect(result).toContain('switch ($$m.$)')
+      expect(result).toContain('case 0:')
+      expect(result).toContain('case 1:')
+      expect(result).toContain('case 2:')
     })
   })
 
@@ -331,7 +472,8 @@ describe('cast/typescript', () => {
       }
       const book = desugarCard({ card })
       const ts = castBook({ book })
-      expect(ts).toContain('export const id = (x) => x;')
+      expect(ts).toContain('export function id(x)')
+      expect(ts).toContain('return x;')
     })
 
     it('generates TS for a task with call', () => {
@@ -353,7 +495,8 @@ describe('cast/typescript', () => {
       }
       const book = desugarCard({ card })
       const ts = castBook({ book })
-      expect(ts).toContain('export const double = (n) => mul(n)(2);')
+      expect(ts).toContain('export function double(n)')
+      expect(ts).toContain('return mul(n, 2);')
     })
 
     it('generates TS for a task with save', () => {
@@ -371,7 +514,10 @@ describe('cast/typescript', () => {
       }
       const book = desugarCard({ card })
       const ts = castBook({ book })
-      expect(ts).toContain('export const ten = (() => { const x = 10; return x; })();')
+      // ten has no params, so it's a const, but the body is a Let
+      // which in expression mode becomes IIFE
+      expect(ts).toContain('export const ten')
+      expect(ts).toContain('const x = 10')
     })
 
     it('generates TS for form + task with fork', () => {
@@ -409,10 +555,11 @@ describe('cast/typescript', () => {
       const ts = castBook({ book })
       // bool ADT should be erased
       expect(ts).not.toContain('export const bool')
-      // not should have a switch
-      expect(ts).toContain('export const not')
-      expect(ts).toContain('"true"')
-      expect(ts).toContain('"false"')
+      expect(ts).not.toContain('export function bool')
+      // not should be a function with inline match
+      expect(ts).toContain('export function not(b)')
+      // Should use numeric tags since ADT is defined
+      expect(ts).toContain('$')
     })
   })
 })
