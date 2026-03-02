@@ -8,7 +8,8 @@
 
 <h3 align='center'>make.tree</h3>
 <p align='center'>
-  The TermTree Compiler Library
+  The TermTree Compiler Library<br/>
+  <small>(WIP)</small>
 </p>
 
 <br/>
