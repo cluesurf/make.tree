@@ -116,8 +116,12 @@ const site = VOID_SITE
 export function readCard(input: { tree: PLine; file: string }): SurfCard {
   const list: Surf[] = []
   for (const fork of input.tree.nest) {
-    const node = readTop(fork)
-    if (node) list.push(node)
+    if (headWord(fork) === 'dock') {
+      list.push(...readDockLoads(fork))
+    } else {
+      const node = readTop(fork)
+      if (node) list.push(node)
+    }
   }
   return { file: input.file, list }
 }
@@ -692,6 +696,47 @@ function readBear(fork: PFork): SurfBear {
   const pathStr = childWord(fork, 1) ?? ''
   const path = pathStr.split('/')
   return { form: 'bear', path, site }
+}
+
+// -- dock --
+
+function readDockLoads(fork: PFork): SurfLoad[] {
+  const loads: SurfLoad[] = []
+
+  for (const child of childForks(fork, 2)) {
+    const kw = headWord(child)
+    if (kw === 'load') {
+      const pathNode = childNode(child, 1)
+      let pathStr = ''
+      if (pathNode?.form === 'tree-text') {
+        pathStr = pathNode.nest
+          .filter((n): n is PCord => n.form === 'tree-cord')
+          .map(n => n.leaf.text)
+          .join('')
+      } else if (pathNode?.form === 'tree-fork') {
+        pathStr = headWord(pathNode) ?? ''
+      }
+
+      let name: string | undefined
+      for (const sub of childForks(child, 2)) {
+        if (headWord(sub) === 'name') {
+          name = childWord(sub, 1)
+        }
+      }
+
+      loads.push({
+        form: 'load',
+        path: [pathStr],
+        name,
+        find: [],
+        hook: [],
+        dock: true,
+        site,
+      })
+    }
+  }
+
+  return loads
 }
 
 // -- Sift expressions (value expressions) --

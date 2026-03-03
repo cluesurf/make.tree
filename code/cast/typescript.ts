@@ -35,9 +35,18 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book }): string {
+export type DockLoad = { path: string; name?: string }
+
+export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
   const ctx = analyze({ book: input.book })
   const lines: string[] = []
+
+  for (const load of input.dock ?? []) {
+    const name = load.name ? sanitizeName(load.name) : ''
+    if (name) {
+      lines.push(`import ${name} from '${load.path}'`)
+    }
+  }
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)

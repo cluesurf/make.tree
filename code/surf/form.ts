@@ -181,8 +181,10 @@ export type SurfBear = SurfMixin & {
 export type SurfLoad = SurfMixin & {
   form: 'load'
   path: string[]
+  name?: string
   find: SurfFind[]
   hook: SurfLoadHook[]
+  dock?: boolean
 }
 
 export type SurfFind = SurfMixin & {
@@ -196,6 +198,7 @@ export type SurfLoadHook = SurfMixin & {
   kind: string
   name: string
 }
+
 
 // -- Macros --
 

@@ -1,0 +1,16 @@
+
+dock load
+  load <node:fs>, name fs
+
+task write-file
+  take path, like text
+  take content, like text
+  call fs/write-file-sync
+    bind path, loan path
+    bind data, loan content
+
+task read-file
+  take path, like text
+  back call fs/read-file-sync
+    bind path, loan path
+    bind encoding, text <utf8>

@@ -1,0 +1,15 @@
+
+dock load
+  load <std:fs>, name fs
+
+task write-file
+  take path, like text
+  take content, like text
+  call native-write-file
+    bind path, loan path
+    bind content, loan content
+
+task read-file
+  take path, like text
+  back call native-read-file
+    bind path, loan path

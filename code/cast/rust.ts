@@ -31,9 +31,16 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book }): string {
+export type DockLoad = { path: string; name?: string }
+
+export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
   const ctx = analyze({ book: input.book })
   const lines: string[] = []
+
+  for (const load of input.dock ?? []) {
+    const path = load.path.replace(/:/g, '::')
+    lines.push(`use ${path};`)
+  }
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -114,7 +121,7 @@ function castEnum(input: {
       lines.push(`    ${ctrName},`)
     } else {
       const fieldStr = fields
-        .map(f => `${snakeCase(f)}: Box<dyn std::any::Any>`)
+        .map(f => `${snakeCase(f)}: Box<${enumName}>`)
         .join(', ')
       lines.push(`    ${ctrName} { ${fieldStr} },`)
     }
@@ -153,12 +160,16 @@ function inferReturnType(input: {
   }
 
   const adts = new Set<string>()
-  collectConstructorADTs({ term: body, ctx, adts })
+  const literals = { hasNum: false, hasFlt: false }
+  collectReturnInfo({ term: body, ctx, adts, literals })
 
-  if (adts.size === 1) {
+  if (adts.size === 1 && !literals.hasNum && !literals.hasFlt) {
     const formName = [...adts][0]!
     return pascalCase(formName)
   }
+
+  if (literals.hasNum && adts.size === 0) return 'u64'
+  if (literals.hasFlt && adts.size === 0) return 'f64'
 
   const paramTypes = extractParamTypes({ term, ctx })
   const enumParamTypes = paramTypes.filter(
@@ -174,67 +185,78 @@ function inferReturnType(input: {
   return 'impl Clone'
 }
 
-function collectConstructorADTs(input: {
+function collectReturnInfo(input: {
   term: Term
   ctx: EmitCtx
   adts: Set<string>
+  literals: { hasNum: boolean; hasFlt: boolean }
 }): void {
-  const { term, ctx, adts } = input
+  const { term, ctx, adts, literals } = input
   switch (term.form) {
     case 'con': {
       const adt = ctx.ctrToEnum.get(term.name)
       if (adt) adts.add(adt)
       for (const [, arg] of term.args) {
-        collectConstructorADTs({ term: arg, ctx, adts })
+        collectReturnInfo({ term: arg, ctx, adts, literals })
       }
       break
     }
+    case 'num':
+    case 'nat':
+      literals.hasNum = true
+      break
+    case 'flt':
+      literals.hasFlt = true
+      break
     case 'app':
-      collectConstructorADTs({ term: term.func, ctx, adts })
-      collectConstructorADTs({ term: term.argm, ctx, adts })
+      collectReturnInfo({ term: term.func, ctx, adts, literals })
+      collectReturnInfo({ term: term.argm, ctx, adts, literals })
       break
     case 'let':
-      collectConstructorADTs({ term: term.val, ctx, adts })
-      collectConstructorADTs({
+      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({
         term: term.bod({ form: 'var', name: term.name, idx: 0 }),
         ctx,
         adts,
+        literals,
       })
       break
     case 'mat':
       for (const [, bod] of term.arms) {
-        collectConstructorADTs({ term: bod, ctx, adts })
+        collectReturnInfo({ term: bod, ctx, adts, literals })
       }
       break
     case 'lam':
-      collectConstructorADTs({
+      collectReturnInfo({
         term: term.bod({ form: 'var', name: term.name, idx: 0 }),
         ctx,
         adts,
+        literals,
       })
       break
     case 'ann':
-      collectConstructorADTs({ term: term.val, ctx, adts })
+      collectReturnInfo({ term: term.val, ctx, adts, literals })
       break
     case 'ins':
-      collectConstructorADTs({ term: term.val, ctx, adts })
+      collectReturnInfo({ term: term.val, ctx, adts, literals })
       break
     case 'src':
-      collectConstructorADTs({ term: term.val, ctx, adts })
+      collectReturnInfo({ term: term.val, ctx, adts, literals })
       break
     case 'use':
-      collectConstructorADTs({
+      collectReturnInfo({
         term: term.bod(term.val),
         ctx,
         adts,
+        literals,
       })
       break
     case 'log':
-      collectConstructorADTs({ term: term.val, ctx, adts })
+      collectReturnInfo({ term: term.val, ctx, adts, literals })
       break
     case 'swi':
-      collectConstructorADTs({ term: term.zero, ctx, adts })
-      collectConstructorADTs({ term: term.succ, ctx, adts })
+      collectReturnInfo({ term: term.zero, ctx, adts, literals })
+      collectReturnInfo({ term: term.succ, ctx, adts, literals })
       break
   }
 }
@@ -535,7 +557,7 @@ function castMatchStmt(input: {
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
-  lines.push(`${pad}match ${scrExpr} {`)
+  lines.push(`${pad}match ${scrExpr}.clone() {`)
   for (const [name, bod] of arms) {
     const ctrName = pascalCase(name)
     const formName = ctx.ctrToEnum.get(name)
@@ -567,6 +589,13 @@ function castMatchStmt(input: {
     const bindStr =
       bindings.length > 0 ? ` { ${bindings.join(', ')} }` : ''
     lines.push(`${pad}    ${qualifiedName}${bindStr} => {`)
+    if (bindings.length > 0) {
+      const innerPad = '    '.repeat(indent + 2)
+      for (const binding of bindings) {
+        const paramName = binding.split(': ')[1]!
+        lines.push(`${innerPad}let ${paramName} = *${paramName};`)
+      }
+    }
     castStmt({
       term: armBod,
       dep: armDep,
@@ -708,7 +737,7 @@ function castExpr(input: {
         .map(([field, t]) => {
           const val = castExpr({ term: t, dep, ctx })
           const key = field ? snakeCase(field) : '_'
-          return `${key}: ${val}`
+          return `${key}: Box::new(${val})`
         })
         .join(', ')
       return `${qualifiedName} { ${fields} }`

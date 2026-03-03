@@ -18,6 +18,8 @@ import { renderInfoList } from '@/kink/render'
 import type { Book, Info, Fill } from '@/term/form'
 import type { Kink } from '@/kink/form'
 import type { LoadEnv } from '@/load'
+import type { SurfLoad } from '@/surf/form'
+import type { DockLoad } from '@/cast/typescript'
 
 export type CompileResult = {
   code: string
@@ -65,10 +67,11 @@ export function compileText(input: {
 
   const rawCard = readCard({ tree: lead.tree, file })
   const card = expandFuse({ card: rawCard })
+  const dock = extractDockLoads({ card })
   const book = desugarCard({ card })
 
   const errors = checkBook({ book })
-  const code = generate({ book, target })
+  const code = generate({ book, target, dock })
 
   return { code, errors, files: [file], book }
 }
@@ -98,12 +101,19 @@ function checkBook(input: { book: Book }): Kink[] {
   return allErrors
 }
 
+/** Extract dock load entries from a SurfCard. */
+function extractDockLoads(input: { card: { list: Array<{ form: string }> } }): DockLoad[] {
+  return input.card.list
+    .filter((n): n is SurfLoad => n.form === 'load' && (n as SurfLoad).dock === true)
+    .map(n => ({ path: n.path[0] ?? '', name: n.name }))
+}
+
 /** Generate code for the given target. */
-function generate(input: { book: Book; target: 'typescript' | 'hvm' }): string {
-  const { book, target } = input
+function generate(input: { book: Book; target: 'typescript' | 'hvm'; dock?: DockLoad[] }): string {
+  const { book, target, dock } = input
   switch (target) {
     case 'typescript':
-      return castTS({ book })
+      return castTS({ book, dock })
     case 'hvm':
       return castHVM({ book })
   }
