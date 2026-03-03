@@ -41,6 +41,8 @@ import type {
   SurfWear,
   SurfMask,
   SurfSuit,
+  SurfBear,
+  SurfType,
 } from '@/surf/form'
 import { VOID_SITE } from '@/kink/site'
 
@@ -209,6 +211,8 @@ function readTop(fork: PFork): Surf | null {
       return readMask(fork)
     case 'suit':
       return readSuit(fork)
+    case 'bear':
+      return readBear(fork)
     default:
       return null
   }
@@ -260,6 +264,7 @@ function readTask(fork: PFork): SurfTask {
   const base: SurfBase[] = []
   const flow: Surf[] = []
   const task: SurfTask[] = []
+  let risk: boolean | undefined
 
   for (const child of childForks(fork, 2)) {
     const kw = headWord(child)
@@ -274,6 +279,9 @@ function readTask(fork: PFork): SurfTask {
       case 'task':
         task.push(readTask(child))
         break
+      case 'risk':
+        risk = childWord(child, 1) === 'true'
+        break
       default: {
         const stmt = readStatement(child)
         if (stmt) flow.push(stmt)
@@ -282,7 +290,9 @@ function readTask(fork: PFork): SurfTask {
     }
   }
 
-  return { form: 'task', name, head, base, flow, task, site }
+  const result: SurfTask = { form: 'task', name, head, base, flow, task, site }
+  if (risk) result.risk = risk
+  return result
 }
 
 // -- Type annotation nodes --
@@ -300,10 +310,10 @@ function readHead(fork: PFork): SurfHead {
 
 function readBase(fork: PFork): SurfBase {
   const name = childWord(fork, 1) ?? ''
-  let like: string | undefined
+  let like: SurfType | undefined
 
   for (const child of childForks(fork, 2)) {
-    if (headWord(child) === 'like') like = childWord(child, 1)
+    if (headWord(child) === 'like') like = readType(child)
   }
 
   return { form: 'base', name, like, site }
@@ -311,13 +321,30 @@ function readBase(fork: PFork): SurfBase {
 
 function readLink(fork: PFork): SurfLink {
   const name = childWord(fork, 1) ?? ''
-  let like: string | undefined
+  let like: SurfType | undefined
 
   for (const child of childForks(fork, 2)) {
-    if (headWord(child) === 'like') like = childWord(child, 1)
+    if (headWord(child) === 'like') like = readType(child)
   }
 
   return { form: 'link', name, like, site }
+}
+
+function readType(fork: PFork): SurfType {
+  // like or
+  //   like integer-32
+  //   like integer-grow
+  const word = childWord(fork, 1)
+  if (word === 'or') {
+    const list: SurfType[] = []
+    for (const child of childForks(fork, 2)) {
+      if (headWord(child) === 'like') list.push(readType(child))
+    }
+    return { form: 'type-or', list }
+  }
+  // like integer-32
+  const name = word ?? ''
+  return { form: 'type-name', name }
 }
 
 function readCaseArm(fork: PFork): SurfCaseArm {
@@ -659,6 +686,14 @@ function readSuit(fork: PFork): SurfSuit {
   return { form: 'suit', name, wear, site }
 }
 
+// -- bear --
+
+function readBear(fork: PFork): SurfBear {
+  const pathStr = childWord(fork, 1) ?? ''
+  const path = pathStr.split('/')
+  return { form: 'bear', path, site }
+}
+
 // -- Sift expressions (value expressions) --
 
 function readSiftExpr(fork: PFork): Surf {
@@ -693,13 +728,14 @@ function readSiftPath(
   fork: PFork,
   form: 'sift-loan' | 'sift-move' | 'sift-read' | 'sift-link',
 ): Surf {
-  const name = childWord(fork, 1) ?? ''
+  const raw = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
+  const path = raw.split('/')
   const child = childFork(fork, 1)
   const safe = child?.optional === true
   if (safe) {
-    return { form, path: [name], safe, site }
+    return { form, path, safe, site }
   }
-  return { form, path: [name], site }
+  return { form, path, site }
 }
 
 function readSiftMark(fork: PFork): Surf {

@@ -294,7 +294,7 @@ describe('term/desugar', () => {
       const task: SurfTask = {
         form: 'task', name: 'greet', head: [],
         base: [
-          { form: 'base', name: 'name', like: 'text', site },
+          { form: 'base', name: 'name', like: { form: 'type-name', name: 'text' }, site },
         ],
         flow: [
           { form: 'back', sift: { form: 'sift-text', val: 'hello', site }, site },
@@ -327,8 +327,8 @@ describe('term/desugar', () => {
       const task: SurfTask = {
         form: 'task', name: 'add', head: [],
         base: [
-          { form: 'base', name: 'a', like: 'u64', site },
-          { form: 'base', name: 'b', like: 'u64', site },
+          { form: 'base', name: 'a', like: { form: 'type-name', name: 'u64' }, site },
+          { form: 'base', name: 'b', like: { form: 'type-name', name: 'u64' }, site },
         ],
         flow: [
           { form: 'back', sift: {
@@ -408,7 +408,7 @@ describe('term/desugar', () => {
       const task: SurfTask = {
         form: 'task', name: 'double', head: [],
         base: [
-          { form: 'base', name: 'x', like: 'u64', site },
+          { form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site },
         ],
         flow: [
           { form: 'save', path: ['result'], sift: {
@@ -469,8 +469,8 @@ describe('term/desugar', () => {
         form: 'form', name: 'pair', head: [], link: [], bond: [], task: [], wear: [],
         case: [
           { form: 'case-arm', name: 'pair', link: [
-            { form: 'link', name: 'fst', like: 'u64', site },
-            { form: 'link', name: 'snd', like: 'u64', site },
+            { form: 'link', name: 'fst', like: { form: 'type-name', name: 'u64' }, site },
+            { form: 'link', name: 'snd', like: { form: 'type-name', name: 'u64' }, site },
           ], site },
         ],
         site,
@@ -598,7 +598,7 @@ describe('term/desugar', () => {
     it('desugared identity function reduces correctly', () => {
       const task: SurfTask = {
         form: 'task', name: 'id', head: [],
-        base: [{ form: 'base', name: 'x', like: 'u64', site }],
+        base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
         flow: [
           { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
         ],

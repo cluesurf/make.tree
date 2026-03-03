@@ -33,6 +33,7 @@ import type {
   SurfMake,
   SurfSave,
   SurfBack,
+  SurfType,
 } from '@/surf/form'
 
 type SubstMap = Map<string, string>
@@ -216,7 +217,7 @@ function substTask(input: {
   const base = task.base.map(b => ({
     ...b,
     name: substString(b.name, subst),
-    like: b.like ? substString(b.like, subst) : undefined,
+    like: b.like ? substSurfType(b.like, subst) : undefined,
   }))
   const flow = task.flow.flatMap(s => {
     if (s.form === 'fuse') {
@@ -240,7 +241,7 @@ function substForm(input: {
   const link = form.link.map(l => ({
     ...l,
     name: substString(l.name, subst),
-    like: l.like ? substString(l.like, subst) : undefined,
+    like: l.like ? substSurfType(l.like, subst) : undefined,
   }))
   const cases = form.case.map(c => ({
     ...c,
@@ -266,6 +267,14 @@ function substForm(input: {
 /** Substitute {param} placeholders in a string. */
 function substString(str: string, subst: SubstMap): string {
   return str.replace(/\{(\w+)\}/g, (_, key) => subst.get(key) ?? _)
+}
+
+/** Substitute {param} placeholders in a SurfType. */
+function substSurfType(typ: SurfType, subst: SubstMap): SurfType {
+  if (typ.form === 'type-or') {
+    return { form: 'type-or', list: typ.list.map(t => substSurfType(t, subst)) }
+  }
+  return { form: 'type-name', name: substString(typ.name, subst) }
 }
 
 /** Extract a string value from a bind node. */

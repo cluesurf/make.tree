@@ -283,7 +283,7 @@ describe('cast/hvm', () => {
         file: 'test.tree',
         list: [{
           form: 'task', name: 'id', head: [],
-          base: [{ form: 'base', name: 'x', like: 'u64', site }],
+          base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
           flow: [
             { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
           ],
@@ -300,7 +300,7 @@ describe('cast/hvm', () => {
         file: 'test.tree',
         list: [{
           form: 'task', name: 'double', head: [],
-          base: [{ form: 'base', name: 'n', like: 'u64', site }],
+          base: [{ form: 'base', name: 'n', like: { form: 'type-name', name: 'u64' }, site }],
           flow: [
             { form: 'back', sift: {
               form: 'call', name: 'mul', bind: [

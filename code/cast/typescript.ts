@@ -278,6 +278,16 @@ function castStmt(input: {
       return
     }
 
+    case 'for': {
+      const name = varName({ name: term.name, dep })
+      const iter = castExpr({ term: term.iter, dep, ctx })
+      lines.push(`${pad}for (const ${name} of ${iter}) {`)
+      const bodTerm = term.bod({ form: 'var', name, idx: dep })
+      castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent: indent + 1 })
+      lines.push(`${pad}}`)
+      return
+    }
+
     case 'ann':
       castStmt({ term: term.val, dep, ctx, lines, indent, tail })
       return
@@ -622,6 +632,15 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       return `${obj}.${sanitizeName(term.name)}`
     }
 
+    case 'for': {
+      const bodyLines: string[] = []
+      castStmt({ term, dep, ctx, lines: bodyLines, indent: 1 })
+      return `(() => {\n${bodyLines.join('\n')}\n})()`
+    }
+
+    case 'union':
+      return 'undefined'
+
     default:
       return 'undefined'
   }
@@ -669,6 +688,7 @@ function isTypeOnly(term: Term): boolean {
     case 'f64':
     case 'slf':
     case 'adt':
+    case 'union':
       return true
     default:
       return false

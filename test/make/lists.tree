@@ -1,7 +1,7 @@
 task make-list
   back make list
-    bind _, text <one>
-    bind _, text <two>
+    bind a, text <one>
+    bind b, text <two>
 
 task empty-list
   back make list

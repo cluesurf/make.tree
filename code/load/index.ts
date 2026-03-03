@@ -71,7 +71,7 @@ function loadFile(input: {
   const rawCard: SurfCard = readCard({ tree: lead.tree, file })
   const card: SurfCard = expandFuse({ card: rawCard })
 
-  // Process load directives first (depth-first)
+  // Process load and bear directives first (depth-first)
   for (const node of card.list) {
     if (node.form === 'load') {
       const loadPath = node.path.join('/')
@@ -90,6 +90,14 @@ function loadFile(input: {
       }
 
       const resolved = env.resolvePath(file, loadPath)
+      if (resolved) {
+        loadFile({ file: resolved, env, visited, book, files })
+      }
+    }
+
+    if (node.form === 'bear') {
+      const bearPath = node.path.join('/')
+      const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
         loadFile({ file: resolved, env, visited, book, files })
       }

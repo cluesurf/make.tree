@@ -32,6 +32,7 @@ import type {
   SurfHook,
   SurfLink,
   SurfWear,
+  SurfType,
 } from '@/surf/form'
 import type { Term, Book, Ctr, Tele } from '@/term/form'
 
@@ -106,6 +107,10 @@ function desugarDef(input: {
     case 'suit':
       // Handled in desugarCard loop
       return null
+    case 'bear':
+    case 'load':
+      // Handled by the loader
+      return null
     default:
       return null
   }
@@ -135,7 +140,7 @@ function desugarTask(input: { task: SurfTask; ctx: Ctx }): Term {
   for (const h of task.head) {
     params.push({
       name: h.name,
-      typ: h.need ? resolveType(h.need) : { form: 'set' },
+      typ: h.need ? resolveTypeName(h.need) : { form: 'set' },
     })
   }
 
@@ -188,7 +193,7 @@ function desugarForm(input: { form: SurfForm; ctx: Ctx }): Term {
     adtType = buildAllChain({
       params: form.head.map(h => ({
         name: h.name,
-        typ: h.need ? resolveType(h.need) : { form: 'set' },
+        typ: h.need ? resolveTypeName(h.need) : { form: 'set' },
       })),
       idx: 0,
       returnType: { form: 'set' },
@@ -511,12 +516,38 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
 }
 
 /**
- * Desugar a walk (fold/iteration) similarly to fork.
- * For now, treated the same as fork.
+ * Desugar a walk to iteration (for...of) or pattern-matching fold.
+ *
+ * walk list/find → for...of iteration over the collection.
+ * Other modes fall back to pattern match (same as fork).
  */
 function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
   const { walk, ctx } = input
 
+  // Iteration modes: list, find
+  if (walk.mode === 'list' || walk.mode === 'find') {
+    const iter = walk.sift
+      ? desugarSift({ sift: walk.sift, ctx })
+      : freshMeta(ctx)
+    const hook = walk.hook[0]
+    if (!hook) return { form: 'con', name: 'Unit', args: [] }
+    const paramName = hook.base[0]?.name ?? 'item'
+    return {
+      form: 'for',
+      name: paramName,
+      iter,
+      bod: x => {
+        const newScope = new Map(ctx.scope)
+        newScope.set(paramName, x)
+        return desugarFlow({
+          flow: hook.flow,
+          ctx: { ...ctx, scope: newScope },
+        })
+      },
+    }
+  }
+
+  // Default: pattern-matching walk (existing behavior)
   const arms: [string, Term][] = walk.hook.map(hook => [
     hook.name,
     desugarArm({ hook, ctx }),
@@ -624,8 +655,16 @@ function buildTele(input: {
   }
 }
 
-/** Resolve a type name to a Core Term. */
-function resolveType(name: string): Term {
+/** Resolve a structured type expression to a Core Term. */
+function resolveType(typ: SurfType): Term {
+  if (typ.form === 'type-or') {
+    return { form: 'union', list: typ.list.map(t => resolveType(t)) }
+  }
+  return resolveTypeName(typ.name)
+}
+
+/** Resolve a type name string to a Core Term. */
+function resolveTypeName(name: string): Term {
   switch (name) {
     case 'u64':
       return { form: 'u64' }
@@ -646,18 +685,20 @@ function freshMeta(ctx: Ctx): Term {
   return { form: 'met', uid, ctx: [] }
 }
 
-/** Look up a path in scope, falling back to a Ref. */
+/** Look up a path in scope, falling back to a Ref. Chain Get for multi-segment. */
 function lookupPath(input: { path: string[]; ctx: Ctx }): Term {
   const { path, ctx } = input
   if (path.length === 0)
     return { form: 'hol', name: 'empty-path', ctx: [] }
 
   const name = path[0]!
-  const local = ctx.scope.get(name)
-  if (local) return local
+  let base: Term = ctx.scope.get(name) ?? { form: 'ref', name }
 
-  // Not in scope: treat as a top-level reference
-  return { form: 'ref', name: path.join('/') }
+  for (let i = 1; i < path.length; i++) {
+    base = { form: 'get', obj: base, name: path[i]! }
+  }
+
+  return base
 }
 
 /** Wrap a term in TermSafe if the safe flag is set. */

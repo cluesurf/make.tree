@@ -8,10 +8,9 @@ task make-map
 task map-ops
   save m
     make find
-  save _
-    call m/save
-      bind k, text <hello>
-      bind v, mark 1
+  call m/save
+    bind k, text <hello>
+    bind v, mark 1
   back call m/read
     bind k, text <hello>
 

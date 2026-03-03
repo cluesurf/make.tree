@@ -40,8 +40,8 @@ describe('fuse/index', () => {
               name: 'add-{size}',
               head: [],
               base: [
-                { form: 'base', name: 'a', like: 'u64', site },
-                { form: 'base', name: 'b', like: 'u64', site },
+                { form: 'base', name: 'a', like: { form: 'type-name', name: 'u64' }, site },
+                { form: 'base', name: 'b', like: { form: 'type-name', name: 'u64' }, site },
               ],
               flow: [{
                 form: 'back',
@@ -120,7 +120,7 @@ describe('fuse/index', () => {
               form: 'task',
               name: 'double-{name}',
               head: [],
-              base: [{ form: 'base', name: 'n', like: 'u64', site }],
+              base: [{ form: 'base', name: 'n', like: { form: 'type-name', name: 'u64' }, site }],
               flow: [{
                 form: 'back',
                 sift: {
@@ -172,7 +172,7 @@ describe('fuse/index', () => {
         form: 'task',
         name: 'id',
         head: [],
-        base: [{ form: 'base', name: 'x', like: 'u64', site }],
+        base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
         flow: [{ form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site }],
         task: [],
         site,

@@ -25,6 +25,7 @@ export type SurfTask = SurfMixin & {
   base: SurfBase[]
   flow: Surf[]
   task: SurfTask[]
+  risk?: boolean
 }
 
 export type SurfForm = SurfMixin & {
@@ -62,6 +63,12 @@ export type SurfTest = SurfMixin & {
   flow: Surf[]
 }
 
+// -- Type expressions --
+
+export type SurfType =
+  | { form: 'type-name'; name: string }
+  | { form: 'type-or'; list: SurfType[] }
+
 // -- Type annotations --
 
 export type SurfHead = SurfMixin & {
@@ -74,14 +81,14 @@ export type SurfHead = SurfMixin & {
 export type SurfBase = SurfMixin & {
   form: 'base'
   name: string
-  like?: string
+  like?: SurfType
   fall?: Surf
 }
 
 export type SurfLink = SurfMixin & {
   form: 'link'
   name: string
-  like?: string
+  like?: SurfType
   flex?: boolean
 }
 
@@ -165,6 +172,11 @@ export type SurfHook = SurfMixin & {
 }
 
 // -- Modules --
+
+export type SurfBear = SurfMixin & {
+  form: 'bear'
+  path: string[]
+}
 
 export type SurfLoad = SurfMixin & {
   form: 'load'
@@ -293,6 +305,7 @@ export type Surf =
   | SurfWalk
   | SurfHook
   // Modules
+  | SurfBear
   | SurfLoad
   | SurfFind
   | SurfLoadHook

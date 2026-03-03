@@ -12,7 +12,7 @@ describe('surf/show', () => {
       name: 'greet',
       head: [],
       base: [
-        { form: 'base', name: 'name', like: 'text', site },
+        { form: 'base', name: 'name', like: { form: 'type-name', name: 'text' }, site },
       ],
       flow: [
         { form: 'back', sift: { form: 'sift-text', val: 'hello', site }, site },

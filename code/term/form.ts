@@ -231,6 +231,20 @@ export type TermGet = {
   name: string
 }
 
+/** Union type: A | B | C */
+export type TermUnion = {
+  form: 'union'
+  list: Term[]
+}
+
+/** For-of iteration: for (const x of iter) body */
+export type TermFor = {
+  form: 'for'
+  name: string
+  iter: Term
+  bod: (x: Term) => Term
+}
+
 /** Union of all core term variants. */
 export type Term =
   | TermAll
@@ -264,6 +278,8 @@ export type Term =
   | TermMethod
   | TermNew
   | TermGet
+  | TermUnion
+  | TermFor
 
 /** Constructor in an ADT. */
 export type Ctr = {
