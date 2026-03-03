@@ -1,0 +1,43 @@
+
+task max
+  take a, like u64
+  take b, like u64
+  fork test
+    call gt
+      bind a, loan a
+      bind b, loan b
+    hook true
+      back loan a
+    hook false
+      back loan b
+
+task is-zero
+  take n, like u64
+  fork test
+    call eq
+      bind a, loan n
+      bind b, mark 0
+    hook true
+      back mark 1
+    hook false
+      back mark 0
+
+task clamp
+  take n, like u64
+  take lo, like u64
+  take hi, like u64
+  fork test
+    call lt
+      bind a, loan n
+      bind b, loan lo
+    hook true
+      back loan lo
+    hook false
+      fork test
+        call gt
+          bind a, loan n
+          bind b, loan hi
+        hook true
+          back loan hi
+        hook false
+          back loan n

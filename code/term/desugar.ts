@@ -34,7 +34,7 @@ import type {
   SurfWear,
   SurfType,
 } from '@/surf/form'
-import type { Term, Book, Ctr, Tele } from '@/term/form'
+import type { Term, Book, Ctr, Tele, Oper } from '@/term/form'
 
 /** Desugaring context: tracks variable scope and metavar counter. */
 type Ctx = {
@@ -398,9 +398,30 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
  *   call x/save, bind val, mark 42
  *   → Method x "save" [Num 42]
  */
+/** Comparison operators: call name → Op2 oper.
+ * Only comparisons are auto-converted to Op2 (return native bool).
+ * Arithmetic ops (add, sub, mul, div) remain as function calls to
+ * avoid breaking user-defined functions with those names. */
+const BUILTIN_BINARY_OPS: Record<string, Oper> = {
+  eq: 'eq', ne: 'ne', lt: 'lt',
+  gt: 'gt', lte: 'lte', gte: 'gte',
+}
+
 function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
   const { call, ctx } = input
   const name = call.name
+
+  // Built-in binary ops: call gt, bind a, ..., bind b, ... → Op2
+  const oper = BUILTIN_BINARY_OPS[name]
+  if (oper && call.bind.length === 2) {
+    const a = call.bind[0]!.sift
+      ? desugarSift({ sift: call.bind[0]!.sift, ctx })
+      : freshMeta(ctx)
+    const b = call.bind[1]!.sift
+      ? desugarSift({ sift: call.bind[1]!.sift, ctx })
+      : freshMeta(ctx)
+    return { form: 'op2', oper, a, b }
+  }
 
   // Method/property access: name contains "/" (e.g. "x/save", "x/size")
   const slashIdx = name.indexOf('/')
@@ -490,15 +511,20 @@ function desugarMake(input: { make: SurfMake; ctx: Ctx }): Term {
 }
 
 /**
- * Desugar a fork (pattern match) to a Mat applied to the scrutinee.
+ * Desugar a fork (pattern match or conditional test).
  *
+ * fork case → Mat applied to scrutinee (pattern match):
  *   fork case, loan x
- *     hook zero
- *       back mark 0
- *     hook succ
- *       back loan pred
+ *     hook zero → back mark 0
+ *     hook succ → back loan pred
+ *   → App (Mat [("zero", Num 0), ("succ", Lam "pred" ...)]) (Var "x")
  *
- * → App (Mat [("zero", Num 0), ("succ", Lam "pred" (Var "pred"))]) (Var "x")
+ * fork test → .test convention (boolean conditional):
+ *   fork test
+ *     call gt, bind a, loan x, bind b, loan y
+ *     hook true → back loan x
+ *     hook false → back loan y
+ *   → App (App (Ref ".test") (Mat [("true", ...), ("false", ...)])) condition)
  */
 function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
   const { fork, ctx } = input
@@ -510,7 +536,17 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
 
   const mat: Term = { form: 'mat', arms }
 
-  // If there's a scrutinee, apply the match to it
+  // fork test → .test(mat, condition) for if/else codegen
+  if (fork.mode === 'test' && fork.sift) {
+    const condition = desugarSift({ sift: fork.sift, ctx })
+    return {
+      form: 'app',
+      func: { form: 'app', func: { form: 'ref', name: '.test' }, argm: mat },
+      argm: condition,
+    }
+  }
+
+  // fork case → App(Mat, scrutinee) for pattern match
   if (fork.sift) {
     const scrutinee = desugarSift({ sift: fork.sift, ctx })
     return { form: 'app', func: mat, argm: scrutinee }

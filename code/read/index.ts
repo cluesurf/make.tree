@@ -463,6 +463,8 @@ function readForkNode(fork: PFork): SurfFork {
       kw === 'read'
     ) {
       sift = readSiftExpr(child)
+    } else if (kw === 'call') {
+      sift = readCall(child, [])
     } else if (kw === 'hook') {
       hooks.push(readHook(child))
     }

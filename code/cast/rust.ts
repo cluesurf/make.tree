@@ -205,6 +205,13 @@ function inferReturnType(input: {
     }
   }
 
+  // Fallback: if all params are same numeric type and body returns
+  // variable references (e.g. fork test returning a param), use that type
+  if (paramTypes.length > 0) {
+    if (paramTypes.every(t => t === 'u64')) return 'u64'
+    if (paramTypes.every(t => t === 'f64')) return 'f64'
+  }
+
   return 'impl Clone'
 }
 
@@ -412,6 +419,20 @@ function hasSelfTailCall(input: {
         }
         return zeroHas || succHas
       }
+      // .test(mat, condition) → check both branches for tail calls
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        const mat = args[0]!
+        if (mat.form === 'mat') {
+          return mat.arms.some(([, bod]) =>
+            hasSelfTailCall({ term: bod, refName, arity, dep }),
+          )
+        }
+      }
       return false
     }
     case 'ann':
@@ -466,6 +487,34 @@ function castStmt(input: {
     }
     case 'app': {
       const { func, args } = unwrapApp(term)
+      // fork test → if/else: .test(mat, condition)
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        const mat = args[0]!
+        const condition = args[1]!
+        if (mat.form === 'mat') {
+          const trueArm = mat.arms.find(([n]) => n === 'true')?.[1]
+          const falseArm = mat.arms.find(([n]) => n === 'false')?.[1]
+          if (trueArm && falseArm) {
+            castTestStmt({
+              condition,
+              trueArm,
+              falseArm,
+              dep,
+              ctx,
+              lines,
+              indent,
+              tail,
+              okWrap,
+            })
+            return
+          }
+        }
+      }
       if (func.form === 'mat' && args.length === 1) {
         castMatchStmt({
           arms: func.arms,
@@ -687,6 +736,28 @@ function castSwiStmt(input: {
   lines.push(`${pad}}`)
 }
 
+function castTestStmt(input: {
+  condition: Term
+  trueArm: Term
+  falseArm: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+  tail?: TailCtx
+  okWrap?: boolean
+}): void {
+  const { condition, trueArm, falseArm, dep, ctx, lines, indent, tail, okWrap } = input
+  const pad = '    '.repeat(indent)
+  const condExpr = castExpr({ term: condition, dep, ctx })
+
+  lines.push(`${pad}if ${condExpr} {`)
+  castStmt({ term: trueArm, dep, ctx, lines, indent: indent + 1, tail, okWrap })
+  lines.push(`${pad}} else {`)
+  castStmt({ term: falseArm, dep, ctx, lines, indent: indent + 1, tail, okWrap })
+  lines.push(`${pad}}`)
+}
+
 // ---- Phase B: Expression Mode ----
 
 function castExpr(input: {
@@ -709,6 +780,26 @@ function castExpr(input: {
     }
     case 'app': {
       const { func, args } = unwrapApp(term)
+      // fork test → if/else expression: .test(mat, condition)
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        const mat = args[0]!
+        const condition = args[1]!
+        if (mat.form === 'mat') {
+          const trueArm = mat.arms.find(([n]) => n === 'true')?.[1]
+          const falseArm = mat.arms.find(([n]) => n === 'false')?.[1]
+          if (trueArm && falseArm) {
+            const condExpr = castExpr({ term: condition, dep, ctx })
+            const trueExpr = castExpr({ term: trueArm, dep, ctx })
+            const falseExpr = castExpr({ term: falseArm, dep, ctx })
+            return `if ${condExpr} { ${trueExpr} } else { ${falseExpr} }`
+          }
+        }
+      }
       if (func.form === 'mat' && args.length === 1) {
         const bodyLines: string[] = []
         castMatchStmt({
