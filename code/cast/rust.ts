@@ -21,6 +21,7 @@ type EmitCtx = {
   arityMap: Map<string, number>
   ctrToEnum: Map<string, string>
   enumNames: Set<string>
+  dockNames: Set<string>
   book: Book
 }
 
@@ -33,8 +34,16 @@ type TailCtx = {
 
 export type DockLoad = { path: string; name?: string }
 
+/** Names that map to Rust built-in types (skip enum generation). */
+const RUST_BUILTIN_FORMS = new Set(['result'])
+
 export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
-  const ctx = analyze({ book: input.book })
+  const dockNames = new Set<string>()
+  for (const load of input.dock ?? []) {
+    if (load.name) dockNames.add(load.name)
+  }
+
+  const ctx = analyze({ book: input.book, dockNames })
   const lines: string[] = []
 
   for (const load of input.dock ?? []) {
@@ -46,6 +55,7 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
     const val = unwrapAnn(term)
 
     if (val.form === 'adt') {
+      if (RUST_BUILTIN_FORMS.has(name)) continue
       lines.push(castEnum({ name, term: val, ctx }))
       continue
     }
@@ -274,7 +284,7 @@ function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
 
 // ---- Phase A: Analyze ----
 
-function analyze(input: { book: Book }): EmitCtx {
+function analyze(input: { book: Book; dockNames: Set<string> }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
@@ -303,6 +313,7 @@ function analyze(input: { book: Book }): EmitCtx {
     arityMap,
     ctrToEnum,
     enumNames,
+    dockNames: input.dockNames,
     book: input.book,
   }
 }
@@ -688,11 +699,14 @@ function castExpr(input: {
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx })
           const methodName = snakeCase(prim)
-          if (args.length === 1) return `${obj}.${methodName}()`
+          // Dock module calls use :: (module-level functions)
+          const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
+          const sep = isDockModule ? '::' : '.'
+          if (args.length === 1) return `${obj}${sep}${methodName}()`
           const methodArgs = args
             .slice(1)
             .map(a => castExpr({ term: a, dep, ctx }))
-          return `${obj}.${methodName}(${methodArgs.join(', ')})`
+          return `${obj}${sep}${methodName}(${methodArgs.join(', ')})`
         }
       }
       const funcStr = castExpr({ term: func, dep, ctx })

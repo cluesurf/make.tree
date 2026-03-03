@@ -1,14 +1,14 @@
 /**
  * Rust backend end-to-end test: File I/O.
  *
- * Compiles file-io-rust.tree to Rust, prepends native wrapper functions
- * (needed because Rust's fs functions return Result which we can't
- * express in treecode yet), appends a main() harness, compiles with
- * rustc, and verifies file read/write roundtrip.
+ * Compiles file-io-rust.tree to Rust. The .tree file uses `dock load`
+ * to import std::fs and calls fs::write / fs::read_to_string with
+ * .unwrap() for error handling. The compiled Rust is fully
+ * self-contained (no external prelude needed).
  *
- * Tests: String parameter types, function calls with named args,
- * String return type inference, dock load → use statement emission,
- * and native function interop.
+ * Tests: dock load → use statement, module-level function calls
+ * (fs::write via :: syntax), method calls (.unwrap()), String
+ * parameter types, String return type inference.
  */
 
 import { execFileSync } from 'child_process'
@@ -60,22 +60,6 @@ function compileTreeToRust(name: string): {
   return { code, dock }
 }
 
-/**
- * Minimal native wrappers. These exist because Rust's fs functions
- * return Result<T>, which treecode can't express yet. Once the type
- * system supports Result/Option, these can move to treecode.
- */
-const NATIVE_WRAPPERS = `
-fn native_write_file(path: String, content: String) -> String {
-    fs::write(&path, &content).unwrap();
-    path
-}
-
-fn native_read_file(path: String) -> String {
-    fs::read_to_string(&path).unwrap()
-}
-`
-
 function mainHarness(tmpDir: string): string {
   const testFile = resolve(tmpDir, 'test.txt').replace(/\\/g, '/')
   return `
@@ -116,14 +100,14 @@ function run(input: {
   }
 }
 
-describe('rust: E2E File I/O', () => {
+describe('rust: E2E File I/O (dock load, self-contained)', () => {
   let generatedRust = ''
 
   beforeAll(() => {
     mkdirSync(TMP, { recursive: true })
     const result = compileTreeToRust('file-io-rust.tree')
     generatedRust = result.code
-    const fullSource = generatedRust + '\n' + NATIVE_WRAPPERS + mainHarness(TMP)
+    const fullSource = generatedRust + mainHarness(TMP)
     writeFileSync(resolve(TMP, 'main.rs'), fullSource)
   })
 
@@ -135,6 +119,18 @@ describe('rust: E2E File I/O', () => {
 
   it('emits use statement from dock load', () => {
     expect(generatedRust).toContain('use std::fs;')
+  })
+
+  it('generates fs::write call (module-level :: syntax)', () => {
+    expect(generatedRust).toContain('fs::write(')
+  })
+
+  it('generates fs::read_to_string call', () => {
+    expect(generatedRust).toContain('fs::read_to_string(')
+  })
+
+  it('generates .unwrap() method calls', () => {
+    expect(generatedRust).toContain('.unwrap()')
   })
 
   it('generates write_file function with String params', () => {
