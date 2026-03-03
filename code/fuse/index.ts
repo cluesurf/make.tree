@@ -159,9 +159,7 @@ function expandTask(input: {
     }
   }
 
-  const nestedTasks = task.task.map(t =>
-    expandTask({ task: t, trees }),
-  )
+  const nestedTasks = task.task.map(t => expandTask({ task: t, trees }))
 
   return { ...task, flow, task: nestedTasks }
 }
@@ -184,16 +182,14 @@ function substSurf(input: {
       return {
         ...node,
         name: substString(node.name, subst),
-        task: node.task.map(t =>
-          substTask({ task: t, subst, trees }),
-        ),
+        task: node.task.map(t => substTask({ task: t, subst, trees })),
       } as Surf
     case 'fuse': {
       // Nested fuse: expand with combined substitutions
       const innerBinds: SurfBind[] = node.bind.map(b => ({
         ...b,
         sift: b.sift
-          ? substSurf({ node: b.sift, subst, trees }) as any
+          ? (substSurf({ node: b.sift, subst, trees }) as any)
           : undefined,
       }))
       const expanded = expandFuseNode({
@@ -247,9 +243,7 @@ function substForm(input: {
     ...c,
     name: substString(c.name, subst),
   }))
-  const task = form.task.map(t =>
-    substTask({ task: t, subst, trees }),
-  )
+  const task = form.task.map(t => substTask({ task: t, subst, trees }))
   const bond: Surf[] = form.bond.flatMap(b => {
     if (b.form === 'fuse') {
       return expandFuseNode({ fuse: b, trees })
@@ -272,7 +266,10 @@ function substString(str: string, subst: SubstMap): string {
 /** Substitute {param} placeholders in a SurfType. */
 function substSurfType(typ: SurfType, subst: SubstMap): SurfType {
   if (typ.form === 'type-or') {
-    return { form: 'type-or', list: typ.list.map(t => substSurfType(t, subst)) }
+    return {
+      form: 'type-or',
+      list: typ.list.map(t => substSurfType(t, subst)),
+    }
   }
   return { form: 'type-name', name: substString(typ.name, subst) }
 }
