@@ -414,6 +414,9 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
       const arg = bind.sift ? desugarSift({ sift: bind.sift, ctx }) : freshMeta(ctx)
       result = { form: 'app', func: result, argm: arg }
     }
+    if (call.halt) {
+      result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
+    }
     return result
   }
 
@@ -424,6 +427,10 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
       ? desugarSift({ sift: bind.sift, ctx })
       : freshMeta(ctx)
     result = { form: 'app', func: result, argm: arg }
+  }
+
+  if (call.halt) {
+    result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
   }
 
   return result

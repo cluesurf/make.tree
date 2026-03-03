@@ -64,10 +64,14 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
 
     const safeName = snakeCase(name)
     const paramTypes = extractParamTypes({ term, ctx })
-    const returnType = inferReturnType({ term, ctx })
+    const baseReturnType = inferReturnType({ term, ctx })
 
     if (val.form === 'lam') {
       const { params, body } = unwrapLam({ term: val, dep: 0 })
+      const usesHalt = hasHaltCall({ term: body, dep: params.length })
+      const returnType = usesHalt
+        ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
+        : baseReturnType
       const paramStr = params
         .map((p, i) => {
           const typ = paramTypes[i] ?? 'impl Clone'
@@ -93,6 +97,7 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
         lines: bodyLines,
         indent: bodyIndent,
         tail,
+        okWrap: usesHalt,
       })
       if (isTailRec) {
         lines.push(
@@ -104,8 +109,16 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
         )
       }
     } else {
+      const usesHalt = hasHaltCall({ term: val, dep: 0 })
+      const returnType = usesHalt
+        ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
+        : baseReturnType
       const expr = castExpr({ term: val, dep: 0, ctx })
-      lines.push(`fn ${safeName}() -> ${returnType} { ${expr} }`)
+      if (usesHalt) {
+        lines.push(`fn ${safeName}() -> ${returnType} { Ok(${expr}) }`)
+      } else {
+        lines.push(`fn ${safeName}() -> ${returnType} { ${expr} }`)
+      }
     }
   }
 
@@ -430,8 +443,9 @@ function castStmt(input: {
   lines: string[]
   indent: number
   tail?: TailCtx
+  okWrap?: boolean
 }): void {
-  const { term, dep, ctx, lines, indent, tail } = input
+  const { term, dep, ctx, lines, indent, tail, okWrap } = input
   const pad = '    '.repeat(indent)
 
   switch (term.form) {
@@ -446,6 +460,7 @@ function castStmt(input: {
         lines,
         indent,
         tail,
+        okWrap,
       })
       return
     }
@@ -460,6 +475,7 @@ function castStmt(input: {
           lines,
           indent,
           tail,
+          okWrap,
         })
         return
       }
@@ -473,6 +489,7 @@ function castStmt(input: {
           lines,
           indent,
           tail,
+          okWrap,
         })
         return
       }
@@ -527,17 +544,17 @@ function castStmt(input: {
     case 'log': {
       const msg = castExpr({ term: term.msg, dep, ctx })
       lines.push(`${pad}println!("{}", ${msg});`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
     }
     case 'ann':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
     case 'ins':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
     case 'src':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
     case 'use':
       castStmt({
@@ -547,12 +564,17 @@ function castStmt(input: {
         lines,
         indent,
         tail,
+        okWrap,
       })
       return
   }
 
   const expr = castExpr({ term, dep, ctx })
-  lines.push(`${pad}return ${expr};`)
+  if (okWrap) {
+    lines.push(`${pad}return Ok(${expr});`)
+  } else {
+    lines.push(`${pad}return ${expr};`)
+  }
 }
 
 function castMatchStmt(input: {
@@ -563,8 +585,9 @@ function castMatchStmt(input: {
   lines: string[]
   indent: number
   tail?: TailCtx
+  okWrap?: boolean
 }): void {
-  const { arms, scrutinee, dep, ctx, lines, indent, tail } = input
+  const { arms, scrutinee, dep, ctx, lines, indent, tail, okWrap } = input
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
@@ -614,6 +637,7 @@ function castMatchStmt(input: {
       lines,
       indent: indent + 2,
       tail,
+      okWrap,
     })
     lines.push(`${pad}    }`)
   }
@@ -629,13 +653,14 @@ function castSwiStmt(input: {
   lines: string[]
   indent: number
   tail?: TailCtx
+  okWrap?: boolean
 }): void {
-  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail } = input
+  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail, okWrap } = input
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
   lines.push(`${pad}if ${scrExpr} == 0 {`)
-  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail })
+  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail, okWrap })
 
   if (succ.form === 'lam') {
     const pName = varName({ name: succ.name, dep })
@@ -648,11 +673,16 @@ function castSwiStmt(input: {
       lines,
       indent: indent + 1,
       tail,
+      okWrap,
     })
   } else {
     lines.push(`${pad}} else {`)
     const succExpr = castExpr({ term: succ, dep, ctx })
-    lines.push(`${pad}    return (${succExpr})(${scrExpr} - 1);`)
+    if (okWrap) {
+      lines.push(`${pad}    return Ok((${succExpr})(${scrExpr} - 1));`)
+    } else {
+      lines.push(`${pad}    return (${succExpr})(${scrExpr} - 1);`)
+    }
   }
   lines.push(`${pad}}`)
 }
@@ -693,6 +723,10 @@ function castExpr(input: {
       }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
+        if (prim === 'halt' && args.length === 1) {
+          const inner = castExpr({ term: args[0]!, dep, ctx })
+          return `${inner}?`
+        }
         if (prim === 'safe' && args.length === 1) {
           return castExpr({ term: args[0]!, dep, ctx })
         }
@@ -826,6 +860,52 @@ function unwrapAnn(term: Term): Term {
   if (term.form === 'ann') return unwrapAnn(term.val)
   if (term.form === 'src') return unwrapAnn(term.val)
   return term
+}
+
+/** Check if a term tree contains any .halt (error propagation) calls. */
+function hasHaltCall(input: { term: Term; dep: number }): boolean {
+  const { term, dep } = input
+  switch (term.form) {
+    case 'app': {
+      const { func, args } = unwrapApp(term)
+      if (func.form === 'ref' && func.name === '.halt') return true
+      if (hasHaltCall({ term: func, dep })) return true
+      return args.some(a => hasHaltCall({ term: a, dep }))
+    }
+    case 'let':
+      return (
+        hasHaltCall({ term: term.val, dep }) ||
+        hasHaltCall({
+          term: term.bod({ form: 'var', name: term.name, idx: dep }),
+          dep: dep + 1,
+        })
+      )
+    case 'lam':
+      return hasHaltCall({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+      })
+    case 'ann':
+    case 'ins':
+    case 'src':
+      return hasHaltCall({ term: term.val, dep })
+    case 'use':
+      return hasHaltCall({ term: term.bod(term.val), dep })
+    case 'log':
+      return (
+        hasHaltCall({ term: term.msg, dep }) ||
+        hasHaltCall({ term: term.val, dep })
+      )
+    case 'mat':
+      return term.arms.some(([, bod]) => hasHaltCall({ term: bod, dep }))
+    case 'swi':
+      return (
+        hasHaltCall({ term: term.zero, dep }) ||
+        hasHaltCall({ term: term.succ, dep })
+      )
+    default:
+      return false
+  }
 }
 
 function isTypeOnly(term: Term): boolean {

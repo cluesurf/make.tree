@@ -523,16 +523,21 @@ function readCall(fork: PFork, extraChildren: PFork[]): SurfCall {
   const name = childWord(fork, 1) ?? ''
   const binds: SurfBind[] = []
   const hook: Record<string, SurfHook> = {}
+  let halt = false
 
   for (const child of childForks(fork, 2)) {
     if (headWord(child) === 'bind') binds.push(readBind(child))
+    if (headWord(child) === 'halt') halt = true
   }
 
   for (const child of extraChildren) {
     if (headWord(child) === 'bind') binds.push(readBind(child))
+    if (headWord(child) === 'halt') halt = true
   }
 
-  return { form: 'call', name, bind: binds, hook, site }
+  const result: SurfCall = { form: 'call', name, bind: binds, hook, site }
+  if (halt) result.halt = true
+  return result
 }
 
 // -- make --

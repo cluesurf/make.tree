@@ -138,6 +138,7 @@ export type SurfCall = SurfMixin & {
   name: string
   bind: SurfBind[]
   hook: Record<string, SurfHook>
+  halt?: boolean
 }
 
 export type SurfBack = SurfMixin & {
