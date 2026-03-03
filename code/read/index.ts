@@ -38,6 +38,9 @@ import type {
   SurfTree,
   SurfTreeHook,
   SurfFuse,
+  SurfWear,
+  SurfMask,
+  SurfSuit,
 } from '@/surf/form'
 import { VOID_SITE } from '@/kink/site'
 
@@ -200,6 +203,12 @@ function readTop(fork: PFork): Surf | null {
       return readTree(fork)
     case 'fuse':
       return readFuse(fork)
+    case 'wear':
+      return readWear(fork)
+    case 'mask':
+      return readMask(fork)
+    case 'suit':
+      return readSuit(fork)
     default:
       return null
   }
@@ -214,6 +223,7 @@ function readForm(fork: PFork): SurfForm {
   const cases: SurfCaseArm[] = []
   const bond: Surf[] = []
   const task: SurfTask[] = []
+  const wear: SurfWear[] = []
 
   for (const child of childForks(fork, 2)) {
     const kw = headWord(child)
@@ -233,10 +243,13 @@ function readForm(fork: PFork): SurfForm {
       case 'fuse':
         bond.push(readFuse(child))
         break
+      case 'wear':
+        wear.push(readWear(child))
+        break
     }
   }
 
-  return { form: 'form', name, head, link, case: cases, bond, task, site }
+  return { form: 'form', name, head, link, case: cases, bond, task, wear, site }
 }
 
 // -- task --
@@ -609,6 +622,41 @@ function readFuse(fork: PFork): SurfFuse {
   }
 
   return { form: 'fuse', name, bind, site }
+}
+
+// -- wear / mask / suit --
+
+function readWear(fork: PFork): SurfWear {
+  const name = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
+  const task: SurfTask[] = []
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'task') {
+      task.push(readTask(child))
+    }
+  }
+  return { form: 'wear', name, task, site }
+}
+
+function readMask(fork: PFork): SurfMask {
+  const name = childWord(fork, 1) ?? ''
+  const task: SurfTask[] = []
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'task') {
+      task.push(readTask(child))
+    }
+  }
+  return { form: 'mask', name, task, site }
+}
+
+function readSuit(fork: PFork): SurfSuit {
+  const name = childWord(fork, 1) ?? ''
+  const wear: SurfWear[] = []
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'wear') {
+      wear.push(readWear(child))
+    }
+  }
+  return { form: 'suit', name, wear, site }
 }
 
 // -- Sift expressions (value expressions) --

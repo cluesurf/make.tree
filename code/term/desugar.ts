@@ -31,6 +31,7 @@ import type {
   SurfWalk,
   SurfHook,
   SurfLink,
+  SurfWear,
 } from '@/surf/form'
 import type { Term, Book, Ctr, Tele } from '@/term/form'
 
@@ -53,9 +54,34 @@ export function desugarCard(input: { card: SurfCard }): Book {
     if (result) {
       book.set(result.name, result.term)
     }
+
+    // Process wear blocks inside forms
+    if (node.form === 'form') {
+      for (const w of (node as SurfForm).wear) {
+        desugarWearTasks({ wear: w, book, meta })
+      }
+    }
+
+    // Process top-level wear blocks
+    if (node.form === 'wear') {
+      desugarWearTasks({ wear: node as SurfWear, book, meta })
+    }
   }
 
   return book
+}
+
+/** Desugar all tasks inside a wear block into the book. */
+function desugarWearTasks(input: {
+  wear: SurfWear
+  book: Book
+  meta: { next: number }
+}): void {
+  const { wear, book, meta } = input
+  for (const t of wear.task) {
+    const ctx: Ctx = { scope: new Map(), meta }
+    book.set(t.name, desugarTask({ task: t, ctx }))
+  }
 }
 
 /** Desugar a single top-level definition. */
@@ -75,6 +101,11 @@ function desugarDef(input: {
         name: `test/${surf.name}`,
         term: desugarFlow({ flow: surf.flow, ctx }),
       }
+    case 'wear':
+    case 'mask':
+    case 'suit':
+      // Handled in desugarCard loop
+      return null
     default:
       return null
   }

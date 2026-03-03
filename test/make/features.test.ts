@@ -114,6 +114,14 @@ describe('lists (make list)', () => {
   })
 })
 
+describe('wear (trait implementation)', () => {
+  it('generates functions from wear blocks inside form', () => {
+    const ts = compileFile('wear.tree')
+    expect(ts).toContain('export function addPoints(a, b)')
+    expect(ts).toContain('export function pointsEqual(a, b)')
+  })
+})
+
 describe('multi-file with load', () => {
   it('loads nat.tree from math.tree and generates all functions', () => {
     const ts = compileWithLoader('math.tree')

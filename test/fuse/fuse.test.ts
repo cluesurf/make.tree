@@ -85,6 +85,7 @@ describe('fuse/index', () => {
             site,
           } as SurfFuse],
           task: [],
+          wear: [],
           site,
         } as SurfForm,
       ],

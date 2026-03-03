@@ -723,7 +723,7 @@ describe('cast/typescript', () => {
         file: 'test.tree',
         list: [
           {
-            form: 'form', name: 'bool', head: [], link: [], bond: [], task: [],
+            form: 'form', name: 'bool', head: [], link: [], bond: [], task: [], wear: [],
             case: [
               { form: 'case-arm', name: 'true', link: [], site },
               { form: 'case-arm', name: 'false', link: [], site },

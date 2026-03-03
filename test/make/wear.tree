@@ -1,0 +1,20 @@
+form point
+  case make
+    link x, like u64
+    link y, like u64
+
+  wear arithmetic
+    task add-points
+      take a, like u64
+      take b, like u64
+      back call add
+        bind a, loan a
+        bind b, loan b
+
+  wear comparison
+    task points-equal
+      take a, like u64
+      take b, like u64
+      back call eq
+        bind a, loan a
+        bind b, loan b

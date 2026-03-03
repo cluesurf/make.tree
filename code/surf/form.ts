@@ -35,6 +35,7 @@ export type SurfForm = SurfMixin & {
   case: SurfCaseArm[]
   bond: SurfBond[]
   task: SurfTask[]
+  wear: SurfWear[]
 }
 
 export type SurfMask = SurfMixin & {

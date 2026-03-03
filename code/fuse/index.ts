@@ -135,7 +135,12 @@ function expandForm(input: {
     task.push(expandTask({ task: t, trees }))
   }
 
-  return { ...form, bond, task }
+  const wear = (form.wear ?? []).map(w => ({
+    ...w,
+    task: w.task.map(t => expandTask({ task: t, trees })),
+  }))
+
+  return { ...form, bond, task, wear }
 }
 
 function expandTask(input: {
@@ -174,6 +179,14 @@ function substSurf(input: {
       return substTask({ task: node, subst, trees })
     case 'form':
       return substForm({ form: node, subst, trees })
+    case 'wear':
+      return {
+        ...node,
+        name: substString(node.name, subst),
+        task: node.task.map(t =>
+          substTask({ task: t, subst, trees }),
+        ),
+      } as Surf
     case 'fuse': {
       // Nested fuse: expand with combined substitutions
       const innerBinds: SurfBind[] = node.bind.map(b => ({
@@ -242,7 +255,12 @@ function substForm(input: {
     }
     return [b]
   })
-  return { ...form, name, link, case: cases, task, bond }
+  const wear = (form.wear ?? []).map(w => ({
+    ...w,
+    name: substString(w.name, subst),
+    task: w.task.map(t => substTask({ task: t, subst, trees })),
+  }))
+  return { ...form, name, link, case: cases, task, bond, wear }
 }
 
 /** Substitute {param} placeholders in a string. */

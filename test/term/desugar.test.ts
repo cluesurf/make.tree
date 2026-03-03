@@ -442,7 +442,7 @@ describe('term/desugar', () => {
   describe('form', () => {
     it('desugars simple enum form to ADT', () => {
       const form: SurfForm = {
-        form: 'form', name: 'bool', head: [], link: [], bond: [], task: [],
+        form: 'form', name: 'bool', head: [], link: [], bond: [], task: [], wear: [],
         case: [
           { form: 'case-arm', name: 'true', link: [], site },
           { form: 'case-arm', name: 'false', link: [], site },
@@ -466,7 +466,7 @@ describe('term/desugar', () => {
 
     it('desugars form with fields to ADT with telescopes', () => {
       const form: SurfForm = {
-        form: 'form', name: 'pair', head: [], link: [], bond: [], task: [],
+        form: 'form', name: 'pair', head: [], link: [], bond: [], task: [], wear: [],
         case: [
           { form: 'case-arm', name: 'pair', link: [
             { form: 'link', name: 'fst', like: 'u64', site },
@@ -502,7 +502,7 @@ describe('term/desugar', () => {
 
     it('desugars form nat with recursive constructor', () => {
       const form: SurfForm = {
-        form: 'form', name: 'nat', head: [], link: [], bond: [], task: [],
+        form: 'form', name: 'nat', head: [], link: [], bond: [], task: [], wear: [],
         case: [
           { form: 'case-arm', name: 'zero', link: [], site },
           { form: 'case-arm', name: 'succ', link: [
@@ -538,7 +538,7 @@ describe('term/desugar', () => {
         file: 'test.tree',
         list: [
           {
-            form: 'form', name: 'bool', head: [], link: [], bond: [], task: [],
+            form: 'form', name: 'bool', head: [], link: [], bond: [], task: [], wear: [],
             case: [
               { form: 'case-arm', name: 'true', link: [], site },
               { form: 'case-arm', name: 'false', link: [], site },
