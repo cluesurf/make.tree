@@ -42,10 +42,14 @@ type Ctx = {
   meta: { next: number }
 }
 
+/** Async metadata: maps task names to whether they are async. */
+export type AsyncMeta = Map<string, boolean>
+
 /** Desugar a surface-level file (card) to a Book of Core Term definitions. */
-export function desugarCard(input: { card: SurfCard }): Book {
+export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta } {
   const book: Book = new Map()
   const meta = { next: 1000 }
+  const asyncMeta: AsyncMeta = new Map()
 
   // First pass: detect wear task name collisions so we can prefix
   const wearTaskCounts = new Map<string, number>()
@@ -73,6 +77,11 @@ export function desugarCard(input: { card: SurfCard }): Book {
       book.set(result.name, result.term)
     }
 
+    // Collect async metadata from task definitions
+    if (node.form === 'task' && (node as SurfTask).wait) {
+      asyncMeta.set(node.name, true)
+    }
+
     // Process wear blocks inside forms
     if (node.form === 'form') {
       for (const w of (node as SurfForm).wear) {
@@ -82,6 +91,7 @@ export function desugarCard(input: { card: SurfCard }): Book {
       for (const t of (node as SurfForm).task) {
         const ctx: Ctx = { scope: new Map(), meta }
         book.set(t.name, desugarTask({ task: t, ctx }))
+        if (t.wait) asyncMeta.set(t.name, true)
       }
     }
 
@@ -98,7 +108,7 @@ export function desugarCard(input: { card: SurfCard }): Book {
     }
   }
 
-  return book
+  return { book, asyncMeta }
 }
 
 /** Desugar all tasks inside a wear block into the book.
@@ -490,6 +500,9 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
     if (call.halt) {
       result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
     }
+    if (call.wait) {
+      result = { form: 'app', func: { form: 'ref', name: '.wait' }, argm: result }
+    }
     return result
   }
 
@@ -504,6 +517,10 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
 
   if (call.halt) {
     result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
+  }
+
+  if (call.wait) {
+    result = { form: 'app', func: { form: 'ref', name: '.wait' }, argm: result }
   }
 
   return result
@@ -811,6 +828,22 @@ function buildTele(input: {
 function resolveType(typ: SurfType): Term {
   if (typ.form === 'type-or') {
     return { form: 'set' }
+  }
+  if (typ.form === 'type-fn') {
+    // Build an All (pi type) chain: All(p0, T0, All(p1, T1, ... Ret))
+    const returnType: Term = typ.ret ? resolveType(typ.ret) : { form: 'set' }
+    // Build inside-out to avoid closure capture bugs
+    function buildFnAll(idx: number): Term {
+      if (idx >= typ.params.length) return returnType
+      const paramType = resolveType(typ.params[idx]!)
+      return {
+        form: 'all',
+        name: `_fn${idx}`,
+        inp: paramType,
+        bod: () => buildFnAll(idx + 1),
+      }
+    }
+    return buildFnAll(0)
   }
   return resolveTypeName(typ.name)
 }

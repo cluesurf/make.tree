@@ -15,6 +15,7 @@
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta } from '@/cast/trait'
+import type { AsyncMeta } from '@/term/desugar'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -44,6 +45,7 @@ export function castBook(input: {
   book: Book
   dock?: DockLoad[]
   traits?: TraitMeta
+  asyncMeta?: AsyncMeta
 }): string {
   const dockNames = new Set<string>()
   for (const load of input.dock ?? []) {
@@ -51,6 +53,7 @@ export function castBook(input: {
   }
 
   const ctx = analyze({ book: input.book, dockNames })
+  const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
 
   // Build set of method names that belong to impl blocks
@@ -95,6 +98,7 @@ export function castBook(input: {
     const safeName = snakeCase(name)
     const paramTypes = extractParamTypes({ term, ctx })
     const baseReturnType = inferReturnType({ term, ctx })
+    const isAsync = asyncMeta.get(name) === true
 
     if (val.form === 'lam') {
       const { params, body } = unwrapLam({ term: val, dep: 0 })
@@ -129,13 +133,14 @@ export function castBook(input: {
         tail,
         okWrap: usesHalt,
       })
+      const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
         lines.push(
-          `fn ${safeName}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
+          `${asyncPrefix}fn ${safeName}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
         )
       } else {
         lines.push(
-          `fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
+          `${asyncPrefix}fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
         )
       }
     } else {
@@ -562,6 +567,17 @@ function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
   }
   if (term.form === 'u64') return 'u64'
   if (term.form === 'f64') return 'f64'
+  // All (pi type) → impl Fn(A, B, ...) -> R for function-typed params
+  if (term.form === 'all') {
+    const paramTypes: string[] = []
+    let cur: Term = term
+    while (cur.form === 'all') {
+      paramTypes.push(resolveRustType({ term: cur.inp, ctx }))
+      cur = cur.bod({ form: 'var', name: cur.name, idx: 0 })
+    }
+    const retType = resolveRustType({ term: cur, ctx })
+    return `impl Fn(${paramTypes.join(', ')}) -> ${retType}`
+  }
   return 'impl Clone'
 }
 
@@ -1309,6 +1325,10 @@ function castExpr(input: {
       }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
+        if (prim === 'wait' && args.length === 1) {
+          const inner = castExpr({ term: args[0]!, dep, ctx })
+          return `${inner}.await`
+        }
         if (prim === 'halt' && args.length === 1) {
           const inner = castExpr({ term: args[0]!, dep, ctx })
           return `${inner}?`

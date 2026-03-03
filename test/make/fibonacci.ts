@@ -42,7 +42,7 @@ if (!lead || !lead.tree) {
 const card = readCard({ tree: lead.tree, file: 'fibonacci.tree' })
 
 // Phase 3: Surface AST → Core Terms
-const book = desugarCard({ card })
+const { book } = desugarCard({ card })
 
 // Phase 5: Core Terms → TypeScript
 const ts = castBook({ book })

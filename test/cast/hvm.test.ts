@@ -290,7 +290,7 @@ describe('cast/hvm', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const hvm = castBook({ book })
       expect(hvm).toContain('@id = λx x')
     })
@@ -312,7 +312,7 @@ describe('cast/hvm', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const hvm = castBook({ book })
       expect(hvm).toContain('@double = λn (* n 2)')
     })
@@ -330,7 +330,7 @@ describe('cast/hvm', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const hvm = castBook({ book })
       expect(hvm).toContain('@ten = let x = 10; x')
     })
@@ -366,7 +366,7 @@ describe('cast/hvm', () => {
           } as SurfTask,
         ],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const hvm = castBook({ book })
       // bool is an ADT, should be erased
       expect(hvm).not.toContain('@bool')

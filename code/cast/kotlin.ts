@@ -18,6 +18,7 @@
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta, MaskInfo, ImplInfo } from '@/cast/trait'
+import type { AsyncMeta } from '@/term/desugar'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -34,8 +35,9 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book; traits?: TraitMeta }): string {
+export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: AsyncMeta }): string {
   const ctx = analyze({ book: input.book })
+  const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
 
   // Build set of method names that belong to impl blocks
@@ -83,7 +85,8 @@ export function castBook(input: { book: Book; traits?: TraitMeta }): string {
     const safeName = camelCase(name)
 
     if (val.form === 'lam') {
-      lines.push(castFunction({ name, safeName, term: val, ctx }))
+      const isAsync = asyncMeta.get(name) === true
+      lines.push(castFunction({ name, safeName, term: val, ctx, isAsync }))
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
       lines.push(`val ${safeName}: Any = ${expr}`)
@@ -98,8 +101,9 @@ function castFunction(input: {
   safeName: string
   term: Term & { form: 'lam' }
   ctx: EmitCtx
+  isAsync?: boolean
 }): string {
-  const { name, safeName, ctx } = input
+  const { name, safeName, ctx, isAsync } = input
   const { params, body } = unwrapLam({ term: input.term, dep: 0 })
   const paramStr = params
     .map(p => `${p.name}: Any`)
@@ -124,13 +128,14 @@ function castFunction(input: {
     indent: bodyIndent,
     tail,
   })
+  const suspendPrefix = isAsync ? 'suspend ' : ''
   if (isTailRec) {
     const varDecls = paramNames
       .map(p => `    var ${p} = ${p}`)
       .join('\n')
-    return `fun ${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`
+    return `${suspendPrefix}fun ${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`
   }
-  return `fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`
+  return `${suspendPrefix}fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`
 }
 
 // ---- Sealed Class Generation ----
@@ -663,6 +668,10 @@ function castExpr(input: {
       }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
+        // .wait → no special syntax in Kotlin (suspend functions are called normally)
+        if (prim === 'wait' && args.length === 1) {
+          return castExpr({ term: args[0]!, dep, ctx })
+        }
         if (prim === 'safe' && args.length === 1) {
           return castExpr({ term: args[0]!, dep, ctx })
         }

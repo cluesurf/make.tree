@@ -17,6 +17,7 @@
  */
 
 import type { Term, Book, Oper, Ctr, Tele } from '@/term/form'
+import type { AsyncMeta } from '@/term/desugar'
 
 // ---- Emit Context ----
 
@@ -37,8 +38,9 @@ type TailCtx = {
 
 export type DockLoad = { path: string; name?: string }
 
-export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
+export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta }): string {
   const ctx = analyze({ book: input.book })
+  const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
 
   for (const load of input.dock ?? []) {
@@ -53,6 +55,7 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
     if (isTypeOnly(val)) continue
 
     const safeName = sanitizeName(name)
+    const isAsync = asyncMeta.get(name) === true
 
     if (val.form === 'lam') {
       const { params, body } = unwrapLam({ term: val, dep: 0 })
@@ -65,10 +68,11 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
       const bodyLines: string[] = []
       const bodyIndent = isTailRec ? 2 : 1
       castStmt({ term: body, dep: params.length, ctx, lines: bodyLines, indent: bodyIndent, tail })
+      const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
-        lines.push(`export function ${safeName}(${paramStr}) {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
+        lines.push(`export ${asyncPrefix}function ${safeName}(${paramStr}) {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
       } else {
-        lines.push(`export function ${safeName}(${paramStr}) {\n${bodyLines.join('\n')}\n}`)
+        lines.push(`export ${asyncPrefix}function ${safeName}(${paramStr}) {\n${bodyLines.join('\n')}\n}`)
       }
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
@@ -503,6 +507,12 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       // Runtime primitives: Ref names starting with "."
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
+
+        // .wait → await expr
+        if (prim === 'wait' && args.length === 1) {
+          const inner = castExpr({ term: args[0]!, dep, ctx })
+          return `await ${inner}`
+        }
 
         // .safe → (val ?? undefined)
         if (prim === 'safe' && args.length === 1) {

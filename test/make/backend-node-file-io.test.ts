@@ -53,7 +53,7 @@ function compileTreeToJS(name: string): {
     )
     .map(n => ({ path: n.path[0] ?? '', name: n.name }))
 
-  const book = desugarCard({ card })
+  const { book } = desugarCard({ card })
   const code = castBook({ book, dock })
   return { code, dock }
 }

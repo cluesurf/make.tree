@@ -158,7 +158,7 @@ describe('fuse/index', () => {
     }
 
     const expanded = expandFuse({ card })
-    const book = desugarCard({ card: expanded })
+    const { book } = desugarCard({ card: expanded })
     const ts = castBook({ book })
 
     expect(ts).toContain('export function doubleInt(n)')

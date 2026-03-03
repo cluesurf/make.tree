@@ -42,7 +42,7 @@ function compileTreeToRust(name: string): string {
   const lead = makeTree({ file: name, text })
   const rawCard = readCard({ tree: lead.tree, file: name })
   const card = expandFuse({ card: rawCard })
-  const book = desugarCard({ card })
+  const { book } = desugarCard({ card })
   return castBook({ book })
 }
 

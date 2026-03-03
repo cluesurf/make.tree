@@ -77,6 +77,10 @@ export function castTerm(input: { term: Term; dep: number }): string {
 
     case 'app': {
       const { func, args } = unwrapApp(term)
+      // .wait → transparent in HVM (parallel by default)
+      if (func.form === 'ref' && func.name === '.wait' && args.length === 1) {
+        return castTerm({ term: args[0]!, dep })
+      }
       const funcStr = castTerm({ term: func, dep })
       const argsStr = args
         .map(a => castTerm({ term: a, dep }))

@@ -12,7 +12,7 @@ const site = VOID_SITE
 /** Helper: desugar a single task and get its Core Term from the book. */
 function desugarTask(task: SurfTask): Term | undefined {
   const card: SurfCard = { file: 'test.tree', list: [task] }
-  const book = desugarCard({ card })
+  const { book } = desugarCard({ card })
   return book.get(task.name)
 }
 
@@ -450,7 +450,7 @@ describe('term/desugar', () => {
         site,
       }
       const card: SurfCard = { file: 'test.tree', list: [form] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const term = book.get('bool')
 
       expect(term).toBeDefined()
@@ -476,7 +476,7 @@ describe('term/desugar', () => {
         site,
       }
       const card: SurfCard = { file: 'test.tree', list: [form] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const term = book.get('pair')
 
       expect(term).toBeDefined()
@@ -512,7 +512,7 @@ describe('term/desugar', () => {
         site,
       }
       const card: SurfCard = { file: 'test.tree', list: [form] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const term = book.get('nat')
 
       expect(term).toBeDefined()
@@ -567,7 +567,7 @@ describe('term/desugar', () => {
           } as SurfTask,
         ],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       expect(book.size).toBe(2)
       expect(book.has('bool')).toBe(true)
       expect(book.has('not')).toBe(true)
@@ -605,7 +605,7 @@ describe('term/desugar', () => {
         task: [], site,
       }
       const card: SurfCard = { file: 'test.tree', list: [task] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const fill: Fill = new Map()
 
       // Get the value part (strip Ann)
@@ -630,7 +630,7 @@ describe('term/desugar', () => {
         task: [], site,
       }
       const card: SurfCard = { file: 'test.tree', list: [task] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const fill: Fill = new Map()
 
       const def = book.get('five')!
@@ -652,7 +652,7 @@ describe('term/desugar', () => {
         task: [], site,
       }
       const card: SurfCard = { file: 'test.tree', list: [task] }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const fill: Fill = new Map()
 
       const def = book.get('ten')!

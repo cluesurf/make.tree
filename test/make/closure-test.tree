@@ -1,0 +1,20 @@
+task apply
+  take f, like task
+    take x, like u64
+    back like u64
+  take x, like u64
+  back call f
+    bind x, read x
+
+task double
+  take n, like u64
+  back call mul
+    bind a, read n
+    bind b, mark 2
+
+task main
+  save result
+    call apply
+      bind f, read double
+      bind x, mark 5
+  back read result

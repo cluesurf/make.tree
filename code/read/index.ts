@@ -270,6 +270,7 @@ function readTask(fork: PFork): SurfTask {
   const task: SurfTask[] = []
   let like: SurfType | undefined
   let risk: boolean | undefined
+  let wait: boolean | undefined
 
   for (const child of childForks(fork, 2)) {
     const kw = headWord(child)
@@ -290,6 +291,9 @@ function readTask(fork: PFork): SurfTask {
       case 'risk':
         risk = childWord(child, 1) === 'true'
         break
+      case 'wait':
+        wait = childWord(child, 1) === 'true'
+        break
       default: {
         const stmt = readStatement(child)
         if (stmt) flow.push(stmt)
@@ -301,6 +305,7 @@ function readTask(fork: PFork): SurfTask {
   const result: SurfTask = { form: 'task', name, head, base, flow, task, site }
   if (like) result.like = like
   if (risk) result.risk = risk
+  if (wait) result.wait = wait
   return result
 }
 
@@ -321,8 +326,46 @@ function readBase(fork: PFork): SurfBase {
   const name = childWord(fork, 1) ?? ''
   let like: SurfType | undefined
 
-  for (const child of childForks(fork, 2)) {
+  const children = childForks(fork, 2)
+  for (const child of children) {
     if (headWord(child) === 'like') like = readType(child)
+  }
+
+  // If the type is `like task`, the take/back signature children are
+  // siblings in this fork (not children of the `like task` fork).
+  // Collect them here and rebuild the type-fn with proper params/ret.
+  if (like && like.form === 'type-fn' && like.params.length === 0) {
+    const params: SurfType[] = []
+    let ret: SurfType | undefined
+    for (const child of children) {
+      const kw = headWord(child)
+      if (kw === 'take') {
+        let foundLike = false
+        for (const sub of childForks(child, 2)) {
+          if (headWord(sub) === 'like') {
+            params.push(readType(sub))
+            foundLike = true
+          }
+        }
+        if (!foundLike) {
+          params.push({ form: 'type-name', name: '' })
+        }
+      }
+      if (kw === 'back') {
+        for (const sub of childForks(child, 2)) {
+          if (headWord(sub) === 'like') {
+            ret = readType(sub)
+          }
+        }
+        const backChild = childFork(child, 1)
+        if (backChild && headWord(backChild) === 'like') {
+          ret = readType(backChild)
+        }
+      }
+    }
+    if (params.length > 0 || ret) {
+      like = { form: 'type-fn', params, ret }
+    }
   }
 
   return { form: 'base', name, like, site }
@@ -350,6 +393,42 @@ function readType(fork: PFork): SurfType {
       if (headWord(child) === 'like') list.push(readType(child))
     }
     return { form: 'type-or', list }
+  }
+  // like task → function type with nested take/back signature
+  if (word === 'task') {
+    const params: SurfType[] = []
+    let ret: SurfType | undefined
+    for (const child of childForks(fork, 2)) {
+      const kw = headWord(child)
+      if (kw === 'take') {
+        // Read the param's type from nested like
+        let foundLike = false
+        for (const sub of childForks(child, 2)) {
+          if (headWord(sub) === 'like') {
+            params.push(readType(sub))
+            foundLike = true
+          }
+        }
+        // If no like, use a generic type
+        if (!foundLike) {
+          params.push({ form: 'type-name', name: '' })
+        }
+      }
+      if (kw === 'back') {
+        // back like <type> (like is a child of back)
+        for (const sub of childForks(child, 2)) {
+          if (headWord(sub) === 'like') {
+            ret = readType(sub)
+          }
+        }
+        // Also check at position 1 in case of inline: back like u64
+        const backChild = childFork(child, 1)
+        if (backChild && headWord(backChild) === 'like') {
+          ret = readType(backChild)
+        }
+      }
+    }
+    return { form: 'type-fn', params, ret }
   }
   // like integer-32
   const name = word ?? ''
@@ -553,19 +632,23 @@ function readCall(fork: PFork, extraChildren: PFork[]): SurfCall {
   const binds: SurfBind[] = []
   const hook: Record<string, SurfHook> = {}
   let halt = false
+  let wait = false
 
   for (const child of childForks(fork, 2)) {
     if (headWord(child) === 'bind') binds.push(readBind(child))
     if (headWord(child) === 'halt') halt = true
+    if (headWord(child) === 'wait') wait = childWord(child, 1) === 'true'
   }
 
   for (const child of extraChildren) {
     if (headWord(child) === 'bind') binds.push(readBind(child))
     if (headWord(child) === 'halt') halt = true
+    if (headWord(child) === 'wait') wait = childWord(child, 1) === 'true'
   }
 
   const result: SurfCall = { form: 'call', name, bind: binds, hook, site }
   if (halt) result.halt = true
+  if (wait) result.wait = true
   return result
 }
 

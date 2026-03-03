@@ -1,0 +1,14 @@
+task fetch-data
+  wait true
+  take url, like text
+  save response
+    call fetch-url
+      bind url, read url
+      wait true
+  back read response
+
+task process
+  take x, like u64
+  back call add
+    bind a, read x
+    bind b, mark 1

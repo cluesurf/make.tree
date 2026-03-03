@@ -668,7 +668,7 @@ describe('cast/typescript', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const ts = castBook({ book })
       expect(ts).toContain('export function id(x)')
       expect(ts).toContain('return x;')
@@ -691,7 +691,7 @@ describe('cast/typescript', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const ts = castBook({ book })
       expect(ts).toContain('export function double(n)')
       expect(ts).toContain('return (n * 2);')
@@ -710,7 +710,7 @@ describe('cast/typescript', () => {
           task: [], site,
         } as SurfTask],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const ts = castBook({ book })
       // ten has no params, so it's a const, but the body is a Let
       // which in expression mode becomes IIFE
@@ -749,7 +749,7 @@ describe('cast/typescript', () => {
           } as SurfTask,
         ],
       }
-      const book = desugarCard({ card })
+      const { book } = desugarCard({ card })
       const ts = castBook({ book })
       // bool ADT should be erased
       expect(ts).not.toContain('export const bool')

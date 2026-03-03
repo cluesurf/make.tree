@@ -1,120 +1,127 @@
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
+
 
 <h3 align='center'>make.tree</h3>
 <p align='center'>
-  The TermTree Compiler Library<br/>
-  <small>(WIP)</small>
+  The TermTree Compiler
 </p>
 
 <br/>
-<br/>
-<br/>
 
-## Overview
+## Why
 
-The `make.tree` project is a multi-target compiler for the `.tree`
-language, part of the TermTree ecosystem. It takes `.tree` source files
-and compiles them to Rust, TypeScript, Kotlin, Swift, and HVM.
+Building software for multiple platforms today means rewriting the same
+logic in different languages, or accepting the trade-offs of a single
+runtime. Rust gives you performance but not mobile. TypeScript gives you
+reach but not native speed. Swift and Kotlin lock you into their
+ecosystems. You end up maintaining parallel codebases that drift apart
+over time.
 
-The core type system is based on the Calculus of Constructions with
-self-types, inspired by [Victor Taelin's](https://x.com/VictorTaelin) work on
-[HVM](https://github.com/HigherOrderCO/HVM). Rather than building
-algebraic data types and pattern matching as primitives, the compiler
-represents them through self-types (`Slf`, `Ins`) and lambda encodings.
-This gives a minimal core calculus (just lambda, application, pi types,
-and self-types) that can express inductive types, dependent elimination,
-and proofs without special-cased inductive constructs. The surface
-language desugars `form` (ADT definitions), `fork case` (pattern
-matches), and `mask`/`wear` (traits/impls) into this small core, then
-each backend translates the core terms into idiomatic target code.
+`make.tree` is a compiler for the `.tree` language that solves this by
+compiling a single source to **Rust, TypeScript, Kotlin, Swift, and
+HVM**. You write your logic once. The compiler produces idiomatic,
+native code for each target, not a lowest-common-denominator
+abstraction, but output that looks like it was written by hand for that
+platform.
 
-## Backends
+The key insight is splitting work by what each target does best.
+Platform-specific code (file I/O, networking, UI) compiles to Rust,
+TypeScript, Kotlin, or Swift where those ecosystems have mature
+libraries. Pure computation (hashing, tree transforms, symbolic math)
+can target [HVM](https://github.com/HigherOrderCO/HVM), which runs
+lambda calculus on interaction nets for automatic parallelism across
+GPUs and multi-core CPUs.
 
-Each backend aims to produce output that is idiomatic and performant
-for its target environment, not just correct.
+## What It Does
 
-- **Rust**: Concrete enums and structs, zero-cost pattern matching,
-  `Result<T, E>` with `?` for error propagation, ownership-aware
-  codegen. The goal is output that looks like hand-written Rust, with
-  proper struct field access, trait impl blocks, and no unnecessary
-  allocations.
-- **TypeScript**: Flat `const` bindings instead of nested closures,
-  numeric constructor tags for O(1) switch dispatch, self-tail-call
-  optimization into `while` loops, and `for...of` loop emission for
-  iteration.
-- **Kotlin**: Native `when` expressions for pattern matching, data
-  classes for constructors, interface-based trait dispatch.
-- **Swift**: Enums with associated values, protocol-based traits,
-  native pattern matching.
-- **HVM**: Pure computation-heavy workloads can be delegated to HVM,
-  which compiles lambda calculus terms into interaction nets. Interaction
-  nets evaluate through local graph rewrites rather than global copying,
-  giving optimal sharing of subterms. This means pure functional code
-  (recursive tree traversals, symbolic computation, proof normalization)
-  can run with automatic parallelism on GPUs and multi-core CPUs, since
-  independent redexes reduce simultaneously without synchronization.
+- **Multi-target compilation**: One `.tree` source compiles to five
+  backends, each producing idiomatic output for its platform.
+- **Dependent type checking**: Based on the Calculus of Constructions
+  with self-types. Types are first-class values, enabling proofs and
+  precise specifications alongside regular code.
+- **Algebraic data types and pattern matching**: Define types with
+  `form`, match on them with `fork case`. The compiler checks
+  exhaustiveness.
+- **Trait system**: Interfaces (`mask`), implementations (`wear`), and
+  blanket implementations (`suit`) for polymorphic dispatch.
+- **Error propagation**: `halt` for panics, `halt kink` for recoverable
+  errors with `?`-style short-circuit propagation.
+- **Tail call optimization**: Self-recursive tail calls compile to loops
+  automatically.
+- **Cross-platform standard library**: Abstract interfaces for file I/O,
+  HTTP, crypto, and more, with platform-specific implementations
+  selected at compile time.
 
-The split is intentional. Platform-specific work (file I/O, networking,
-UI) goes through Rust, TypeScript, Kotlin, or Swift where those
-ecosystems have mature libraries. Pure computation (hashing, tree
-transforms, mathematical operations) can target HVM for massively
-parallel evaluation.
-
-## Purpose
-
-The goal is to write code once in `.tree` and compile it to native code
-for each platform, with performance as a first-class concern at every
-stage. The compiler handles:
-
-- **Type checking**: Calculus of Constructions with self-types. Types are
-  first-class terms. ADTs are encoded via self-types, not built-in
-  inductive types.
-- **Code generation**: Produces idiomatic output for each backend.
-- **Pattern matching**: ADTs with exhaustive match compilation.
-- **Trait system**: Masks (traits), wear (impl), and suit (blanket impl).
-- **Error handling**: `halt` for panics, `halt kink` for `?` propagation.
-- **Logging**: 6 log levels (`dive`, `hint`, `show`, `tell`, `kink`, `bust`).
-- **Tail call optimization**: Self-recursive tail calls become loops.
-
-## Pipeline
+## How It Works
 
 ```
-.tree source
-  -> parse
-  -> Surface AST
-  -> macro expand
-  -> Core Terms
-  -> backend codegen
+.tree source -> parse -> surface AST -> macro expand -> core terms -> backend codegen
 ```
 
-## Structure
+The surface language provides familiar constructs: data types, functions,
+pattern matching, traits. The compiler desugars these into a small core
+calculus (lambda, application, pi types, self-types), type-checks the
+core terms, then hands them to the target backend for code generation.
+
+Each backend translates core terms into the idioms of its target. Rust
+gets concrete enums with `match`. TypeScript gets `switch` dispatch with
+`while`-loop TCO. Kotlin gets `when` expressions with data classes.
+Swift gets enums with associated values and protocols.
+
+## Example
+
+```
+form nat
+  case zero
+  case succ
+    link pred
+
+task fib
+  take n, like nat
+  fork case, read n
+    hook zero
+      back mark 0
+    hook succ, base pred
+      fork case, read pred
+        hook zero
+          back mark 1
+        hook succ, base pp
+          save a
+            call fib
+              bind n, read pred
+          save b
+            call fib
+              bind n, read pp
+          back call add
+            bind a, read a
+            bind b, read b
+```
+
+This compiles to native Rust enums with `match`, TypeScript `switch`
+statements, Kotlin `when` expressions, Swift `switch` with associated
+values, or HVM interaction nets, depending on the target.
+
+## Project Structure
 
 ```
 code/
-  read/       Reader: tree parse output -> Surface AST
-  fuse/       Macro expansion (fuse/tree)
-  term/       Core Terms, desugar, type checker
+  read/       Parser (tree syntax -> surface AST)
+  fuse/       Macro expansion
+  term/       Core terms, desugaring, type checker
   cast/       Backend code generators (rust, typescript, kotlin, swift, hvm)
   kink/       Error types and display
-test/         Tests (unit, backend E2E, stdlib)
+test/         Unit tests, backend E2E tests, stdlib tests
 ```
 
-## Development
+## Getting Started
 
-See [prerequisites](note/prerequisites.md) for platform prerequisites
-(Xcode, Android NDK, Emscripten, Docker).
-
-Can run tests with:
+Run the test suite:
 
 ```bash
 pnpm test
 ```
+
+See [prerequisites](note/prerequisites.md) for platform-specific setup
+(Xcode, Android NDK, Emscripten, Docker).
 
 ## License
 

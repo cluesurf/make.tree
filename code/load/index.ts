@@ -81,8 +81,8 @@ function loadFile(input: {
         const stdCard = resolveStdlib(loadPath)
         if (stdCard && !visited.has(loadPath)) {
           visited.add(loadPath)
-          const stdBook = desugarCard({ card: stdCard })
-          for (const [name, term] of stdBook) {
+          const stdResult = desugarCard({ card: stdCard })
+          for (const [name, term] of stdResult.book) {
             book.set(name, term)
           }
         }
@@ -105,8 +105,8 @@ function loadFile(input: {
   }
 
   // Desugar this file and merge into the shared book
-  const fileBook = desugarCard({ card })
-  for (const [name, term] of fileBook) {
+  const fileResult = desugarCard({ card })
+  for (const [name, term] of fileResult.book) {
     book.set(name, term)
   }
 }

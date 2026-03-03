@@ -9,7 +9,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { readCard } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard } from '@/term/desugar'
+import { desugarCard, type AsyncMeta } from '@/term/desugar'
 import { check } from '@/term/check'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castHVM } from '@/cast/hvm'
@@ -68,10 +68,10 @@ export function compileText(input: {
   const rawCard = readCard({ tree: lead.tree, file })
   const card = expandFuse({ card: rawCard })
   const dock = extractDockLoads({ card })
-  const book = desugarCard({ card })
+  const { book, asyncMeta } = desugarCard({ card })
 
   const errors = checkBook({ book })
-  const code = generate({ book, target, dock })
+  const code = generate({ book, target, dock, asyncMeta })
 
   return { code, errors, files: [file], book }
 }
@@ -109,11 +109,11 @@ function extractDockLoads(input: { card: { list: Array<{ form: string }> } }): D
 }
 
 /** Generate code for the given target. */
-function generate(input: { book: Book; target: 'typescript' | 'hvm'; dock?: DockLoad[] }): string {
-  const { book, target, dock } = input
+function generate(input: { book: Book; target: 'typescript' | 'hvm'; dock?: DockLoad[]; asyncMeta?: AsyncMeta }): string {
+  const { book, target, dock, asyncMeta } = input
   switch (target) {
     case 'typescript':
-      return castTS({ book, dock })
+      return castTS({ book, dock, asyncMeta })
     case 'hvm':
       return castHVM({ book })
   }

@@ -16,6 +16,7 @@
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta } from '@/cast/trait'
+import type { AsyncMeta } from '@/term/desugar'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -32,8 +33,9 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book; traits?: TraitMeta }): string {
+export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: AsyncMeta }): string {
   const ctx = analyze({ book: input.book })
+  const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
 
   // Build set of method names that belong to impl blocks
@@ -71,7 +73,8 @@ export function castBook(input: { book: Book; traits?: TraitMeta }): string {
     const safeName = camelCase(name)
 
     if (val.form === 'lam') {
-      lines.push(castFunction({ name, safeName, term: val, ctx }))
+      const isAsync = asyncMeta.get(name) === true
+      lines.push(castFunction({ name, safeName, term: val, ctx, isAsync }))
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
       lines.push(`let ${safeName}: Any = ${expr}`)
@@ -86,8 +89,9 @@ function castFunction(input: {
   safeName: string
   term: Term & { form: 'lam' }
   ctx: EmitCtx
+  isAsync?: boolean
 }): string {
-  const { name, safeName, term, ctx } = input
+  const { name, safeName, term, ctx, isAsync } = input
   const { params, body } = unwrapLam({ term, dep: 0 })
   const paramStr = params.map(p => `_ ${p.name}: Any`).join(', ')
   const paramNames = params.map(p => p.name)
@@ -110,13 +114,14 @@ function castFunction(input: {
     indent: bodyIndent,
     tail,
   })
+  const asyncSuffix = isAsync ? ' async' : ''
   if (isTailRec) {
     const varParamStr = params
       .map(p => `_ ${p.name}: Any`)
       .join(', ')
-    return `func ${safeName}(${varParamStr}) -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`
+    return `func ${safeName}(${varParamStr})${asyncSuffix} -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`
   }
-  return `func ${safeName}(${paramStr}) -> Any {\n${bodyLines.join('\n')}\n}`
+  return `func ${safeName}(${paramStr})${asyncSuffix} -> Any {\n${bodyLines.join('\n')}\n}`
 }
 
 // ---- Protocol / Extension Generation ----
@@ -622,6 +627,11 @@ function castExpr(input: {
       }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
+        // .wait → await expr
+        if (prim === 'wait' && args.length === 1) {
+          const inner = castExpr({ term: args[0]!, dep, ctx })
+          return `await ${inner}`
+        }
         if (prim === 'safe' && args.length === 1) {
           return castExpr({ term: args[0]!, dep, ctx })
         }

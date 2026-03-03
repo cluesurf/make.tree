@@ -27,6 +27,7 @@ export type SurfTask = SurfMixin & {
   task: SurfTask[]
   like?: SurfType
   risk?: boolean
+  wait?: boolean
 }
 
 export type SurfForm = SurfMixin & {
@@ -69,6 +70,7 @@ export type SurfTest = SurfMixin & {
 export type SurfType =
   | { form: 'type-name'; name: string }
   | { form: 'type-or'; list: SurfType[] }
+  | { form: 'type-fn'; params: SurfType[]; ret?: SurfType }
 
 // -- Type annotations --
 
@@ -141,6 +143,7 @@ export type SurfCall = SurfMixin & {
   bind: SurfBind[]
   hook: Record<string, SurfHook>
   halt?: boolean
+  wait?: boolean
 }
 
 export type SurfBack = SurfMixin & {
