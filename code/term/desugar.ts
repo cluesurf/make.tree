@@ -374,6 +374,20 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
       return { form: 'log', msg, val }
     }
 
+    // Debugger breakpoint
+    case 'rest': {
+      const val = desugarFlow({ flow: rest, ctx })
+      return { form: 'rst', val }
+    }
+
+    // Standalone halt (panic/throw)
+    case 'halt': {
+      const msg = first.sift
+        ? desugarSift({ sift: first.sift, ctx })
+        : ({ form: 'txt', val: 'halt' } as Term)
+      return { form: 'hlt', msg }
+    }
+
     default: {
       // Try to desugar as an expression
       const term = desugarSift({ sift: first, ctx })

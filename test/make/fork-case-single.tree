@@ -1,0 +1,33 @@
+
+form wrapper
+  case make
+    link value, like u64
+
+task unwrap
+  take w, like wrapper
+  fork case, read w
+    hook make, base value
+      back read value
+
+form maybe
+  case some
+    link value, like u64
+  case none
+
+task force-unwrap
+  take m, like maybe
+  fork case, read m
+    hook some, base value
+      back read value
+
+form direction
+  case north
+  case south
+  case east
+  case west
+
+task is-north
+  take d, like direction
+  fork case, read d
+    hook north
+      back mark 1

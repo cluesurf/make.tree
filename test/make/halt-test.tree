@@ -1,0 +1,14 @@
+
+task safe-div
+  take a, like u64
+  take b, like u64
+  fork test
+    call eq
+      bind a, read b
+      bind b, mark 0
+    hook true
+      halt text <division by zero>
+    hook false
+      back call div
+        bind a, read a
+        bind b, read b

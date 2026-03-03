@@ -194,6 +194,9 @@ function hasSelfTailCall(input: {
     case 'log':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
 
+    case 'rst':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
+
     case 'ann':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
 
@@ -290,6 +293,18 @@ function castStmt(input: {
       const msg = castExpr({ term: term.msg, dep, ctx })
       lines.push(`${pad}console.log(${msg});`)
       castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      return
+    }
+
+    case 'rst': {
+      lines.push(`${pad}debugger;`)
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      return
+    }
+
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      lines.push(`${pad}throw new Error(${msg});`)
       return
     }
 
@@ -623,6 +638,16 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       const msg = castExpr({ term: term.msg, dep, ctx })
       const val = castExpr({ term: term.val, dep, ctx })
       return `(console.log(${msg}), ${val})`
+    }
+
+    case 'rst': {
+      const val = castExpr({ term: term.val, dep, ctx })
+      return `(debugger, ${val})`
+    }
+
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      return `(() => { throw new Error(${msg}); })()`
     }
 
     case 'all':

@@ -151,6 +151,11 @@ export type SurfBack = SurfMixin & {
 export type SurfHalt = SurfMixin & {
   form: 'halt'
   term?: string
+  sift?: Surf
+}
+
+export type SurfRest = SurfMixin & {
+  form: 'rest'
 }
 
 export type SurfFork = SurfMixin & {
@@ -295,6 +300,7 @@ export type Surf =
   | SurfCall
   | SurfBack
   | SurfHalt
+  | SurfRest
   | SurfFork
   | SurfWalk
   | SurfHook

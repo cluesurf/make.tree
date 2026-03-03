@@ -1,0 +1,82 @@
+
+mask measurable
+  task distance-to
+    take self, like self
+    take other, like self
+    like u64
+
+  task from-value
+    take value, like u64
+    like self
+
+mask scalable
+  task scale
+    take self, like self
+    take factor, like u64
+    like self
+
+  task add-to
+    take self, like self
+    take other, like self
+    take offset, like u64
+    like self
+
+form point
+  case point
+    link x, like u64
+    link y, like u64
+
+  wear measurable
+    task distance-to
+      take self, like point
+      take other, like point
+      back call add
+        bind a, read self/x
+        bind b, read other/x
+
+    task from-value
+      take value, like u64
+      back make point
+        bind x, read value
+        bind y, read value
+
+  wear scalable
+    task scale
+      take self, like point
+      take factor, like u64
+      back make point
+        bind x
+          call mul
+            bind a, read self/x
+            bind b, read factor
+        bind y
+          call mul
+            bind a, read self/y
+            bind b, read factor
+
+    task add-to
+      take self, like point
+      take other, like point
+      take offset, like u64
+      back make point
+        bind x
+          call add
+            bind a
+              call add
+                bind a, read self/x
+                bind b, read other/x
+            bind b, read offset
+        bind y
+          call add
+            bind a
+              call add
+                bind a, read self/y
+                bind b, read other/y
+            bind b, read offset
+
+task make-point
+  take x, like u64
+  take y, like u64
+  back make point
+    bind x, read x
+    bind y, read y

@@ -225,6 +225,22 @@ function isBoxedField(input: { typ: string; ctx: EmitCtx }): boolean {
   return false
 }
 
+/** Check if a dotted access name is a known field of a struct type. */
+function isStructFieldAccess(input: { fieldName: string; ctx: EmitCtx }): boolean {
+  const { fieldName, ctx } = input
+  for (const structName of ctx.structNames) {
+    const term = ctx.book.get(structName)
+    if (!term) continue
+    const val = unwrapAnn(term)
+    if (val.form !== 'adt') continue
+    for (const ctr of val.ctrs) {
+      const fields = ctx.fieldMap.get(ctr.name) ?? []
+      if (fields.includes(fieldName)) return true
+    }
+  }
+  return false
+}
+
 // ---- Trait / Impl Generation ----
 
 function castTraitDef(input: {
@@ -413,14 +429,15 @@ function collectReturnInfo(input: {
   ctx: EmitCtx
   adts: Set<string>
   literals: { hasNum: boolean; hasFlt: boolean; hasText: boolean }
+  fieldVars?: Map<string, string>
 }): void {
-  const { term, ctx, adts, literals } = input
+  const { term, ctx, adts, literals, fieldVars } = input
   switch (term.form) {
     case 'con': {
       const adt = ctx.ctrToEnum.get(term.name)
       if (adt) adts.add(adt)
       for (const [, arg] of term.args) {
-        collectReturnInfo({ term: arg, ctx, adts, literals })
+        collectReturnInfo({ term: arg, ctx, adts, literals, fieldVars })
       }
       break
     }
@@ -434,40 +451,81 @@ function collectReturnInfo(input: {
     case 'txt':
       literals.hasText = true
       break
+    case 'var': {
+      // If this variable was bound from a mat arm field, use its field type
+      if (fieldVars) {
+        const fieldType = fieldVars.get(term.name)
+        if (fieldType) {
+          switch (fieldType) {
+            case 'u8': case 'u16': case 'u32': case 'u64': case 'u128':
+            case 'i8': case 'i16': case 'i32': case 'i64': case 'i128':
+            case 'nat':
+              literals.hasNum = true
+              break
+            case 'f32': case 'f64':
+              literals.hasFlt = true
+              break
+            case 'text':
+              literals.hasText = true
+              break
+            default: {
+              if (ctx.enumNames.has(fieldType)) adts.add(fieldType)
+              break
+            }
+          }
+        }
+      }
+      break
+    }
     case 'app':
-      collectReturnInfo({ term: term.func, ctx, adts, literals })
-      collectReturnInfo({ term: term.argm, ctx, adts, literals })
+      collectReturnInfo({ term: term.func, ctx, adts, literals, fieldVars })
+      collectReturnInfo({ term: term.argm, ctx, adts, literals, fieldVars })
       break
     case 'let':
-      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
       collectReturnInfo({
         term: term.bod({ form: 'var', name: term.name, idx: 0 }),
         ctx,
         adts,
         literals,
+        fieldVars,
       })
       break
-    case 'mat':
-      for (const [, bod] of term.arms) {
-        collectReturnInfo({ term: bod, ctx, adts, literals })
+    case 'mat': {
+      for (const [ctrName, bod] of term.arms) {
+        // Build field variable type map from constructor field types
+        const ctrFieldTypes = ctx.fieldTypeMap.get(ctrName) ?? []
+        const armFieldVars = new Map(fieldVars ?? [])
+        let armBod = bod
+        let fieldIdx = 0
+        while (armBod.form === 'lam') {
+          const ft = ctrFieldTypes[fieldIdx]
+          const varName = armBod.name
+          if (ft) armFieldVars.set(varName, ft.typ)
+          armBod = armBod.bod({ form: 'var', name: varName, idx: 0 })
+          fieldIdx++
+        }
+        collectReturnInfo({ term: armBod, ctx, adts, literals, fieldVars: armFieldVars })
       }
       break
+    }
     case 'lam':
       collectReturnInfo({
         term: term.bod({ form: 'var', name: term.name, idx: 0 }),
         ctx,
         adts,
         literals,
+        fieldVars,
       })
       break
     case 'ann':
-      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
       break
     case 'ins':
-      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
       break
     case 'src':
-      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
       break
     case 'use':
       collectReturnInfo({
@@ -475,14 +533,23 @@ function collectReturnInfo(input: {
         ctx,
         adts,
         literals,
+        fieldVars,
       })
       break
     case 'log':
-      collectReturnInfo({ term: term.val, ctx, adts, literals })
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
+      break
+    case 'rst':
+      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
+      break
+    case 'hlt':
       break
     case 'swi':
-      collectReturnInfo({ term: term.zero, ctx, adts, literals })
-      collectReturnInfo({ term: term.succ, ctx, adts, literals })
+      collectReturnInfo({ term: term.zero, ctx, adts, literals, fieldVars })
+      collectReturnInfo({ term: term.succ, ctx, adts, literals, fieldVars })
+      break
+    case 'op2':
+      literals.hasNum = true
       break
   }
 }
@@ -682,6 +749,8 @@ function hasSelfTailCall(input: {
       })
     case 'log':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
+    case 'rst':
+      return hasSelfTailCall({ term: term.val, refName, arity, dep })
     default:
       return false
   }
@@ -852,6 +921,17 @@ function castStmt(input: {
       castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
     }
+    case 'rst': {
+      // Rust has no debugger statement; emit a comment
+      lines.push(`${pad}// breakpoint`)
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      return
+    }
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      lines.push(`${pad}panic!("{}", ${msg});`)
+      return
+    }
     case 'ann':
       castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
       return
@@ -955,6 +1035,20 @@ function castMatchStmt(input: {
     })
     lines.push(`${pad}    }`)
   }
+
+  // Add wildcard arm if the match does not cover all constructors
+  if (arms.length > 0) {
+    const firstCtr = arms[0]![0]
+    const formName = ctx.ctrToEnum.get(firstCtr)
+    if (formName) {
+      const adtTerm = ctx.book.get(formName)
+      const adt = adtTerm ? unwrapAnn(adtTerm) : undefined
+      if (adt && adt.form === 'adt' && arms.length < adt.ctrs.length) {
+        lines.push(`${pad}    _ => { unreachable!() }`)
+      }
+    }
+  }
+
   lines.push(`${pad}}`)
 }
 
@@ -1228,7 +1322,13 @@ function castExpr(input: {
           // Dock module calls use :: (module-level functions)
           const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
           const sep = isDockModule ? '::' : '.'
-          if (args.length === 1) return `${obj}${sep}${methodName}()`
+          if (args.length === 1) {
+            // Check if this is a struct field access (no parens needed)
+            if (isStructFieldAccess({ fieldName: prim, ctx })) {
+              return `${obj}${sep}${methodName}`
+            }
+            return `${obj}${sep}${methodName}()`
+          }
           const methodArgs = args
             .slice(1)
             .map(a => castExpr({ term: a, dep, ctx }))
@@ -1303,6 +1403,14 @@ function castExpr(input: {
       const msg = castExpr({ term: term.msg, dep, ctx })
       const val = castExpr({ term: term.val, dep, ctx })
       return `{ println!("{}", ${msg}); ${val} }`
+    }
+    case 'rst': {
+      const val = castExpr({ term: term.val, dep, ctx })
+      return `{ /* breakpoint */ ${val} }`
+    }
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      return `panic!("{}", ${msg})`
     }
     case 'all':
     case 'set':
@@ -1394,6 +1502,10 @@ function hasHaltCall(input: { term: Term; dep: number }): boolean {
         hasHaltCall({ term: term.msg, dep }) ||
         hasHaltCall({ term: term.val, dep })
       )
+    case 'rst':
+      return hasHaltCall({ term: term.val, dep })
+    case 'hlt':
+      return false
     case 'mat':
       return term.arms.some(([, bod]) => hasHaltCall({ term: bod, dep }))
     case 'swi':

@@ -390,8 +390,18 @@ function readStatement(fork: PFork): Surf | null {
       return { form: 'show', sift: readSiftFromChild(fork), site }
     case 'dive':
       return { form: 'dive', sift: readSiftFromChild(fork), site }
+    case 'hint':
+      return { form: 'hint-log', sift: readSiftFromChild(fork), site }
+    case 'tell':
+      return { form: 'tell', sift: readSiftFromChild(fork), site }
+    case 'kink':
+      return { form: 'kink-log', sift: readSiftFromChild(fork), site }
+    case 'bust':
+      return { form: 'bust', sift: readSiftFromChild(fork), site }
     case 'halt':
-      return { form: 'halt', site }
+      return { form: 'halt', sift: readSiftFromChild(fork), site }
+    case 'rest':
+      return { form: 'rest', site }
     case 'fuse':
       return readFuse(fork)
     default:
@@ -516,7 +526,7 @@ function readHook(fork: PFork): SurfHook {
   for (const child of children) {
     const kw = headWord(child)
     if (kw === 'base') {
-      base.push(readBase(child))
+      collectBases(child, base)
     } else {
       const stmt = readStatement(child)
       if (stmt) flow.push(stmt)
@@ -524,6 +534,16 @@ function readHook(fork: PFork): SurfHook {
   }
 
   return { form: 'hook', name, base, flow, site }
+}
+
+/** Read a base param and any comma-chained base siblings nested inside. */
+function collectBases(fork: PFork, out: SurfBase[]): void {
+  out.push(readBase(fork))
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'base') {
+      collectBases(child, out)
+    }
+  }
 }
 
 // -- call --

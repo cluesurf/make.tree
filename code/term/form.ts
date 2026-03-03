@@ -203,6 +203,18 @@ export type TermLog = {
   val: Term
 }
 
+/** Debugger breakpoint (rest) */
+export type TermRst = {
+  form: 'rst'
+  val: Term
+}
+
+/** Halt (panic/throw with message) */
+export type TermHlt = {
+  form: 'hlt'
+  msg: Term
+}
+
 /** Union of all core term variants. */
 export type Term =
   | TermAll
@@ -232,6 +244,8 @@ export type Term =
   | TermVar
   | TermSrc
   | TermLog
+  | TermRst
+  | TermHlt
 
 /** Constructor in an ADT. */
 export type Ctr = {

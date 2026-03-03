@@ -1,0 +1,127 @@
+
+form color
+  case red
+  case green
+  case blue
+
+form season
+  case spring
+  case summer
+  case autumn
+  case winter
+
+form mood
+  case happy
+  case sad
+
+task color-season-mood
+  take c, like color
+  take s, like season
+  take m, like mood
+  fork case, read c
+    hook red
+      fork case, read s
+        hook spring
+          fork case, read m
+            hook happy
+              back mark 1
+            hook sad
+              back mark 2
+        hook summer
+          back mark 3
+        hook autumn
+          back mark 4
+        hook winter
+          back mark 5
+    hook green
+      fork case, read m
+        hook happy
+          back mark 10
+        hook sad
+          back mark 20
+    hook blue
+      back mark 100
+
+form tree
+  case leaf
+    link value, like u64
+  case node
+    link left, like tree
+    link right, like tree
+
+task tree-sum
+  take t, like tree
+  fork case, read t
+    hook leaf, base value
+      back read value
+    hook node, base left, base right
+      save l
+        call tree-sum
+          bind t, read left
+      save r
+        call tree-sum
+          bind t, read right
+      back call add
+        bind a, read l
+        bind b, read r
+
+task tree-depth
+  take t, like tree
+  fork case, read t
+    hook leaf, base value
+      back mark 0
+    hook node, base left, base right
+      save l
+        call tree-depth
+          bind t, read left
+      save r
+        call tree-depth
+          bind t, read right
+      fork test
+        call gt
+          bind a, read l
+          bind b, read r
+        hook true
+          back call add
+            bind a, read l
+            bind b, mark 1
+        hook false
+          back call add
+            bind a, read r
+            bind b, mark 1
+
+form expr
+  case lit
+    link value, like u64
+  case add-expr
+    link left, like expr
+    link right, like expr
+  case mul-expr
+    link left, like expr
+    link right, like expr
+
+task eval-expr
+  take e, like expr
+  fork case, read e
+    hook lit, base value
+      back read value
+    hook add-expr, base left, base right
+      save l
+        call eval-expr
+          bind e, read left
+      save r
+        call eval-expr
+          bind e, read right
+      back call add
+        bind a, read l
+        bind b, read r
+    hook mul-expr, base left, base right
+      save l
+        call eval-expr
+          bind e, read left
+      save r
+        call eval-expr
+          bind e, read right
+      back call mul
+        bind a, read l
+        bind b, read r
