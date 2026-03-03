@@ -1,12 +1,14 @@
 /**
  * Kotlin code generation from Core Terms.
  *
- * Two-phase codegen (same architecture as TypeScript backend):
- *   Phase A: Analyze the Book to build tag/field/arity maps.
- *   Phase B: Emit using statement mode and expression mode.
+ * Four-phase codegen:
+ *   Phase A: Analyze the Book to build tag/field/arity/ctrToEnum maps.
+ *   Phase B: Emit sealed classes, interfaces, impl methods, standalone fns.
  *
  * Kotlin-specific patterns:
  *   - ADTs → sealed class with data class variants
+ *   - Traits → interface with method signatures
+ *   - Impls → methods inside sealed class body (override fun)
  *   - Pattern matching → when (x) { is Variant -> ... }
  *   - Lambdas → { params -> body }
  *   - Tail recursion → while (true) { ... } with reassignment
@@ -15,11 +17,13 @@
  */
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
+import type { TraitMeta, MaskInfo, ImplInfo } from '@/cast/trait'
 
 type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
+  ctrToEnum: Map<string, string>
   book: Book
 }
 
@@ -30,59 +34,56 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book }): string {
+export function castBook(input: { book: Book; traits?: TraitMeta }): string {
   const ctx = analyze({ book: input.book })
   const lines: string[] = []
 
+  // Build set of method names that belong to impl blocks
+  const implMethodSet = new Set<string>()
+  for (const impl of input.traits?.impls ?? []) {
+    for (const m of impl.methods) implMethodSet.add(m)
+  }
+
+  // Build map: formName → list of impls for that form
+  const formImpls = new Map<string, ImplInfo[]>()
+  for (const impl of input.traits?.impls ?? []) {
+    const list = formImpls.get(impl.formName) ?? []
+    list.push(impl)
+    formImpls.set(impl.formName, list)
+  }
+
+  // Phase 1: Sealed classes (with interface conformance + methods)
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') {
+      const impls = formImpls.get(name) ?? []
+      lines.push(castSealed({
+        name,
+        term: val,
+        ctx,
+        impls,
+        masks: input.traits?.masks ?? [],
+      }))
+    }
+  }
+
+  // Phase 2: Interfaces (from masks)
+  for (const mask of input.traits?.masks ?? []) {
+    lines.push(castInterface({ mask }))
+  }
+
+  // Phase 3: Standalone functions (skip ADTs, type-only, impl methods)
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
 
-    if (val.form === 'adt') {
-      lines.push(castSealed({ name, term: val, ctx }))
-      continue
-    }
-
+    if (val.form === 'adt') continue
     if (isTypeOnly(val)) continue
+    if (implMethodSet.has(name)) continue
 
     const safeName = camelCase(name)
 
     if (val.form === 'lam') {
-      const { params, body } = unwrapLam({ term: val, dep: 0 })
-      const paramStr = params
-        .map(p => `${p.name}: Any`)
-        .join(', ')
-      const paramNames = params.map(p => p.name)
-      const isTailRec = hasSelfTailCall({
-        term: body,
-        refName: name,
-        arity: params.length,
-        dep: params.length,
-      })
-      const tail: TailCtx = isTailRec
-        ? { refName: name, params: paramNames }
-        : null
-      const bodyLines: string[] = []
-      const bodyIndent = isTailRec ? 2 : 1
-      castStmt({
-        term: body,
-        dep: params.length,
-        ctx,
-        lines: bodyLines,
-        indent: bodyIndent,
-        tail,
-      })
-      if (isTailRec) {
-        const varDecls = paramNames
-          .map(p => `    var ${p} = ${p}`)
-          .join('\n')
-        lines.push(
-          `fun ${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`,
-        )
-      } else {
-        lines.push(
-          `fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`,
-        )
-      }
+      lines.push(castFunction({ name, safeName, term: val, ctx }))
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
       lines.push(`val ${safeName}: Any = ${expr}`)
@@ -92,17 +93,72 @@ export function castBook(input: { book: Book }): string {
   return lines.join('\n\n')
 }
 
+function castFunction(input: {
+  name: string
+  safeName: string
+  term: Term & { form: 'lam' }
+  ctx: EmitCtx
+}): string {
+  const { name, safeName, ctx } = input
+  const { params, body } = unwrapLam({ term: input.term, dep: 0 })
+  const paramStr = params
+    .map(p => `${p.name}: Any`)
+    .join(', ')
+  const paramNames = params.map(p => p.name)
+  const isTailRec = hasSelfTailCall({
+    term: body,
+    refName: name,
+    arity: params.length,
+    dep: params.length,
+  })
+  const tail: TailCtx = isTailRec
+    ? { refName: name, params: paramNames }
+    : null
+  const bodyLines: string[] = []
+  const bodyIndent = isTailRec ? 2 : 1
+  castStmt({
+    term: body,
+    dep: params.length,
+    ctx,
+    lines: bodyLines,
+    indent: bodyIndent,
+    tail,
+  })
+  if (isTailRec) {
+    const varDecls = paramNames
+      .map(p => `    var ${p} = ${p}`)
+      .join('\n')
+    return `fun ${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`
+  }
+  return `fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`
+}
+
 // ---- Sealed Class Generation ----
 
 function castSealed(input: {
   name: string
   term: Term & { form: 'adt' }
   ctx: EmitCtx
+  impls: ImplInfo[]
+  masks: MaskInfo[]
 }): string {
-  const { term } = input
+  const { term, ctx, impls, masks } = input
   const className = pascalCase(input.name)
   const lines: string[] = []
-  lines.push(`sealed class ${className} {`)
+
+  // Collect interface names this sealed class implements
+  const ifaceNames: string[] = []
+  for (const impl of impls) {
+    if (impl.maskName) {
+      ifaceNames.push(pascalCase(impl.maskName))
+    }
+  }
+
+  const conformance = ifaceNames.length > 0
+    ? ` : ${ifaceNames.join(', ')}`
+    : ''
+  lines.push(`sealed class ${className}${conformance} {`)
+
   for (const ctr of term.ctrs) {
     const fields = teleToFieldNames(ctr.tele)
     const ctrName = pascalCase(ctr.name)
@@ -117,6 +173,74 @@ function castSealed(input: {
       )
     }
   }
+
+  // Emit impl methods inside the sealed class
+  for (const impl of impls) {
+    const isOverride = impl.maskName !== null
+    for (const bookKey of impl.methods) {
+      const methodTerm = ctx.book.get(bookKey)
+      if (!methodTerm) continue
+
+      const shortName = bookKey.includes('/')
+        ? bookKey.split('/').pop()!
+        : bookKey
+      const safeName = camelCase(shortName)
+      const val = unwrapAnn(methodTerm)
+
+      if (val.form === 'lam') {
+        // Manually unwrap lambdas, binding 'self' to 'this'
+        const methodParamNames: string[] = []
+        const methodParams: string[] = []
+        let cur: Term = val
+        let d = 0
+        while (cur.form === 'lam') {
+          const pName = cur.name === 'self' ? 'this' : varName({ name: cur.name, dep: d })
+          if (cur.name !== 'self') {
+            methodParams.push(`${pName}: Any`)
+          }
+          methodParamNames.push(pName)
+          cur = cur.bod({ form: 'var', name: pName, idx: d })
+          d++
+        }
+        const paramStr = methodParams.join(', ')
+
+        const bodyLines: string[] = []
+        castStmt({
+          term: cur,
+          dep: d,
+          ctx,
+          lines: bodyLines,
+          indent: 2,
+        })
+
+        const prefix = isOverride ? 'override ' : ''
+        lines.push(
+          `    ${prefix}fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n    }`,
+        )
+      }
+    }
+  }
+
+  lines.push('}')
+  return lines.join('\n')
+}
+
+// ---- Interface Generation ----
+
+function castInterface(input: { mask: MaskInfo }): string {
+  const { mask } = input
+  const ifaceName = pascalCase(mask.name)
+  const lines: string[] = []
+  lines.push(`interface ${ifaceName} {`)
+  for (const method of mask.methods) {
+    const safeName = camelCase(method.name)
+    const params: string[] = []
+    for (const p of method.params) {
+      if (p.name === 'self') continue
+      params.push(`${camelCase(p.name)}: Any`)
+    }
+    lines.push(`    fun ${safeName}(${params.join(', ')}): Any`)
+  }
   lines.push('}')
   return lines.join('\n')
 }
@@ -127,6 +251,7 @@ function analyze(input: { book: Book }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
+  const ctrToEnum = new Map<string, string>()
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -135,6 +260,7 @@ function analyze(input: { book: Book }): EmitCtx {
       for (const ctr of val.ctrs) {
         tagMap.set(ctr.name, localTag++)
         fieldMap.set(ctr.name, teleToFieldNames(ctr.tele))
+        ctrToEnum.set(ctr.name, name)
       }
     }
     if (val.form === 'lam') {
@@ -142,7 +268,7 @@ function analyze(input: { book: Book }): EmitCtx {
     }
   }
 
-  return { tagMap, fieldMap, arityMap, book: input.book }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, book: input.book }
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -398,7 +524,7 @@ function castMatchStmt(input: {
   lines.push(`${pad}when (${scrExpr}) {`)
   for (const [name, bod] of arms) {
     const fields = ctx.fieldMap.get(name) ?? []
-    const enumType = findEnumForCtr({ name, ctx })
+    const enumType = ctx.ctrToEnum.get(name) ?? null
     const ctrName = pascalCase(name)
     const qualName = enumType
       ? `${pascalCase(enumType)}.${ctrName}`
@@ -550,6 +676,12 @@ function castExpr(input: {
           return `${obj}.${methodName}(${methodArgs.join(', ')})`
         }
       }
+      // Direct call for known top-level functions
+      if (func.form === 'ref' && (ctx.arityMap.has(func.name) || ctx.book.has(func.name))) {
+        const funcStr = camelCase(func.name)
+        const argsStr = args.map(a => castExpr({ term: a, dep, ctx }))
+        return `${funcStr}(${argsStr.join(', ')})`
+      }
       const funcStr = castExpr({ term: func, dep, ctx })
       const argsStr = args.map(a => castExpr({ term: a, dep, ctx }))
       return `(${funcStr} as (${args.map(() => 'Any').join(', ')}) -> Any)(${argsStr.join(', ')})`
@@ -583,7 +715,7 @@ function castExpr(input: {
       return `${term.val}L`
     case 'con': {
       const ctrName = pascalCase(term.name)
-      const enumType = findEnumForCtr({ name: term.name, ctx })
+      const enumType = ctx.ctrToEnum.get(term.name) ?? null
       const qualName = enumType
         ? `${pascalCase(enumType)}.${ctrName}`
         : ctrName
@@ -696,20 +828,6 @@ function pascalCase(name: string): string {
   return name.replace(/(^|[/.\-])(.)/g, (_, __, c) => c.toUpperCase())
 }
 
-function findEnumForCtr(input: {
-  name: string
-  ctx: EmitCtx
-}): string | null {
-  for (const [bookName, term] of input.ctx.book) {
-    const val = unwrapAnn(term)
-    if (val.form === 'adt') {
-      for (const ctr of val.ctrs) {
-        if (ctr.name === input.name) return bookName
-      }
-    }
-  }
-  return null
-}
 
 function castOper(oper: Oper): string {
   const map: Record<Oper, string> = {
