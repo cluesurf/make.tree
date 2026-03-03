@@ -67,6 +67,13 @@ export function desugarCard(input: { card: SurfCard }): Book {
     if (node.form === 'wear') {
       desugarWearTasks({ wear: node as SurfWear, book, meta })
     }
+
+    // Process suit wear blocks
+    if (node.form === 'suit') {
+      for (const w of (node as { wear: SurfWear[] }).wear) {
+        desugarWearTasks({ wear: w, book, meta })
+      }
+    }
   }
 
   return book
@@ -398,13 +405,16 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
  *   call x/save, bind val, mark 42
  *   → Method x "save" [Num 42]
  */
-/** Comparison operators: call name → Op2 oper.
- * Only comparisons are auto-converted to Op2 (return native bool).
- * Arithmetic ops (add, sub, mul, div) remain as function calls to
- * avoid breaking user-defined functions with those names. */
+/** Built-in binary operators → Op2 nodes.
+ * All standard arithmetic, comparison, and bitwise ops are converted
+ * to Op2 so backends can emit native operators. */
 const BUILTIN_BINARY_OPS: Record<string, Oper> = {
+  add: 'add', sub: 'sub', mul: 'mul',
+  div: 'div', mod: 'mod',
   eq: 'eq', ne: 'ne', lt: 'lt',
   gt: 'gt', lte: 'lte', gte: 'gte',
+  and: 'and', or: 'or', xor: 'xor',
+  lsh: 'lsh', rsh: 'rsh',
 }
 
 function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
@@ -591,6 +601,27 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
     }
   }
 
+  // walk test → while loop: App(App(Ref ".while") condition) (Lam "_" body)
+  if (walk.mode === 'test' && walk.sift) {
+    const condition = desugarSift({ sift: walk.sift, ctx })
+    const hook = walk.hook[0]
+    if (!hook) return { form: 'con', name: 'Unit', args: [] }
+    const body: Term = {
+      form: 'lam',
+      name: '_',
+      bod: () => desugarWhileBody({ flow: hook.flow, ctx }),
+    }
+    return {
+      form: 'app',
+      func: {
+        form: 'app',
+        func: { form: 'ref', name: '.while' },
+        argm: condition,
+      },
+      argm: body,
+    }
+  }
+
   // Default: pattern-matching walk (existing behavior)
   const arms: [string, Term][] = walk.hook.map(hook => [
     hook.name,
@@ -633,6 +664,41 @@ function desugarArm(input: { hook: SurfHook; ctx: Ctx }): Term {
 }
 
 // ---- Helpers ----
+
+/** Desugar a while body flow, ensuring every save produces a Let binding.
+ * Unlike desugarFlow (which returns the value directly when rest is empty),
+ * this always wraps save in Let name val (continuation | Unit). */
+function desugarWhileBody(input: { flow: Surf[]; ctx: Ctx }): Term {
+  const { flow, ctx } = input
+
+  if (flow.length === 0) return { form: 'con', name: 'Unit', args: [] }
+
+  const first = flow[0]!
+  const rest = flow.slice(1)
+
+  if (first.form === 'save') {
+    const name = first.path[0] ?? '_'
+    const val = first.sift
+      ? desugarSift({ sift: first.sift, ctx })
+      : freshMeta(ctx)
+    return {
+      form: 'let',
+      name,
+      val,
+      bod: x => {
+        const newScope = new Map(ctx.scope)
+        newScope.set(name, x)
+        return desugarWhileBody({
+          flow: rest,
+          ctx: { ...ctx, scope: newScope },
+        })
+      },
+    }
+  }
+
+  // For other statement types, delegate to desugarFlow
+  return desugarFlow({ flow, ctx })
+}
 
 /** Build a chain of Lam nodes from parameters. */
 function buildLamChain(input: {

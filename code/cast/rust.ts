@@ -14,6 +14,7 @@
  */
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
+import type { TraitMeta } from '@/cast/trait'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -37,7 +38,11 @@ export type DockLoad = { path: string; name?: string }
 /** Names that map to Rust built-in types (skip enum generation). */
 const RUST_BUILTIN_FORMS = new Set(['result'])
 
-export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
+export function castBook(input: {
+  book: Book
+  dock?: DockLoad[]
+  traits?: TraitMeta
+}): string {
   const dockNames = new Set<string>()
   for (const load of input.dock ?? []) {
     if (load.name) dockNames.add(load.name)
@@ -46,21 +51,44 @@ export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
   const ctx = analyze({ book: input.book, dockNames })
   const lines: string[] = []
 
+  // Build set of method names that belong to impl blocks
+  const implMethods = new Set<string>()
+  for (const impl of input.traits?.impls ?? []) {
+    for (const m of impl.methods) implMethods.add(m)
+  }
+
+  // Phase 1: Dock imports
   for (const load of input.dock ?? []) {
     const path = load.path.replace(/:/g, '::')
     lines.push(`use ${path};`)
   }
 
+  // Phase 2: Enums
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
-
     if (val.form === 'adt') {
       if (RUST_BUILTIN_FORMS.has(name)) continue
       lines.push(castEnum({ name, term: val, ctx }))
-      continue
     }
+  }
 
+  // Phase 3: Trait definitions
+  for (const mask of input.traits?.masks ?? []) {
+    lines.push(castTraitDef({ mask }))
+  }
+
+  // Phase 4: Impl blocks
+  for (const impl of input.traits?.impls ?? []) {
+    lines.push(castImplBlock({ impl, ctx, masks: input.traits?.masks ?? [] }))
+  }
+
+  // Phase 5: Standalone functions (skip impl methods)
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+
+    if (val.form === 'adt') continue
     if (isTypeOnly(val)) continue
+    if (implMethods.has(name)) continue
 
     const safeName = snakeCase(name)
     const paramTypes = extractParamTypes({ term, ctx })
@@ -151,6 +179,124 @@ function castEnum(input: {
   }
   lines.push('}')
   return lines.join('\n')
+}
+
+// ---- Trait / Impl Generation ----
+
+function castTraitDef(input: {
+  mask: import('@/cast/trait').MaskInfo
+}): string {
+  const { mask } = input
+  const traitName = pascalCase(mask.name)
+  const lines: string[] = []
+  lines.push(`trait ${traitName} {`)
+  for (const method of mask.methods) {
+    const safeName = snakeCase(method.name)
+    const params: string[] = []
+    for (const p of method.params) {
+      if (p.name === 'self') {
+        params.push('&self')
+      } else {
+        const typ = resolveTraitTypeName(p.typeName)
+        params.push(`${snakeCase(p.name)}: ${typ}`)
+      }
+    }
+    const ret = resolveTraitTypeName(method.returnType)
+    lines.push(`    fn ${safeName}(${params.join(', ')}) -> ${ret};`)
+  }
+  lines.push('}')
+  return lines.join('\n')
+}
+
+function castImplBlock(input: {
+  impl: import('@/cast/trait').ImplInfo
+  ctx: EmitCtx
+  masks: import('@/cast/trait').MaskInfo[]
+}): string {
+  const { ctx, masks } = input
+  const implInfo = input.impl
+  const formName = pascalCase(implInfo.formName)
+  const lines: string[] = []
+
+  // Look up the corresponding mask for return type info
+  const mask = implInfo.maskName
+    ? masks.find(m => m.name === implInfo.maskName)
+    : undefined
+
+  if (implInfo.maskName) {
+    const maskName = pascalCase(implInfo.maskName)
+    lines.push(`impl ${maskName} for ${formName} {`)
+  } else {
+    lines.push(`impl ${formName} {`)
+  }
+
+  for (const methodName of implInfo.methods) {
+    const term = ctx.book.get(methodName)
+    if (!term) continue
+
+    const safeName = snakeCase(methodName)
+    const paramTypes = extractParamTypes({ term, ctx })
+
+    // Use mask's declared return type if available
+    const maskMethod = mask?.methods.find(m => m.name === methodName)
+    const baseReturnType = maskMethod?.returnType
+      ? resolveTraitTypeName(maskMethod.returnType)
+      : inferReturnType({ term, ctx })
+
+    const val = unwrapAnn(term)
+
+    if (val.form === 'lam') {
+      const { params, body } = unwrapLam({ term: val, dep: 0 })
+      const usesHalt = hasHaltCall({ term: body, dep: params.length })
+      const returnType = usesHalt
+        ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
+        : baseReturnType
+
+      // Build param string, replacing "self" with "&self"
+      const hasSelfParam =
+        params.length > 0 && params[0]!.name === 'self'
+      const paramParts: string[] = []
+      const startIdx = hasSelfParam ? 1 : 0
+      if (hasSelfParam) {
+        paramParts.push('&self')
+      }
+      for (let i = startIdx; i < params.length; i++) {
+        const typ = paramTypes[i] ?? 'impl Clone'
+        paramParts.push(`${params[i]!.name}: ${typ}`)
+      }
+      const paramStr = paramParts.join(', ')
+
+      const bodyLines: string[] = []
+      castStmt({
+        term: body,
+        dep: params.length,
+        ctx,
+        lines: bodyLines,
+        indent: 2,
+        okWrap: usesHalt,
+      })
+      lines.push(
+        `    fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n    }`,
+      )
+    }
+  }
+
+  lines.push('}')
+  return lines.join('\n')
+}
+
+function resolveTraitTypeName(name: string | null): string {
+  if (!name) return 'impl Clone'
+  switch (name) {
+    case 'u64':
+      return 'u64'
+    case 'f64':
+      return 'f64'
+    case 'text':
+      return 'String'
+    default:
+      return pascalCase(name)
+  }
 }
 
 // ---- Type Resolution ----
@@ -471,6 +617,20 @@ function castStmt(input: {
 
   switch (term.form) {
     case 'let': {
+      // Check for .while as the Let value → emit while loop, then continue
+      if (isWhileApp(term.val)) {
+        castWhileStmt({ term: term.val, dep, ctx, lines, indent })
+        castStmt({
+          term: term.bod({ form: 'var', name: '_', idx: dep }),
+          dep: dep + 1,
+          ctx,
+          lines,
+          indent,
+          tail,
+          okWrap,
+        })
+        return
+      }
       const name = varName({ name: term.name, dep })
       const val = castExpr({ term: term.val, dep, ctx })
       lines.push(`${pad}let ${name} = ${val};`)
@@ -487,6 +647,16 @@ function castStmt(input: {
     }
     case 'app': {
       const { func, args } = unwrapApp(term)
+      // walk test → while loop: .while(condition)(body)
+      if (
+        func.form === 'ref' &&
+        func.name === '.while' &&
+        args.length === 2 &&
+        args[1]!.form === 'lam'
+      ) {
+        castWhileStmt({ term, dep, ctx, lines, indent })
+        return
+      }
       // fork test → if/else: .test(mat, condition)
       if (
         func.form === 'ref' &&
@@ -734,6 +904,142 @@ function castSwiStmt(input: {
     }
   }
   lines.push(`${pad}}`)
+}
+
+/** Check if a term is a .while application: App(App(Ref ".while") cond) body */
+function isWhileApp(term: Term): boolean {
+  if (term.form !== 'app') return false
+  const { func, args } = unwrapApp(term)
+  return (
+    func.form === 'ref' &&
+    func.name === '.while' &&
+    args.length === 2 &&
+    args[1]!.form === 'lam'
+  )
+}
+
+/** Collect Let binding names from a while body term (skip "_" bindings). */
+function collectWhileBodyLetNames(input: {
+  term: Term
+  dep: number
+}): string[] {
+  const { term, dep } = input
+  const names: string[] = []
+  let cur = term
+  let d = dep
+  while (cur.form === 'let') {
+    if (cur.name !== '_') {
+      names.push(varName({ name: cur.name, dep: d }))
+    }
+    cur = cur.bod({ form: 'var', name: cur.name, idx: d })
+    d++
+  }
+  return names
+}
+
+/** Emit a while loop statement from a .while application. */
+function castWhileStmt(input: {
+  term: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+}): void {
+  const { term, dep, ctx, lines, indent } = input
+  const pad = '    '.repeat(indent)
+  const { args } = unwrapApp(term)
+  const condition = args[0]!
+  const lam = args[1]!
+
+  if (lam.form !== 'lam') return
+
+  const bodTerm = lam.bod({ form: 'var', name: '_', idx: dep })
+
+  // Collect Let names from the while body (these are reassignments)
+  const mutNames = collectWhileBodyLetNames({ term: bodTerm, dep: dep + 1 })
+
+  // Retroactively convert outer `let name =` to `let mut name =`
+  for (const mutName of mutNames) {
+    const letPattern = `let ${mutName} = `
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.trimStart().startsWith(letPattern)) {
+        lines[i] = lines[i]!.replace(`let ${mutName} = `, `let mut ${mutName} = `)
+        break
+      }
+    }
+  }
+
+  const condExpr = castExpr({ term: condition, dep, ctx })
+  lines.push(`${pad}while ${condExpr} {`)
+
+  // Emit while body: Let bindings that match mutNames → assignment
+  castWhileBody({
+    term: bodTerm,
+    dep: dep + 1,
+    ctx,
+    lines,
+    indent: indent + 1,
+    mutNames: new Set(mutNames),
+  })
+
+  lines.push(`${pad}}`)
+}
+
+/** Emit the body of a while loop, converting reassignments. */
+function castWhileBody(input: {
+  term: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+  mutNames: Set<string>
+}): void {
+  const { term, dep, ctx, lines, indent, mutNames } = input
+  const pad = '    '.repeat(indent)
+
+  if (term.form === 'let') {
+    const name = varName({ name: term.name, dep })
+    if (term.name === '_') {
+      // Wrapper Let from ensureLetUnit: emit value as side-effect
+      const val = castExpr({ term: term.val, dep, ctx })
+      if (mutNames.has(val)) {
+        // Unlikely, but handle
+        lines.push(`${pad}${val};`)
+      }
+      // Continue to body (should be Unit)
+      castWhileBody({
+        term: term.bod({ form: 'var', name, idx: dep }),
+        dep: dep + 1,
+        ctx,
+        lines,
+        indent,
+        mutNames,
+      })
+      return
+    }
+    const val = castExpr({ term: term.val, dep, ctx })
+    if (mutNames.has(name)) {
+      // Reassignment of mutable variable
+      lines.push(`${pad}${name} = ${val};`)
+    } else {
+      lines.push(`${pad}let ${name} = ${val};`)
+    }
+    castWhileBody({
+      term: term.bod({ form: 'var', name, idx: dep }),
+      dep: dep + 1,
+      ctx,
+      lines,
+      indent,
+      mutNames,
+    })
+    return
+  }
+
+  // Skip Unit at the end of while body
+  if (term.form === 'con' && term.name === 'Unit') return
+
+  // Other statements (e.g., if/else inside loop)
+  castStmt({ term, dep, ctx, lines, indent })
 }
 
 function castTestStmt(input: {

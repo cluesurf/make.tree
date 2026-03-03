@@ -109,7 +109,7 @@ describe('term/desugar', () => {
         ], hook: {}, site,
       }
       const term = siftToTerm(call)
-      expect(showTerm(term)).toBe('(add 1 2)')
+      expect(showTerm(term)).toBe('(+ 1 2)')
     })
   })
 
@@ -429,7 +429,7 @@ describe('term/desugar', () => {
         expect(body.form).toBe('let')
         if (body.form === 'let') {
           expect(body.name).toBe('result')
-          expect(body.val.form).toBe('app') // call mul
+          expect(body.val.form).toBe('op2') // call mul → Op2
           // The let body resolves 'result' to the let-bound var
           const letBody = body.bod({ form: 'var', name: 'result', idx: 1 })
           expect(letBody.form).toBe('var')

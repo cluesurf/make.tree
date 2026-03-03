@@ -25,6 +25,7 @@ export type SurfTask = SurfMixin & {
   base: SurfBase[]
   flow: Surf[]
   task: SurfTask[]
+  like?: SurfType
   risk?: boolean
 }
 

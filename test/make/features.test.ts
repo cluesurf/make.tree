@@ -70,7 +70,7 @@ describe('tree/fuse macros', () => {
   it('expands tree template and generates correct TS', () => {
     const ts = compileFile('macro.tree')
     expect(ts).toContain('export function doubleInt(n)')
-    expect(ts).toContain('return mul(n, 2);')
+    expect(ts).toContain('return (n * 2);')
   })
 })
 

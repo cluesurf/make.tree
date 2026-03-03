@@ -1,0 +1,26 @@
+mask printable
+  task to-text
+    take self, like self
+    like text
+
+form color
+  case red
+  case green
+  case blue
+
+  wear printable
+    task to-text
+      take self, like color
+      fork case, loan self
+        hook red
+          back text <red>
+        hook green
+          back text <green>
+        hook blue
+          back text <blue>
+
+task make-red
+  back make red
+
+task make-green
+  back make green

@@ -268,6 +268,7 @@ function readTask(fork: PFork): SurfTask {
   const base: SurfBase[] = []
   const flow: Surf[] = []
   const task: SurfTask[] = []
+  let like: SurfType | undefined
   let risk: boolean | undefined
 
   for (const child of childForks(fork, 2)) {
@@ -279,6 +280,9 @@ function readTask(fork: PFork): SurfTask {
       case 'take':
       case 'base':
         base.push(readBase(child))
+        break
+      case 'like':
+        like = readType(child)
         break
       case 'task':
         task.push(readTask(child))
@@ -295,6 +299,7 @@ function readTask(fork: PFork): SurfTask {
   }
 
   const result: SurfTask = { form: 'task', name, head, base, flow, task, site }
+  if (like) result.like = like
   if (risk) result.risk = risk
   return result
 }
@@ -490,6 +495,8 @@ function readWalkNode(fork: PFork): SurfWalk {
       kw === 'read'
     ) {
       sift = readSiftExpr(child)
+    } else if (kw === 'call') {
+      sift = readCall(child, [])
     } else if (kw === 'hook') {
       hooks.push(readHook(child))
     }

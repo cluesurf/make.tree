@@ -1,0 +1,52 @@
+
+task count-to
+  take n, like u64
+  save total, mark 0
+  save i, mark 0
+  walk test
+    call lt
+      bind a, loan i
+      bind b, loan n
+    hook step
+      save total
+        call add
+          bind a, loan total
+          bind b, loan i
+      save i
+        call add
+          bind a, loan i
+          bind b, mark 1
+  back loan total
+
+task factorial
+  take n, like u64
+  save result, mark 1
+  save i, mark 1
+  walk test
+    call lte
+      bind a, loan i
+      bind b, loan n
+    hook step
+      save result
+        call mul
+          bind a, loan result
+          bind b, loan i
+      save i
+        call add
+          bind a, loan i
+          bind b, mark 1
+  back loan result
+
+task count-down
+  take n, like u64
+  save i, loan n
+  walk test
+    call gt
+      bind a, loan i
+      bind b, mark 0
+    hook step
+      save i
+        call sub
+          bind a, loan i
+          bind b, mark 1
+  back loan i

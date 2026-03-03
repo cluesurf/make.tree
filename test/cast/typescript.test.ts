@@ -694,7 +694,7 @@ describe('cast/typescript', () => {
       const book = desugarCard({ card })
       const ts = castBook({ book })
       expect(ts).toContain('export function double(n)')
-      expect(ts).toContain('return mul(n, 2);')
+      expect(ts).toContain('return (n * 2);')
     })
 
     it('generates TS for a task with save', () => {

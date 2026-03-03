@@ -162,7 +162,7 @@ describe('fuse/index', () => {
     const ts = castBook({ book })
 
     expect(ts).toContain('export function doubleInt(n)')
-    expect(ts).toContain('return mul(n, 2);')
+    expect(ts).toContain('return (n * 2);')
   })
 
   it('handles tree with no fuse (nothing to expand)', () => {

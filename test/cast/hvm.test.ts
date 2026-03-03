@@ -314,7 +314,7 @@ describe('cast/hvm', () => {
       }
       const book = desugarCard({ card })
       const hvm = castBook({ book })
-      expect(hvm).toContain('@double = λn (@mul n 2)')
+      expect(hvm).toContain('@double = λn (* n 2)')
     })
 
     it('generates HVM for a task with save', () => {
