@@ -114,10 +114,24 @@ test/         Unit tests, backend E2E tests, stdlib tests
 
 ## Getting Started
 
-Run the test suite:
-
 ```bash
+# Build the compiler (TypeScript -> JavaScript)
+pnpm make
+
+# Build in watch mode (auto-rebuild on changes)
+pnpm scan
+
+# Run the full test suite (615+ tests)
 pnpm test
+
+# Run tests in watch mode (re-runs on file changes)
+pnpm test:watch
+
+# Lint the codebase
+pnpm lint
+
+# Publish to npm
+pnpm host
 ```
 
 See [prerequisites](note/prerequisites.md) for platform-specific setup
