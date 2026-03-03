@@ -23,7 +23,7 @@ language, part of the TermTree ecosystem. It takes `.tree` source files
 and compiles them to Rust, TypeScript, Kotlin, Swift, and HVM.
 
 The core type system is based on the Calculus of Constructions with
-self-types, inspired by Victor Taelin's work on
+self-types, inspired by [Victor Taelin's](https://x.com/VictorTaelin) work on
 [HVM](https://github.com/HigherOrderCO/HVM). Rather than building
 algebraic data types and pattern matching as primitives, the compiler
 represents them through self-types (`Slf`, `Ins`) and lambda encodings.
@@ -96,12 +96,13 @@ stage. The compiler handles:
 ## Structure
 
 ```
-code/read/       Reader: tree parse output -> Surface AST
-code/fuse/       Macro expansion (fuse/tree)
-code/term/       Core Terms, desugar, type checker
-code/cast/       Backend code generators (rust, typescript, kotlin, swift, hvm)
-code/kink/       Error types and display
-test/            Tests (unit, backend E2E, stdlib)
+code/
+  read/       Reader: tree parse output -> Surface AST
+  fuse/       Macro expansion (fuse/tree)
+  term/       Core Terms, desugar, type checker
+  cast/       Backend code generators (rust, typescript, kotlin, swift, hvm)
+  kink/       Error types and display
+test/         Tests (unit, backend E2E, stdlib)
 ```
 
 ## Development
