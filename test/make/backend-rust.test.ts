@@ -37,35 +37,35 @@ function compileFile(name: string): string {
 describe('rust: Bool', () => {
   const rs = compileFile('stdlib-bool.tree')
 
-  it('generates enum for Bool', () => {
-    expect(rs).toContain('#[derive(Clone, Debug)]')
-    expect(rs).toContain('pub enum Bool')
+  it('generates enum with PartialEq for Bool', () => {
+    expect(rs).toContain('#[derive(Clone, Debug, PartialEq)]')
+    expect(rs).toContain('enum Bool')
   })
 
-  it('generates bool_not with match', () => {
-    expect(rs).toContain('pub fn bool_not(')
+  it('generates bool_not with concrete types and match', () => {
+    expect(rs).toContain('fn bool_not(a: Bool) -> Bool')
     expect(rs).toContain('match')
   })
 
-  it('generates bool_and with two parameters', () => {
-    expect(rs).toContain('pub fn bool_and(')
+  it('generates bool_and with concrete types', () => {
+    expect(rs).toContain('fn bool_and(a: Bool, b: Bool) -> Bool')
   })
 
-  it('generates bool_or with two parameters', () => {
-    expect(rs).toContain('pub fn bool_or(')
+  it('generates bool_or with concrete types', () => {
+    expect(rs).toContain('fn bool_or(a: Bool, b: Bool) -> Bool')
   })
 
   it('generates bool_xor', () => {
-    expect(rs).toContain('pub fn bool_xor(')
+    expect(rs).toContain('fn bool_xor(')
   })
 
   it('generates bool_eq', () => {
-    expect(rs).toContain('pub fn bool_eq(')
+    expect(rs).toContain('fn bool_eq(')
   })
 
-  it('uses PascalCase for constructor names', () => {
-    expect(rs).toContain('True')
-    expect(rs).toContain('False')
+  it('uses qualified PascalCase constructor names', () => {
+    expect(rs).toContain('Bool::True')
+    expect(rs).toContain('Bool::False')
   })
 })
 
@@ -73,23 +73,23 @@ describe('rust: Maybe', () => {
   const rs = compileFile('stdlib-maybe.tree')
 
   it('generates enum for Maybe', () => {
-    expect(rs).toContain('pub enum Maybe')
+    expect(rs).toContain('enum Maybe')
   })
 
   it('generates maybe_map', () => {
-    expect(rs).toContain('pub fn maybe_map(')
+    expect(rs).toContain('fn maybe_map(')
   })
 
   it('generates maybe_unwrap', () => {
-    expect(rs).toContain('pub fn maybe_unwrap(')
+    expect(rs).toContain('fn maybe_unwrap(')
   })
 
   it('generates maybe_is_some', () => {
-    expect(rs).toContain('pub fn maybe_is_some(')
+    expect(rs).toContain('fn maybe_is_some(')
   })
 
   it('generates maybe_is_none', () => {
-    expect(rs).toContain('pub fn maybe_is_none(')
+    expect(rs).toContain('fn maybe_is_none(')
   })
 
   it('uses match for pattern matching', () => {
@@ -101,27 +101,27 @@ describe('rust: Pair', () => {
   const rs = compileFile('stdlib-pair.tree')
 
   it('generates make_pair', () => {
-    expect(rs).toContain('pub fn make_pair(')
+    expect(rs).toContain('fn make_pair(')
   })
 
   it('generates pair_fst', () => {
-    expect(rs).toContain('pub fn pair_fst(')
+    expect(rs).toContain('fn pair_fst(')
   })
 
   it('generates pair_snd', () => {
-    expect(rs).toContain('pub fn pair_snd(')
+    expect(rs).toContain('fn pair_snd(')
   })
 
   it('generates pair_swap', () => {
-    expect(rs).toContain('pub fn pair_swap(')
+    expect(rs).toContain('fn pair_swap(')
   })
 
   it('generates pair_map_fst', () => {
-    expect(rs).toContain('pub fn pair_map_fst(')
+    expect(rs).toContain('fn pair_map_fst(')
   })
 
   it('generates pair_map_snd', () => {
-    expect(rs).toContain('pub fn pair_map_snd(')
+    expect(rs).toContain('fn pair_map_snd(')
   })
 })
 
@@ -129,31 +129,31 @@ describe('rust: Either', () => {
   const rs = compileFile('stdlib-either.tree')
 
   it('generates enum for Either', () => {
-    expect(rs).toContain('pub enum Either')
+    expect(rs).toContain('enum Either')
   })
 
   it('generates either_map_right', () => {
-    expect(rs).toContain('pub fn either_map_right(')
+    expect(rs).toContain('fn either_map_right(')
   })
 
   it('generates either_map_left', () => {
-    expect(rs).toContain('pub fn either_map_left(')
+    expect(rs).toContain('fn either_map_left(')
   })
 
   it('generates either_unwrap_right', () => {
-    expect(rs).toContain('pub fn either_unwrap_right(')
+    expect(rs).toContain('fn either_unwrap_right(')
   })
 
   it('generates either_unwrap_left', () => {
-    expect(rs).toContain('pub fn either_unwrap_left(')
+    expect(rs).toContain('fn either_unwrap_left(')
   })
 
   it('generates either_is_left', () => {
-    expect(rs).toContain('pub fn either_is_left(')
+    expect(rs).toContain('fn either_is_left(')
   })
 
   it('generates either_is_right', () => {
-    expect(rs).toContain('pub fn either_is_right(')
+    expect(rs).toContain('fn either_is_right(')
   })
 
   it('matches on Left/Right constructors', () => {
@@ -166,27 +166,27 @@ describe('rust: Order', () => {
   const rs = compileFile('stdlib-order.tree')
 
   it('generates enum for Order', () => {
-    expect(rs).toContain('pub enum Order')
+    expect(rs).toContain('enum Order')
   })
 
   it('generates order_reverse', () => {
-    expect(rs).toContain('pub fn order_reverse(')
+    expect(rs).toContain('fn order_reverse(')
   })
 
   it('generates order_is_less', () => {
-    expect(rs).toContain('pub fn order_is_less(')
+    expect(rs).toContain('fn order_is_less(')
   })
 
   it('generates order_is_equal', () => {
-    expect(rs).toContain('pub fn order_is_equal(')
+    expect(rs).toContain('fn order_is_equal(')
   })
 
   it('generates order_is_more', () => {
-    expect(rs).toContain('pub fn order_is_more(')
+    expect(rs).toContain('fn order_is_more(')
   })
 
   it('generates compare_u64', () => {
-    expect(rs).toContain('pub fn compare_u64(')
+    expect(rs).toContain('fn compare_u64(')
   })
 
   it('has Less/Equal/More constructors', () => {

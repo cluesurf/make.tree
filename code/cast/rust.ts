@@ -19,6 +19,8 @@ type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
+  ctrToEnum: Map<string, string>
+  enumNames: Set<string>
   book: Book
 }
 
@@ -44,11 +46,16 @@ export function castBook(input: { book: Book }): string {
     if (isTypeOnly(val)) continue
 
     const safeName = snakeCase(name)
+    const paramTypes = extractParamTypes({ term, ctx })
+    const returnType = inferReturnType({ term, ctx })
 
     if (val.form === 'lam') {
       const { params, body } = unwrapLam({ term: val, dep: 0 })
       const paramStr = params
-        .map(p => `${p.name}: impl Clone`)
+        .map((p, i) => {
+          const typ = paramTypes[i] ?? 'impl Clone'
+          return `${p.name}: ${typ}`
+        })
         .join(', ')
       const paramNames = params.map(p => p.name)
       const isTailRec = hasSelfTailCall({
@@ -72,16 +79,16 @@ export function castBook(input: { book: Book }): string {
       })
       if (isTailRec) {
         lines.push(
-          `pub fn ${safeName}(${paramStr}) -> impl Clone {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
+          `fn ${safeName}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
         )
       } else {
         lines.push(
-          `pub fn ${safeName}(${paramStr}) -> impl Clone {\n${bodyLines.join('\n')}\n}`,
+          `fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
         )
       }
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
-      lines.push(`pub fn ${safeName}() -> impl Clone { ${expr} }`)
+      lines.push(`fn ${safeName}() -> ${returnType} { ${expr} }`)
     }
   }
 
@@ -98,8 +105,8 @@ function castEnum(input: {
   const { term } = input
   const enumName = pascalCase(input.name)
   const lines: string[] = []
-  lines.push(`#[derive(Clone, Debug)]`)
-  lines.push(`pub enum ${enumName} {`)
+  lines.push(`#[derive(Clone, Debug, PartialEq)]`)
+  lines.push(`enum ${enumName} {`)
   for (const ctr of term.ctrs) {
     const fields = teleToFieldNames(ctr.tele)
     const ctrName = pascalCase(ctr.name)
@@ -116,20 +123,151 @@ function castEnum(input: {
   return lines.join('\n')
 }
 
+// ---- Type Resolution ----
+
+function extractParamTypes(input: {
+  term: Term
+  ctx: EmitCtx
+}): string[] {
+  const { term, ctx } = input
+  if (term.form !== 'ann') return []
+  let typ = term.typ
+  const types: string[] = []
+  while (typ.form === 'all') {
+    types.push(resolveRustType({ term: typ.inp, ctx }))
+    typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
+  }
+  return types
+}
+
+function inferReturnType(input: {
+  term: Term
+  ctx: EmitCtx
+}): string {
+  const { term, ctx } = input
+  const val = unwrapAnn(term)
+
+  let body = val
+  while (body.form === 'lam') {
+    body = body.bod({ form: 'var', name: body.name, idx: 0 })
+  }
+
+  const adts = new Set<string>()
+  collectConstructorADTs({ term: body, ctx, adts })
+
+  if (adts.size === 1) {
+    const formName = [...adts][0]!
+    return pascalCase(formName)
+  }
+
+  const paramTypes = extractParamTypes({ term, ctx })
+  const enumParamTypes = paramTypes.filter(
+    t => t !== 'impl Clone' && t !== 'u64' && t !== 'f64',
+  )
+  if (enumParamTypes.length > 0) {
+    const first = enumParamTypes[0]!
+    if (enumParamTypes.every(t => t === first)) {
+      return first
+    }
+  }
+
+  return 'impl Clone'
+}
+
+function collectConstructorADTs(input: {
+  term: Term
+  ctx: EmitCtx
+  adts: Set<string>
+}): void {
+  const { term, ctx, adts } = input
+  switch (term.form) {
+    case 'con': {
+      const adt = ctx.ctrToEnum.get(term.name)
+      if (adt) adts.add(adt)
+      for (const [, arg] of term.args) {
+        collectConstructorADTs({ term: arg, ctx, adts })
+      }
+      break
+    }
+    case 'app':
+      collectConstructorADTs({ term: term.func, ctx, adts })
+      collectConstructorADTs({ term: term.argm, ctx, adts })
+      break
+    case 'let':
+      collectConstructorADTs({ term: term.val, ctx, adts })
+      collectConstructorADTs({
+        term: term.bod({ form: 'var', name: term.name, idx: 0 }),
+        ctx,
+        adts,
+      })
+      break
+    case 'mat':
+      for (const [, bod] of term.arms) {
+        collectConstructorADTs({ term: bod, ctx, adts })
+      }
+      break
+    case 'lam':
+      collectConstructorADTs({
+        term: term.bod({ form: 'var', name: term.name, idx: 0 }),
+        ctx,
+        adts,
+      })
+      break
+    case 'ann':
+      collectConstructorADTs({ term: term.val, ctx, adts })
+      break
+    case 'ins':
+      collectConstructorADTs({ term: term.val, ctx, adts })
+      break
+    case 'src':
+      collectConstructorADTs({ term: term.val, ctx, adts })
+      break
+    case 'use':
+      collectConstructorADTs({
+        term: term.bod(term.val),
+        ctx,
+        adts,
+      })
+      break
+    case 'log':
+      collectConstructorADTs({ term: term.val, ctx, adts })
+      break
+    case 'swi':
+      collectConstructorADTs({ term: term.zero, ctx, adts })
+      collectConstructorADTs({ term: term.succ, ctx, adts })
+      break
+  }
+}
+
+function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
+  const { term, ctx } = input
+  if (term.form === 'ref') {
+    if (ctx.enumNames.has(term.name)) return pascalCase(term.name)
+    return pascalCase(term.name)
+  }
+  if (term.form === 'u64') return 'u64'
+  if (term.form === 'f64') return 'f64'
+  return 'impl Clone'
+}
+
 // ---- Phase A: Analyze ----
 
 function analyze(input: { book: Book }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
+  const ctrToEnum = new Map<string, string>()
+  const enumNames = new Set<string>()
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
     if (val.form === 'adt') {
+      enumNames.add(name)
       let localTag = 0
       for (const ctr of val.ctrs) {
         tagMap.set(ctr.name, localTag++)
         fieldMap.set(ctr.name, teleToFieldNames(ctr.tele))
+        ctrToEnum.set(ctr.name, name)
       }
     }
     if (val.form === 'lam') {
@@ -137,7 +275,14 @@ function analyze(input: { book: Book }): EmitCtx {
     }
   }
 
-  return { tagMap, fieldMap, arityMap, book: input.book }
+  return {
+    tagMap,
+    fieldMap,
+    arityMap,
+    ctrToEnum,
+    enumNames,
+    book: input.book,
+  }
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -392,7 +537,11 @@ function castMatchStmt(input: {
 
   lines.push(`${pad}match ${scrExpr} {`)
   for (const [name, bod] of arms) {
-    const enumName = pascalCase(name)
+    const ctrName = pascalCase(name)
+    const formName = ctx.ctrToEnum.get(name)
+    const qualifiedName = formName
+      ? `${pascalCase(formName)}::${ctrName}`
+      : ctrName
     const fields = ctx.fieldMap.get(name) ?? []
 
     let armBod = bod
@@ -417,7 +566,7 @@ function castMatchStmt(input: {
 
     const bindStr =
       bindings.length > 0 ? ` { ${bindings.join(', ')} }` : ''
-    lines.push(`${pad}    ${enumName}${bindStr} => {`)
+    lines.push(`${pad}    ${qualifiedName}${bindStr} => {`)
     castStmt({
       term: armBod,
       dep: armDep,
@@ -549,8 +698,12 @@ function castExpr(input: {
     case 'nat':
       return `${term.val}_u64`
     case 'con': {
-      const enumName = pascalCase(term.name)
-      if (term.args.length === 0) return enumName
+      const ctrName = pascalCase(term.name)
+      const formName = ctx.ctrToEnum.get(term.name)
+      const qualifiedName = formName
+        ? `${pascalCase(formName)}::${ctrName}`
+        : ctrName
+      if (term.args.length === 0) return qualifiedName
       const fields = term.args
         .map(([field, t]) => {
           const val = castExpr({ term: t, dep, ctx })
@@ -558,7 +711,7 @@ function castExpr(input: {
           return `${key}: ${val}`
         })
         .join(', ')
-      return `${enumName} { ${fields} }`
+      return `${qualifiedName} { ${fields} }`
     }
     case 'op2': {
       const op = castOper(term.oper)
