@@ -1,0 +1,52 @@
+
+form pair
+  case pair
+    link fst
+    link snd
+
+task make-pair
+  take a
+  take b
+  back make pair
+    bind fst, loan a
+    bind snd, loan b
+
+task pair-fst
+  take p, like pair
+  fork case, loan p
+    hook pair, base fst, base snd
+      back loan fst
+
+task pair-snd
+  take p, like pair
+  fork case, loan p
+    hook pair, base fst, base snd
+      back loan snd
+
+task pair-swap
+  take p, like pair
+  fork case, loan p
+    hook pair, base fst, base snd
+      back make pair
+        bind fst, loan snd
+        bind snd, loan fst
+
+task pair-map-fst
+  take p, like pair
+  take f
+  fork case, loan p
+    hook pair, base fst, base snd
+      back make pair
+        bind fst, call f
+          bind x, loan fst
+        bind snd, loan snd
+
+task pair-map-snd
+  take p, like pair
+  take f
+  fork case, loan p
+    hook pair, base fst, base snd
+      back make pair
+        bind fst, loan fst
+        bind snd, call f
+          bind x, loan snd

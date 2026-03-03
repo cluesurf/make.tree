@@ -1,0 +1,51 @@
+
+form maybe
+  case some
+    link value
+  case none
+
+task maybe-map
+  take m, like maybe
+  take f
+  fork case, loan m
+    hook some, base value
+      back make some
+        bind value, call f
+          bind x, loan value
+    hook none
+      back make none
+
+task maybe-unwrap
+  take m, like maybe
+  take fallback
+  fork case, loan m
+    hook some, base value
+      back loan value
+    hook none
+      back loan fallback
+
+task maybe-is-some
+  take m, like maybe
+  fork case, loan m
+    hook some, base value
+      back wave true
+    hook none
+      back wave false
+
+task maybe-is-none
+  take m, like maybe
+  fork case, loan m
+    hook some, base value
+      back wave false
+    hook none
+      back wave true
+
+task maybe-from-wave
+  take cond, like bool
+  take value
+  fork case, loan cond
+    hook true
+      back make some
+        bind value, loan value
+    hook false
+      back make none

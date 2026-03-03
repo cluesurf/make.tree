@@ -1,0 +1,64 @@
+
+form either
+  case left
+    link value
+  case right
+    link value
+
+task either-map-right
+  take e, like either
+  take f
+  fork case, loan e
+    hook left, base value
+      back make left
+        bind value, loan value
+    hook right, base value
+      back make right
+        bind value, call f
+          bind x, loan value
+
+task either-map-left
+  take e, like either
+  take f
+  fork case, loan e
+    hook left, base value
+      back make left
+        bind value, call f
+          bind x, loan value
+    hook right, base value
+      back make right
+        bind value, loan value
+
+task either-unwrap-right
+  take e, like either
+  take fallback
+  fork case, loan e
+    hook left, base value
+      back loan fallback
+    hook right, base value
+      back loan value
+
+task either-unwrap-left
+  take e, like either
+  take fallback
+  fork case, loan e
+    hook left, base value
+      back loan value
+    hook right, base value
+      back loan fallback
+
+task either-is-left
+  take e, like either
+  fork case, loan e
+    hook left, base value
+      back wave true
+    hook right, base value
+      back wave false
+
+task either-is-right
+  take e, like either
+  fork case, loan e
+    hook left, base value
+      back wave false
+    hook right, base value
+      back wave true

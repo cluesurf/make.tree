@@ -1,0 +1,5 @@
+
+task bad-add
+  take a, like u64
+  take b, like u64
+  back text <hello>

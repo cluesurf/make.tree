@@ -1,0 +1,66 @@
+
+form order
+  case less
+  case equal
+  case more
+
+task order-reverse
+  take o, like order
+  fork case, loan o
+    hook less
+      back make more
+    hook equal
+      back make equal
+    hook more
+      back make less
+
+task order-is-less
+  take o, like order
+  fork case, loan o
+    hook less
+      back wave true
+    hook equal
+      back wave false
+    hook more
+      back wave false
+
+task order-is-equal
+  take o, like order
+  fork case, loan o
+    hook less
+      back wave false
+    hook equal
+      back wave true
+    hook more
+      back wave false
+
+task order-is-more
+  take o, like order
+  fork case, loan o
+    hook less
+      back wave false
+    hook equal
+      back wave false
+    hook more
+      back wave true
+
+task compare-u64
+  take a, like u64
+  take b, like u64
+  save is-less
+    call lt
+      bind a, loan a
+      bind b, loan b
+  fork case, loan is-less
+    hook true
+      back make less
+    hook false
+      save is-eq
+        call eq
+          bind a, loan a
+          bind b, loan b
+      fork case, loan is-eq
+        hook true
+          back make equal
+        hook false
+          back make more

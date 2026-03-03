@@ -1,0 +1,50 @@
+
+form bool
+  case true
+  case false
+
+task bool-not
+  take a, like bool
+  fork case, loan a
+    hook true
+      back make false
+    hook false
+      back make true
+
+task bool-and
+  take a, like bool
+  take b, like bool
+  fork case, loan a
+    hook true
+      back loan b
+    hook false
+      back make false
+
+task bool-or
+  take a, like bool
+  take b, like bool
+  fork case, loan a
+    hook true
+      back make true
+    hook false
+      back loan b
+
+task bool-xor
+  take a, like bool
+  take b, like bool
+  fork case, loan a
+    hook true
+      back call bool-not
+        bind a, loan b
+    hook false
+      back loan b
+
+task bool-eq
+  take a, like bool
+  take b, like bool
+  fork case, loan a
+    hook true
+      back loan b
+    hook false
+      back call bool-not
+        bind a, loan b
