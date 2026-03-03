@@ -249,12 +249,19 @@ function castStmt(input: {
 
       // Self-tail-call → reassign params + continue
       if (tail && func.form === 'ref' && func.name === tail.refName && args.length === tail.params.length) {
-        for (let i = 0; i < args.length; i++) {
-          const argExpr = castExpr({ term: args[i]!, dep, ctx })
-          lines.push(`${pad}const $$a${i} = ${argExpr};`)
-        }
-        for (let i = 0; i < tail.params.length; i++) {
-          lines.push(`${pad}${tail.params[i]} = $$a${i};`)
+        if (args.length === 1) {
+          // Single param: no aliasing possible, assign directly
+          const argExpr = castExpr({ term: args[0]!, dep, ctx })
+          lines.push(`${pad}${tail.params[0]} = ${argExpr};`)
+        } else {
+          // Multiple params: use named temps to prevent aliasing
+          for (let i = 0; i < args.length; i++) {
+            const argExpr = castExpr({ term: args[i]!, dep, ctx })
+            lines.push(`${pad}const next_${tail.params[i]} = ${argExpr};`)
+          }
+          for (let i = 0; i < tail.params.length; i++) {
+            lines.push(`${pad}${tail.params[i]} = next_${tail.params[i]};`)
+          }
         }
         lines.push(`${pad}continue;`)
         return
@@ -307,9 +314,16 @@ function castMatchStmt(input: {
 }): void {
   const { arms, scrutinee, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
-  const scrExpr = castExpr({ term: scrutinee, dep, ctx })
-  const scrVar = `$$m${dep}`
-  lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
+
+  // Elide temp when scrutinee is a simple variable
+  let scrVar: string
+  if (scrutinee.form === 'var' || scrutinee.form === 'ref') {
+    scrVar = castExpr({ term: scrutinee, dep, ctx })
+  } else {
+    scrVar = `match${dep}`
+    const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+    lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
+  }
 
   const useTag = ctx.tagMap.size > 0
   const tagField = useTag ? '$' : 'tag'
@@ -384,9 +398,16 @@ function castSwiStmt(input: {
 }): void {
   const { zero, succ, scrutinee, dep, ctx, lines, indent, tail } = input
   const pad = '  '.repeat(indent)
-  const scrExpr = castExpr({ term: scrutinee, dep, ctx })
-  const scrVar = `$$n${dep}`
-  lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
+
+  // Elide temp when scrutinee is a simple variable
+  let scrVar: string
+  if (scrutinee.form === 'var' || scrutinee.form === 'ref') {
+    scrVar = castExpr({ term: scrutinee, dep, ctx })
+  } else {
+    scrVar = `num${dep}`
+    const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+    lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
+  }
   lines.push(`${pad}if (${scrVar} === 0) {`)
   castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail })
 
@@ -521,8 +542,8 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
         })
         .join('\n')
       return [
-        '($$v) => {',
-        `  switch ($$v.${tagField}) {\n${arms}`,
+        '(val) => {',
+        `  switch (val.${tagField}) {\n${arms}`,
         '    default: throw new Error("no match");',
         '  }',
         '}',
@@ -532,7 +553,7 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
     case 'swi': {
       const zero = castExpr({ term: term.zero, dep, ctx })
       const succ = castExpr({ term: term.succ, dep, ctx })
-      return `($$n) => ($$n === 0 ? ${zero} : (${succ})($$n - 1))`
+      return `(num) => (num === 0 ? ${zero} : (${succ})(num - 1))`
     }
 
     case 'op2': {
@@ -639,7 +660,7 @@ function varName(input: { name: string; dep: number }): string {
 }
 
 function sanitizeName(name: string): string {
-  return name.replace(/[/.-]/g, '_')
+  return name.replace(/[/.-](.)/g, (_, c) => c.toUpperCase())
 }
 
 function castOper(oper: Oper): string {

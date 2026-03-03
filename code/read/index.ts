@@ -213,6 +213,7 @@ function readTask(fork: PFork): SurfTask {
       case 'head':
         head.push(readHead(child))
         break
+      case 'take':
       case 'base':
         base.push(readBase(child))
         break
@@ -472,7 +473,15 @@ function readBind(fork: PFork): SurfBind {
 
   let sift: Surf | undefined
   if (children.length > 0) {
-    sift = readSiftExpr(children[0]!)
+    const first = children[0]!
+    const kw = headWord(first)
+    if (kw === 'call') {
+      sift = readCall(first, children.slice(1))
+    } else if (kw === 'make') {
+      sift = readMake(first, children.slice(1))
+    } else {
+      sift = readSiftExpr(first)
+    }
   }
 
   return { form: 'bind', name, sift, site }

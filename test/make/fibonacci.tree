@@ -4,7 +4,7 @@ form nat
     link pred
 
 task fib
-  base n, like nat
+  take n, like nat
   fork case, loan n
     hook zero
       back mark 0
@@ -27,14 +27,14 @@ task make-zero
   back make zero
 
 task make-succ
-  base p, like nat
+  take p, like nat
   back make succ
     bind pred, loan p
 
 task fib-tail
-  base n, like nat
-  base a, like u64
-  base b, like u64
+  take n, like nat
+  take a, like u64
+  take b, like u64
   fork case, loan n
     hook zero
       back loan a
@@ -47,7 +47,7 @@ task fib-tail
           bind b, loan b
 
 task double
-  base n, like u64
+  take n, like u64
   back call mul
     bind a, loan n
     bind b, mark 2

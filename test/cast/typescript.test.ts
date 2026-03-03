@@ -44,7 +44,7 @@ describe('cast/typescript', () => {
     })
 
     it('casts Ref with slashes', () => {
-      expect(cast({ form: 'ref', name: 'std/math' })).toBe('std_math')
+      expect(cast({ form: 'ref', name: 'std/math' })).toBe('stdMath')
     })
 
     it('casts Txt as JSON string', () => {
@@ -204,7 +204,7 @@ describe('cast/typescript', () => {
         ],
       }
       const result = cast(term)
-      expect(result).toContain('switch ($$v.tag)')
+      expect(result).toContain('switch (val.tag)')
       expect(result).toContain('case "Zero": return 0;')
       expect(result).toContain('case "Succ": return (p) => p;')
     })
@@ -216,9 +216,9 @@ describe('cast/typescript', () => {
         succ: { form: 'lam', name: 'p', bod: (p) => p },
       }
       const result = cast(term)
-      expect(result).toContain('$$n === 0')
+      expect(result).toContain('num === 0')
       expect(result).toContain('100')
-      expect(result).toContain('$$n - 1')
+      expect(result).toContain('num - 1')
     })
   })
 
@@ -319,7 +319,7 @@ describe('cast/typescript', () => {
       ])
 
       const result = castBook({ book })
-      expect(result).toContain('export const std_math_pi = 3.14;')
+      expect(result).toContain('export const stdMathPi = 3.14;')
     })
 
     it('uses numeric tags when ADTs are defined', () => {
@@ -410,7 +410,7 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).toContain('export function not(b)')
-      expect(result).toMatch(/\$\$m\d+\.\$ === 0/)
+      expect(result).toContain('b.$ === 0')
       expect(result).toContain('if (')
       expect(result).toContain('} else {')
       expect(result).not.toContain('switch')
@@ -450,10 +450,208 @@ describe('cast/typescript', () => {
 
       const result = castBook({ book })
       expect(result).toContain('export function toNum(c)')
-      expect(result).toMatch(/switch \(\$\$m\d+\.\$\)/)
+      expect(result).toContain('switch (c.$)')
       expect(result).toContain('case 0:')
       expect(result).toContain('case 1:')
       expect(result).toContain('case 2:')
+    })
+  })
+
+  describe('tail-call optimization', () => {
+    it('wraps tail-recursive function in while loop', () => {
+      // countdown(n) = swi n { 0: 0, succ p: countdown(p) }
+      const book: Book = new Map([
+        ['countdown', {
+          form: 'lam', name: 'n',
+          bod: (n: Term) => ({
+            form: 'app',
+            func: {
+              form: 'swi',
+              zero: { form: 'num', val: 0 } as Term,
+              succ: {
+                form: 'lam', name: 'p',
+                bod: (p: Term) => ({
+                  form: 'app',
+                  func: { form: 'ref', name: 'countdown' } as Term,
+                  argm: p,
+                } as Term),
+              } as Term,
+            } as Term,
+            argm: n,
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).toContain('while (true)')
+      expect(result).toContain('continue;')
+      expect(result).not.toContain('return countdown(')
+    })
+
+    it('does not optimize non-tail-recursive function', () => {
+      // double_call(n) = add(double_call(n), double_call(n))
+      const book: Book = new Map([
+        ['double_call', {
+          form: 'lam', name: 'n',
+          bod: (n: Term) => ({
+            form: 'app',
+            func: {
+              form: 'app',
+              func: { form: 'ref', name: 'add' } as Term,
+              argm: {
+                form: 'app',
+                func: { form: 'ref', name: 'double_call' } as Term,
+                argm: n,
+              } as Term,
+            } as Term,
+            argm: {
+              form: 'app',
+              func: { form: 'ref', name: 'double_call' } as Term,
+              argm: n,
+            } as Term,
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).not.toContain('while (true)')
+      expect(result).not.toContain('continue;')
+      expect(result).toContain('return add(')
+    })
+
+    it('optimizes tail call in match arm', () => {
+      // loop(b) = match b { true: loop(false), false: 0 }
+      const book: Book = new Map([
+        ['Bool', {
+          form: 'adt', indx: [],
+          ctrs: [
+            { name: 'true', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+            { name: 'false', tele: { form: 'ret', term: { form: 'ref', name: 'Bool' } } },
+          ],
+          type: { form: 'set' },
+        } as Term],
+        ['loop', {
+          form: 'lam', name: 'b',
+          bod: (b: Term) => ({
+            form: 'app',
+            func: {
+              form: 'mat',
+              arms: [
+                ['true', {
+                  form: 'app',
+                  func: { form: 'ref', name: 'loop' } as Term,
+                  argm: { form: 'con', name: 'false', args: [] } as Term,
+                } as Term],
+                ['false', { form: 'num', val: 0 } as Term],
+              ],
+            } as Term,
+            argm: b,
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).toContain('while (true)')
+      expect(result).toContain('continue;')
+    })
+
+    it('optimizes tail call in let body', () => {
+      // inc_loop(n) = let x = add(n, 1); inc_loop(x)
+      const book: Book = new Map([
+        ['inc_loop', {
+          form: 'lam', name: 'n',
+          bod: (n: Term) => ({
+            form: 'let', name: 'x',
+            val: {
+              form: 'app',
+              func: {
+                form: 'app',
+                func: { form: 'ref', name: 'add' } as Term,
+                argm: n,
+              } as Term,
+              argm: { form: 'num', val: 1 } as Term,
+            } as Term,
+            bod: (x: Term) => ({
+              form: 'app',
+              func: { form: 'ref', name: 'inc_loop' } as Term,
+              argm: x,
+            } as Term),
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).toContain('while (true)')
+      expect(result).toContain('const x = add(n, 1);')
+      expect(result).toContain('continue;')
+      expect(result).not.toContain('return inc_loop(')
+    })
+
+    it('uses temporaries for swap pattern', () => {
+      // swap(a, b) = swap(b, a)
+      const book: Book = new Map([
+        ['swap', {
+          form: 'lam', name: 'a',
+          bod: (a: Term) => ({
+            form: 'lam', name: 'b',
+            bod: (b: Term) => ({
+              form: 'app',
+              func: {
+                form: 'app',
+                func: { form: 'ref', name: 'swap' } as Term,
+                argm: b,
+              } as Term,
+              argm: a,
+            } as Term),
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).toContain('while (true)')
+      expect(result).toContain('const next_a = b;')
+      expect(result).toContain('const next_b = a;')
+      expect(result).toContain('a = next_a;')
+      expect(result).toContain('b = next_b;')
+      expect(result).toContain('continue;')
+    })
+
+    it('optimizes tail call in match arm with field destructuring', () => {
+      // loop(n) = match n { zero: 0, succ pred: loop(pred) }
+      const book: Book = new Map([
+        ['Nat', {
+          form: 'adt', indx: [],
+          ctrs: [
+            { name: 'zero', tele: { form: 'ret', term: { form: 'ref', name: 'Nat' } } },
+            { name: 'succ', tele: {
+              form: 'ext', name: 'pred', typ: { form: 'ref', name: 'Nat' } as Term,
+              bod: () => ({ form: 'ret', term: { form: 'ref', name: 'Nat' } }),
+            } },
+          ],
+          type: { form: 'set' },
+        } as Term],
+        ['loop', {
+          form: 'lam', name: 'n',
+          bod: (n: Term) => ({
+            form: 'app',
+            func: {
+              form: 'mat',
+              arms: [
+                ['zero', { form: 'num', val: 0 } as Term],
+                ['succ', {
+                  form: 'lam', name: 'pred',
+                  bod: (pred: Term) => ({
+                    form: 'app',
+                    func: { form: 'ref', name: 'loop' } as Term,
+                    argm: pred,
+                  } as Term),
+                } as Term],
+              ],
+            } as Term,
+            argm: n,
+          } as Term),
+        } as Term],
+      ])
+      const result = castBook({ book })
+      expect(result).toContain('while (true)')
+      expect(result).toContain('const pred = ')
+      expect(result).toContain('continue;')
+      expect(result).not.toContain('return loop(')
     })
   })
 
