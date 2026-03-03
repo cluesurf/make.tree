@@ -1,8 +1,8 @@
 task print-all
   take items
   walk list
-    loan items
+    read items
     hook tick
       take item
-      show loan item
+      show read item
   back mark 0

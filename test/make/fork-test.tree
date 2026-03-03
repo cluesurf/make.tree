@@ -4,18 +4,18 @@ task max
   take b, like u64
   fork test
     call gt
-      bind a, loan a
-      bind b, loan b
+      bind a, read a
+      bind b, read b
     hook true
-      back loan a
+      back read a
     hook false
-      back loan b
+      back read b
 
 task is-zero
   take n, like u64
   fork test
     call eq
-      bind a, loan n
+      bind a, read n
       bind b, mark 0
     hook true
       back mark 1
@@ -28,16 +28,16 @@ task clamp
   take hi, like u64
   fork test
     call lt
-      bind a, loan n
-      bind b, loan lo
+      bind a, read n
+      bind b, read lo
     hook true
-      back loan lo
+      back read lo
     hook false
       fork test
         call gt
-          bind a, loan n
-          bind b, loan hi
+          bind a, read n
+          bind b, read hi
         hook true
-          back loan hi
+          back read hi
         hook false
-          back loan n
+          back read n

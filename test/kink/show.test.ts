@@ -64,7 +64,7 @@ describe('kink/show', () => {
         if (link === 'code/math.tree') {
           return [
             'task add',
-            '  back call add, loan x, text <hello>',
+            '  back call add, read x, text <hello>',
             '  save y, mark 10',
           ]
         }
@@ -73,7 +73,7 @@ describe('kink/show', () => {
 
       const output = showKink({ kink, load })
 
-      expect(output).toContain('back call add, loan x, text <hello>')
+      expect(output).toContain('back call add, read x, text <hello>')
       expect(output).toContain('^^^^^^^')
       expect(output).toContain('need')
       expect(output).toContain('u64')

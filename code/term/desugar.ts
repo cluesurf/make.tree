@@ -47,6 +47,23 @@ export function desugarCard(input: { card: SurfCard }): Book {
   const book: Book = new Map()
   const meta = { next: 1000 }
 
+  // First pass: detect wear task name collisions so we can prefix
+  const wearTaskCounts = new Map<string, number>()
+  for (const node of input.card.list) {
+    const wears: SurfWear[] = []
+    if (node.form === 'form') {
+      wears.push(...(node as SurfForm).wear)
+    }
+    if (node.form === 'suit') {
+      wears.push(...(node as { wear: SurfWear[] }).wear)
+    }
+    for (const w of wears) {
+      for (const t of w.task) {
+        wearTaskCounts.set(t.name, (wearTaskCounts.get(t.name) ?? 0) + 1)
+      }
+    }
+  }
+
   for (const node of input.card.list) {
     const result = desugarDef({
       surf: node,
@@ -59,19 +76,24 @@ export function desugarCard(input: { card: SurfCard }): Book {
     // Process wear blocks inside forms
     if (node.form === 'form') {
       for (const w of (node as SurfForm).wear) {
-        desugarWearTasks({ wear: w, book, meta })
+        desugarWearTasks({ wear: w, formName: node.name, book, meta, wearTaskCounts })
+      }
+      // Process direct tasks on forms (not inside wear blocks)
+      for (const t of (node as SurfForm).task) {
+        const ctx: Ctx = { scope: new Map(), meta }
+        book.set(t.name, desugarTask({ task: t, ctx }))
       }
     }
 
     // Process top-level wear blocks
     if (node.form === 'wear') {
-      desugarWearTasks({ wear: node as SurfWear, book, meta })
+      desugarWearTasks({ wear: node as SurfWear, book, meta, wearTaskCounts })
     }
 
     // Process suit wear blocks
     if (node.form === 'suit') {
       for (const w of (node as { wear: SurfWear[] }).wear) {
-        desugarWearTasks({ wear: w, book, meta })
+        desugarWearTasks({ wear: w, formName: node.name, book, meta, wearTaskCounts })
       }
     }
   }
@@ -79,16 +101,22 @@ export function desugarCard(input: { card: SurfCard }): Book {
   return book
 }
 
-/** Desugar all tasks inside a wear block into the book. */
+/** Desugar all tasks inside a wear block into the book.
+ * Prefixes keys with formName when the task name collides with
+ * another wear task across forms, to avoid overwriting. */
 function desugarWearTasks(input: {
   wear: SurfWear
+  formName?: string
   book: Book
   meta: { next: number }
+  wearTaskCounts: Map<string, number>
 }): void {
-  const { wear, book, meta } = input
+  const { wear, formName, book, meta, wearTaskCounts } = input
   for (const t of wear.task) {
     const ctx: Ctx = { scope: new Map(), meta }
-    book.set(t.name, desugarTask({ task: t, ctx }))
+    const needsPrefix = formName && (wearTaskCounts.get(t.name) ?? 0) > 1
+    const key = needsPrefix ? `${formName}/${t.name}` : t.name
+    book.set(key, desugarTask({ task: t, ctx }))
   }
 }
 
@@ -255,9 +283,17 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
     }
 
     case 'host': {
-      const val = first.sift
-        ? desugarSift({ sift: first.sift, ctx })
-        : freshMeta(ctx)
+      let val: Term
+      if (first.list && first.list.length > 0) {
+        val = {
+          form: 'lst',
+          list: first.list.map(s => desugarSift({ sift: s, ctx })),
+        }
+      } else if (first.sift) {
+        val = desugarSift({ sift: first.sift, ctx })
+      } else {
+        val = freshMeta(ctx)
+      }
       if (rest.length === 0) return val
       return {
         form: 'let',
@@ -374,14 +410,6 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
         : { form: 'con', name: 'False', args: [] }
 
     case 'sift-link':
-      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
-
-    case 'sift-loan':
-      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
-
-    case 'sift-move':
-      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
-
     case 'sift-read':
       return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
 

@@ -663,7 +663,7 @@ describe('cast/typescript', () => {
           form: 'task', name: 'id', head: [],
           base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
           flow: [
-            { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+            { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
           ],
           task: [], site,
         } as SurfTask],
@@ -683,7 +683,7 @@ describe('cast/typescript', () => {
           flow: [
             { form: 'back', sift: {
               form: 'call', name: 'mul', bind: [
-                { form: 'bind', name: 'a', sift: { form: 'sift-loan', path: ['n'], site }, site },
+                { form: 'bind', name: 'a', sift: { form: 'sift-read', path: ['n'], site }, site },
                 { form: 'bind', name: 'b', sift: { form: 'sift-mark', val: 2, site }, site },
               ], hook: {}, site,
             } as SurfCall, site },
@@ -705,7 +705,7 @@ describe('cast/typescript', () => {
           base: [],
           flow: [
             { form: 'save', path: ['x'], sift: { form: 'sift-mark', val: 10, site }, site },
-            { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+            { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
           ],
           task: [], site,
         } as SurfTask],
@@ -734,7 +734,7 @@ describe('cast/typescript', () => {
             base: [{ form: 'base', name: 'b', like: { form: 'type-name', name: 'bool' }, site }],
             flow: [{
               form: 'fork', mode: 'case',
-              sift: { form: 'sift-loan', path: ['b'], site },
+              sift: { form: 'sift-read', path: ['b'], site },
               hook: [
                 { form: 'hook', name: 'true', base: [], flow: [
                   { form: 'back', sift: { form: 'make', name: 'false', bind: [], site } as SurfMake, site },

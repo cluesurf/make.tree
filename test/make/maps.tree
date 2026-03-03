@@ -3,7 +3,7 @@ task make-map
     make find
       bind foo, text <bar>
       bind key, mark 42
-  back loan m
+  back read m
 
 task map-ops
   save m

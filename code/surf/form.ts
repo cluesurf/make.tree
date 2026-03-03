@@ -124,6 +124,7 @@ export type SurfHost = SurfMixin & {
   form: 'host'
   name: string
   sift?: Surf
+  list?: Surf[]
 }
 
 export type SurfMake = SurfMixin & {
@@ -231,20 +232,8 @@ export type SurfSiftLink = SurfMixin & {
   safe?: boolean
 }
 
-export type SurfSiftMove = SurfMixin & {
-  form: 'sift-move'
-  path: string[]
-  safe?: boolean
-}
-
 export type SurfSiftRead = SurfMixin & {
   form: 'sift-read'
-  path: string[]
-  safe?: boolean
-}
-
-export type SurfSiftLoan = SurfMixin & {
-  form: 'sift-loan'
   path: string[]
   safe?: boolean
 }
@@ -320,9 +309,7 @@ export type Surf =
   | SurfFuse
   // Value expressions
   | SurfSiftLink
-  | SurfSiftMove
   | SurfSiftRead
-  | SurfSiftLoan
   | SurfSiftText
   | SurfSiftMark
   | SurfSiftComb

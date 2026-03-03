@@ -11,7 +11,7 @@ form color
   wear printable
     task to-text
       take self, like color
-      fork case, loan self
+      fork case, read self
         hook red
           back text <red>
         hook green

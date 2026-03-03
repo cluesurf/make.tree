@@ -36,11 +36,30 @@ export function collectTraits(input: { card: SurfCard }): TraitMeta {
   const impls: ImplInfo[] = []
   const maskNames = new Set<string>()
 
-  // First pass: collect mask names
+  // First pass: collect mask names and detect wear task name collisions
+  const wearTaskCounts = new Map<string, number>()
   for (const node of input.card.list) {
     if (node.form === 'mask') {
       maskNames.add(node.name)
     }
+    const wears: Array<{ task: Array<{ name: string }> }> = []
+    if (node.form === 'form') {
+      wears.push(...(node as SurfForm).wear)
+    }
+    if (node.form === 'suit') {
+      wears.push(...(node as SurfSuit).wear)
+    }
+    for (const w of wears) {
+      for (const t of w.task) {
+        wearTaskCounts.set(t.name, (wearTaskCounts.get(t.name) ?? 0) + 1)
+      }
+    }
+  }
+
+  function methodKey(formName: string, taskName: string): string {
+    return (wearTaskCounts.get(taskName) ?? 0) > 1
+      ? `${formName}/${taskName}`
+      : taskName
   }
 
   // Second pass: extract mask definitions and impl blocks
@@ -66,8 +85,13 @@ export function collectTraits(input: { card: SurfCard }): TraitMeta {
       const form = node as SurfForm
       for (const wear of form.wear) {
         const maskName = maskNames.has(wear.name) ? wear.name : null
-        const methods = wear.task.map(t => t.name)
+        const methods = wear.task.map(t => methodKey(form.name, t.name))
         impls.push({ formName: form.name, maskName, methods })
+      }
+      // Direct tasks on form → bare impl block
+      if (form.task.length > 0) {
+        const methods = form.task.map(t => t.name)
+        impls.push({ formName: form.name, maskName: null, methods })
       }
     }
 
@@ -75,7 +99,7 @@ export function collectTraits(input: { card: SurfCard }): TraitMeta {
       const suit = node as SurfSuit
       for (const wear of suit.wear) {
         const maskName = maskNames.has(wear.name) ? wear.name : null
-        const methods = wear.task.map(t => t.name)
+        const methods = wear.task.map(t => methodKey(suit.name, t.name))
         impls.push({ formName: suit.name, maskName, methods })
       }
     }

@@ -8,48 +8,48 @@ form either
 task either-map-right
   take e, like either
   take f
-  fork case, loan e
+  fork case, read e
     hook left, base value
       back make left
-        bind value, loan value
+        bind value, read value
     hook right, base value
       back make right
         bind value, call f
-          bind x, loan value
+          bind x, read value
 
 task either-map-left
   take e, like either
   take f
-  fork case, loan e
+  fork case, read e
     hook left, base value
       back make left
         bind value, call f
-          bind x, loan value
+          bind x, read value
     hook right, base value
       back make right
-        bind value, loan value
+        bind value, read value
 
 task either-unwrap-right
   take e, like either
   take fallback
-  fork case, loan e
+  fork case, read e
     hook left, base value
-      back loan fallback
+      back read fallback
     hook right, base value
-      back loan value
+      back read value
 
 task either-unwrap-left
   take e, like either
   take fallback
-  fork case, loan e
+  fork case, read e
     hook left, base value
-      back loan value
+      back read value
     hook right, base value
-      back loan fallback
+      back read fallback
 
 task either-is-left
   take e, like either
-  fork case, loan e
+  fork case, read e
     hook left, base value
       back wave true
     hook right, base value
@@ -57,7 +57,7 @@ task either-is-left
 
 task either-is-right
   take e, like either
-  fork case, loan e
+  fork case, read e
     hook left, base value
       back wave false
     hook right, base value

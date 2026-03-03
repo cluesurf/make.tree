@@ -8,13 +8,13 @@ form point
       take a, like u64
       take b, like u64
       back call add
-        bind a, loan a
-        bind b, loan b
+        bind a, read a
+        bind b, read b
 
   wear comparison
     task points-equal
       take a, like u64
       take b, like u64
       back call eq
-        bind a, loan a
-        bind b, loan b
+        bind a, read a
+        bind b, read b

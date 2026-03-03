@@ -6,11 +6,11 @@ task write-file
   take path, like text
   take content, like text
   call fs/write-file-sync
-    bind path, loan path
-    bind data, loan content
+    bind path, read path
+    bind data, read content
 
 task read-file
   take path, like text
   back call fs/read-file-sync
-    bind path, loan path
+    bind path, read path
     bind encoding, text <utf8>

@@ -61,7 +61,7 @@ describe('load/index', () => {
           'task double',
           '  take n, like u64',
           '  back call mul',
-          '    bind a, loan n',
+          '    bind a, read n',
           '    bind b, mark 2',
         ].join('\n'),
       }
@@ -93,7 +93,7 @@ describe('load/index', () => {
           'task double',
           '  take n, like u64',
           '  back call mul',
-          '    bind a, loan n',
+          '    bind a, read n',
           '    bind b, mark 2',
         ].join('\n'),
       }

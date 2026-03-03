@@ -8,45 +8,45 @@ task make-pair
   take a
   take b
   back make pair
-    bind fst, loan a
-    bind snd, loan b
+    bind fst, read a
+    bind snd, read b
 
 task pair-fst
   take p, like pair
-  fork case, loan p
+  fork case, read p
     hook pair, base fst, base snd
-      back loan fst
+      back read fst
 
 task pair-snd
   take p, like pair
-  fork case, loan p
+  fork case, read p
     hook pair, base fst, base snd
-      back loan snd
+      back read snd
 
 task pair-swap
   take p, like pair
-  fork case, loan p
+  fork case, read p
     hook pair, base fst, base snd
       back make pair
-        bind fst, loan snd
-        bind snd, loan fst
+        bind fst, read snd
+        bind snd, read fst
 
 task pair-map-fst
   take p, like pair
   take f
-  fork case, loan p
+  fork case, read p
     hook pair, base fst, base snd
       back make pair
         bind fst, call f
-          bind x, loan fst
-        bind snd, loan snd
+          bind x, read fst
+        bind snd, read snd
 
 task pair-map-snd
   take p, like pair
   take f
-  fork case, loan p
+  fork case, read p
     hook pair, base fst, base snd
       back make pair
-        bind fst, loan fst
+        bind fst, read fst
         bind snd, call f
-          bind x, loan snd
+          bind x, read snd

@@ -70,8 +70,8 @@ describe('term/desugar', () => {
       if (term.form === 'ref') expect(term.name).toBe('pi')
     })
 
-    it('desugars sift-loan to Ref for unknown name', () => {
-      const term = siftToTerm({ form: 'sift-loan', path: ['x'], site })
+    it('desugars sift-read to Ref for unknown name', () => {
+      const term = siftToTerm({ form: 'sift-read', path: ['x'], site })
       expect(term.form).toBe('ref')
       if (term.form === 'ref') expect(term.name).toBe('x')
     })
@@ -160,7 +160,7 @@ describe('term/desugar', () => {
     it('desugars save then back to Let', () => {
       const term = flowToTerm([
         { form: 'save', path: ['x'], sift: { form: 'sift-mark', val: 10, site }, site },
-        { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+        { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
       ])
       expect(term.form).toBe('let')
       if (term.form === 'let') {
@@ -176,7 +176,7 @@ describe('term/desugar', () => {
     it('desugars host then back to Let', () => {
       const term = flowToTerm([
         { form: 'host', name: 'pi', sift: { form: 'sift-comb', val: 3.14, site }, site },
-        { form: 'back', sift: { form: 'sift-loan', path: ['pi'], site }, site },
+        { form: 'back', sift: { form: 'sift-read', path: ['pi'], site }, site },
       ])
       expect(term.form).toBe('let')
       if (term.form === 'let') {
@@ -234,7 +234,7 @@ describe('term/desugar', () => {
     it('desugars fork to Mat applied to scrutinee', () => {
       const fork: SurfFork = {
         form: 'fork', mode: 'case',
-        sift: { form: 'sift-loan', path: ['x'], site },
+        sift: { form: 'sift-read', path: ['x'], site },
         hook: [
           { form: 'hook', name: 'zero', base: [], flow: [
             { form: 'back', sift: { form: 'sift-mark', val: 0, site }, site },
@@ -260,7 +260,7 @@ describe('term/desugar', () => {
     it('desugars fork hook with base params to Lam-wrapped arms', () => {
       const fork: SurfFork = {
         form: 'fork', mode: 'case',
-        sift: { form: 'sift-loan', path: ['n'], site },
+        sift: { form: 'sift-read', path: ['n'], site },
         hook: [
           { form: 'hook', name: 'zero', base: [], flow: [
             { form: 'back', sift: { form: 'sift-mark', val: 0, site }, site },
@@ -268,7 +268,7 @@ describe('term/desugar', () => {
           { form: 'hook', name: 'succ', base: [
             { form: 'base', name: 'pred', site },
           ], flow: [
-            { form: 'back', sift: { form: 'sift-loan', path: ['pred'], site }, site },
+            { form: 'back', sift: { form: 'sift-read', path: ['pred'], site }, site },
           ], site },
         ],
         site,
@@ -333,8 +333,8 @@ describe('term/desugar', () => {
         flow: [
           { form: 'back', sift: {
             form: 'call', name: 'add-prim', bind: [
-              { form: 'bind', name: 'a', sift: { form: 'sift-loan', path: ['a'], site }, site },
-              { form: 'bind', name: 'b', sift: { form: 'sift-loan', path: ['b'], site }, site },
+              { form: 'bind', name: 'a', sift: { form: 'sift-read', path: ['a'], site }, site },
+              { form: 'bind', name: 'b', sift: { form: 'sift-read', path: ['b'], site }, site },
             ], hook: {}, site,
           } as SurfCall, site },
         ],
@@ -353,7 +353,7 @@ describe('term/desugar', () => {
             expect(inner.name).toBe('b')
             const body = inner.bod({ form: 'var', name: 'b', idx: 1 })
             expect(body.form).toBe('app')
-            // The call should resolve loan a/b to the lambda vars
+            // The call should resolve read a/b to the lambda vars
             if (body.form === 'app') {
               expect(body.func.form).toBe('app')
             }
@@ -383,7 +383,7 @@ describe('term/desugar', () => {
           { form: 'base', name: 'x', like: 'T', site },
         ],
         flow: [
-          { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+          { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
         ],
         task: [], site,
       }
@@ -413,11 +413,11 @@ describe('term/desugar', () => {
         flow: [
           { form: 'save', path: ['result'], sift: {
             form: 'call', name: 'mul', bind: [
-              { form: 'bind', name: 'a', sift: { form: 'sift-loan', path: ['x'], site }, site },
+              { form: 'bind', name: 'a', sift: { form: 'sift-read', path: ['x'], site }, site },
               { form: 'bind', name: 'b', sift: { form: 'sift-mark', val: 2, site }, site },
             ], hook: {}, site,
           } as SurfCall, site },
-          { form: 'back', sift: { form: 'sift-loan', path: ['result'], site }, site },
+          { form: 'back', sift: { form: 'sift-read', path: ['result'], site }, site },
         ],
         task: [], site,
       }
@@ -551,7 +551,7 @@ describe('term/desugar', () => {
             flow: [
               {
                 form: 'fork', mode: 'case',
-                sift: { form: 'sift-loan', path: ['b'], site },
+                sift: { form: 'sift-read', path: ['b'], site },
                 hook: [
                   { form: 'hook', name: 'true', base: [], flow: [
                     { form: 'back', sift: { form: 'make', name: 'false', bind: [], site } as SurfMake, site },
@@ -600,7 +600,7 @@ describe('term/desugar', () => {
         form: 'task', name: 'id', head: [],
         base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
         flow: [
-          { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+          { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
         ],
         task: [], site,
       }
@@ -647,7 +647,7 @@ describe('term/desugar', () => {
         base: [],
         flow: [
           { form: 'save', path: ['x'], sift: { form: 'sift-mark', val: 10, site }, site },
-          { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+          { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
         ],
         task: [], site,
       }

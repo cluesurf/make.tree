@@ -5,23 +5,23 @@ form nat
 
 task fib
   take n, like nat
-  fork case, loan n
+  fork case, read n
     hook zero
       back mark 0
     hook succ, base pred
-      fork case, loan pred
+      fork case, read pred
         hook zero
           back mark 1
         hook succ, base pp
           save a
             call fib
-              bind n, loan pred
+              bind n, read pred
           save b
             call fib
-              bind n, loan pp
+              bind n, read pp
           back call add
-            bind a, loan a
-            bind b, loan b
+            bind a, read a
+            bind b, read b
 
 task make-zero
   back make zero
@@ -29,25 +29,25 @@ task make-zero
 task make-succ
   take p, like nat
   back make succ
-    bind pred, loan p
+    bind pred, read p
 
 task fib-tail
   take n, like nat
   take a, like u64
   take b, like u64
-  fork case, loan n
+  fork case, read n
     hook zero
-      back loan a
+      back read a
     hook succ, base pred
       back call fib-tail
-        bind n, loan pred
-        bind a, loan b
+        bind n, read pred
+        bind a, read b
         bind b, call add
-          bind a, loan a
-          bind b, loan b
+          bind a, read a
+          bind b, read b
 
 task double
   take n, like u64
   back call mul
-    bind a, loan n
+    bind a, read n
     bind b, mark 2

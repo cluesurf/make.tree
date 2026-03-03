@@ -5,7 +5,7 @@ form bool
 
 task bool-not
   take a, like bool
-  fork case, loan a
+  fork case, read a
     hook true
       back make false
     hook false
@@ -14,37 +14,37 @@ task bool-not
 task bool-and
   take a, like bool
   take b, like bool
-  fork case, loan a
+  fork case, read a
     hook true
-      back loan b
+      back read b
     hook false
       back make false
 
 task bool-or
   take a, like bool
   take b, like bool
-  fork case, loan a
+  fork case, read a
     hook true
       back make true
     hook false
-      back loan b
+      back read b
 
 task bool-xor
   take a, like bool
   take b, like bool
-  fork case, loan a
+  fork case, read a
     hook true
       back call bool-not
-        bind a, loan b
+        bind a, read b
     hook false
-      back loan b
+      back read b
 
 task bool-eq
   take a, like bool
   take b, like bool
-  fork case, loan a
+  fork case, read a
     hook true
-      back loan b
+      back read b
     hook false
       back call bool-not
-        bind a, loan b
+        bind a, read b

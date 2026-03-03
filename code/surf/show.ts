@@ -188,12 +188,8 @@ function showNode(node: Surf, dep: number): string {
     // Value expressions
     case 'sift-link':
       return `${pad}${node.path.join('/')}`
-    case 'sift-move':
-      return `${pad}move ${node.path.join('/')}`
     case 'sift-read':
       return `${pad}read ${node.path.join('/')}`
-    case 'sift-loan':
-      return `${pad}loan ${node.path.join('/')}`
     case 'sift-text':
       return `${pad}text <${node.val}>`
     case 'sift-mark':
@@ -236,12 +232,8 @@ function showSift(node: Surf | undefined): string {
   switch (node.form) {
     case 'sift-link':
       return node.path.join('/')
-    case 'sift-move':
-      return `move ${node.path.join('/')}`
     case 'sift-read':
       return `read ${node.path.join('/')}`
-    case 'sift-loan':
-      return `loan ${node.path.join('/')}`
     case 'sift-text':
       return `text <${node.val}>`
     case 'sift-mark':

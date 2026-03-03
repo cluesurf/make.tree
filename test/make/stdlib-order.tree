@@ -6,7 +6,7 @@ form order
 
 task order-reverse
   take o, like order
-  fork case, loan o
+  fork case, read o
     hook less
       back make more
     hook equal
@@ -16,7 +16,7 @@ task order-reverse
 
 task order-is-less
   take o, like order
-  fork case, loan o
+  fork case, read o
     hook less
       back wave true
     hook equal
@@ -26,7 +26,7 @@ task order-is-less
 
 task order-is-equal
   take o, like order
-  fork case, loan o
+  fork case, read o
     hook less
       back wave false
     hook equal
@@ -36,7 +36,7 @@ task order-is-equal
 
 task order-is-more
   take o, like order
-  fork case, loan o
+  fork case, read o
     hook less
       back wave false
     hook equal
@@ -49,17 +49,17 @@ task compare-u64
   take b, like u64
   save is-less
     call lt
-      bind a, loan a
-      bind b, loan b
-  fork case, loan is-less
+      bind a, read a
+      bind b, read b
+  fork case, read is-less
     hook true
       back make less
     hook false
       save is-eq
         call eq
-          bind a, loan a
-          bind b, loan b
-      fork case, loan is-eq
+          bind a, read a
+          bind b, read b
+      fork case, read is-eq
         hook true
           back make equal
         hook false

@@ -19,9 +19,11 @@ import type { TraitMeta } from '@/cast/trait'
 type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
+  fieldTypeMap: Map<string, Array<{ name: string; typ: string }>>
   arityMap: Map<string, number>
   ctrToEnum: Map<string, string>
   enumNames: Set<string>
+  structNames: Set<string>
   dockNames: Set<string>
   book: Book
 }
@@ -160,25 +162,67 @@ function castEnum(input: {
   term: Term & { form: 'adt' }
   ctx: EmitCtx
 }): string {
-  const { term } = input
-  const enumName = pascalCase(input.name)
+  const { term, ctx } = input
+  const typeName = pascalCase(input.name)
+  const isStruct = ctx.structNames.has(input.name)
   const lines: string[] = []
   lines.push(`#[derive(Clone, Debug, PartialEq)]`)
-  lines.push(`enum ${enumName} {`)
-  for (const ctr of term.ctrs) {
-    const fields = teleToFieldNames(ctr.tele)
-    const ctrName = pascalCase(ctr.name)
-    if (fields.length === 0) {
-      lines.push(`    ${ctrName},`)
+
+  if (isStruct) {
+    // Single-constructor form → emit as struct
+    const ctr = term.ctrs[0]!
+    const fieldTypes = ctx.fieldTypeMap.get(ctr.name) ?? []
+    if (fieldTypes.length === 0) {
+      lines.push(`struct ${typeName};`)
     } else {
-      const fieldStr = fields
-        .map(f => `${snakeCase(f)}: Box<${enumName}>`)
-        .join(', ')
-      lines.push(`    ${ctrName} { ${fieldStr} },`)
+      lines.push(`struct ${typeName} {`)
+      for (const ft of fieldTypes) {
+        const typ = resolveFieldType({ typ: ft.typ, parentName: input.name, ctx })
+        lines.push(`    ${snakeCase(ft.name)}: ${typ},`)
+      }
+      lines.push('}')
     }
+  } else {
+    // Multi-constructor form → enum
+    lines.push(`enum ${typeName} {`)
+    for (const ctr of term.ctrs) {
+      const fieldTypes = ctx.fieldTypeMap.get(ctr.name) ?? []
+      const ctrName = pascalCase(ctr.name)
+      if (fieldTypes.length === 0) {
+        lines.push(`    ${ctrName},`)
+      } else {
+        const fieldStr = fieldTypes
+          .map(ft => {
+            const typ = resolveFieldType({ typ: ft.typ, parentName: input.name, ctx })
+            return `${snakeCase(ft.name)}: ${typ}`
+          })
+          .join(', ')
+        lines.push(`    ${ctrName} { ${fieldStr} },`)
+      }
+    }
+    lines.push('}')
   }
-  lines.push('}')
   return lines.join('\n')
+}
+
+/** Resolve a field type string for use in struct/enum field declarations.
+ * Boxes ADT types for recursion, falls back to Box<parentType> for untyped fields. */
+function resolveFieldType(input: { typ: string; parentName: string; ctx: EmitCtx }): string {
+  const { typ, parentName, ctx } = input
+  // Unresolved type (from untyped link) → Box<ParentType>
+  if (typ === 'impl Clone') return `Box<${pascalCase(parentName)}>`
+  if (isBoxedField({ typ, ctx })) return `Box<${typ}>`
+  return typ
+}
+
+/** Check whether a field type needs Box wrapping (ADT types need it). */
+function isBoxedField(input: { typ: string; ctx: EmitCtx }): boolean {
+  const { typ, ctx } = input
+  if (typ === 'impl Clone') return true
+  for (const name of ctx.enumNames) {
+    if (pascalCase(name) === typ) return true
+  }
+  return false
 }
 
 // ---- Trait / Impl Generation ----
@@ -230,15 +274,17 @@ function castImplBlock(input: {
     lines.push(`impl ${formName} {`)
   }
 
-  for (const methodName of implInfo.methods) {
-    const term = ctx.book.get(methodName)
+  for (const bookKey of implInfo.methods) {
+    const term = ctx.book.get(bookKey)
     if (!term) continue
 
-    const safeName = snakeCase(methodName)
+    // bookKey may be "formName/methodName", emit just the method name
+    const shortName = bookKey.includes('/') ? bookKey.split('/').pop()! : bookKey
+    const safeName = snakeCase(shortName)
     const paramTypes = extractParamTypes({ term, ctx })
 
     // Use mask's declared return type if available
-    const maskMethod = mask?.methods.find(m => m.name === methodName)
+    const maskMethod = mask?.methods.find(m => m.name === shortName)
     const baseReturnType = maskMethod?.returnType
       ? resolveTraitTypeName(maskMethod.returnType)
       : inferReturnType({ term, ctx })
@@ -329,14 +375,15 @@ function inferReturnType(input: {
   }
 
   const adts = new Set<string>()
-  const literals = { hasNum: false, hasFlt: false }
+  const literals = { hasNum: false, hasFlt: false, hasText: false }
   collectReturnInfo({ term: body, ctx, adts, literals })
 
-  if (adts.size === 1 && !literals.hasNum && !literals.hasFlt) {
+  if (adts.size === 1 && !literals.hasNum && !literals.hasFlt && !literals.hasText) {
     const formName = [...adts][0]!
     return pascalCase(formName)
   }
 
+  if (literals.hasText && adts.size === 0 && !literals.hasNum && !literals.hasFlt) return 'String'
   if (literals.hasNum && adts.size === 0) return 'u64'
   if (literals.hasFlt && adts.size === 0) return 'f64'
 
@@ -365,7 +412,7 @@ function collectReturnInfo(input: {
   term: Term
   ctx: EmitCtx
   adts: Set<string>
-  literals: { hasNum: boolean; hasFlt: boolean }
+  literals: { hasNum: boolean; hasFlt: boolean; hasText: boolean }
 }): void {
   const { term, ctx, adts, literals } = input
   switch (term.form) {
@@ -383,6 +430,9 @@ function collectReturnInfo(input: {
       break
     case 'flt':
       literals.hasFlt = true
+      break
+    case 'txt':
+      literals.hasText = true
       break
     case 'app':
       collectReturnInfo({ term: term.func, ctx, adts, literals })
@@ -453,18 +503,36 @@ function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
 function analyze(input: { book: Book; dockNames: Set<string> }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
+  const fieldTypeMap = new Map<string, Array<{ name: string; typ: string }>>()
   const arityMap = new Map<string, number>()
   const ctrToEnum = new Map<string, string>()
   const enumNames = new Set<string>()
+  const structNames = new Set<string>()
 
+  // First pass: collect all ADT names so we can resolve types
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
     if (val.form === 'adt') {
       enumNames.add(name)
+    }
+  }
+
+  // Partial ctx for type resolution during analysis
+  const partialCtx = { enumNames, structNames } as EmitCtx
+
+  // Second pass: build all maps
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') {
+      // Single-constructor form with matching name → struct
+      if (val.ctrs.length === 1 && val.ctrs[0]!.name === name) {
+        structNames.add(name)
+      }
       let localTag = 0
       for (const ctr of val.ctrs) {
         tagMap.set(ctr.name, localTag++)
         fieldMap.set(ctr.name, teleToFieldNames(ctr.tele))
+        fieldTypeMap.set(ctr.name, teleToFieldTypes({ tele: ctr.tele, ctx: partialCtx }))
         ctrToEnum.set(ctr.name, name)
       }
     }
@@ -476,9 +544,11 @@ function analyze(input: { book: Book; dockNames: Set<string> }): EmitCtx {
   return {
     tagMap,
     fieldMap,
+    fieldTypeMap,
     arityMap,
     ctrToEnum,
     enumNames,
+    structNames,
     dockNames: input.dockNames,
     book: input.book,
   }
@@ -492,6 +562,22 @@ function teleToFieldNames(tele: Tele): string[] {
     cur = cur.bod({ form: 'var', name: cur.name, idx: 0 })
   }
   return names
+}
+
+function teleToFieldTypes(input: {
+  tele: Tele
+  ctx: EmitCtx
+}): Array<{ name: string; typ: string }> {
+  const fields: Array<{ name: string; typ: string }> = []
+  let cur = input.tele
+  while (cur.form === 'ext') {
+    fields.push({
+      name: cur.name,
+      typ: resolveRustType({ term: cur.typ, ctx: input.ctx }),
+    })
+    cur = cur.bod({ form: 'var', name: cur.name, idx: 0 })
+  }
+  return fields
 }
 
 function countLamDepth(term: Term): number {
@@ -814,14 +900,19 @@ function castMatchStmt(input: {
   for (const [name, bod] of arms) {
     const ctrName = pascalCase(name)
     const formName = ctx.ctrToEnum.get(name)
-    const qualifiedName = formName
-      ? `${pascalCase(formName)}::${ctrName}`
-      : ctrName
+    const isStruct = formName ? ctx.structNames.has(formName) : false
+    const qualifiedName = isStruct
+      ? pascalCase(formName!)
+      : formName
+        ? `${pascalCase(formName)}::${ctrName}`
+        : ctrName
     const fields = ctx.fieldMap.get(name) ?? []
 
     let armBod = bod
     let armDep = dep
     const bindings: string[] = []
+
+    const fieldTypes = ctx.fieldTypeMap.get(name) ?? []
 
     if (armBod.form === 'lam') {
       let fieldIdx = 0
@@ -844,9 +935,13 @@ function castMatchStmt(input: {
     lines.push(`${pad}    ${qualifiedName}${bindStr} => {`)
     if (bindings.length > 0) {
       const innerPad = '    '.repeat(indent + 2)
-      for (const binding of bindings) {
-        const paramName = binding.split(': ')[1]!
-        lines.push(`${innerPad}let ${paramName} = *${paramName};`)
+      for (let bi = 0; bi < bindings.length; bi++) {
+        const paramName = bindings[bi]!.split(': ')[1]!
+        const ft = fieldTypes[bi]
+        const needsDeref = ft ? isBoxedField({ typ: ft.typ, ctx }) : true
+        if (needsDeref) {
+          lines.push(`${innerPad}let ${paramName} = *${paramName};`)
+        }
       }
     }
     castStmt({
@@ -1174,15 +1269,21 @@ function castExpr(input: {
     case 'con': {
       const ctrName = pascalCase(term.name)
       const formName = ctx.ctrToEnum.get(term.name)
-      const qualifiedName = formName
-        ? `${pascalCase(formName)}::${ctrName}`
-        : ctrName
+      const isStruct = formName ? ctx.structNames.has(formName) : false
+      const qualifiedName = isStruct
+        ? pascalCase(formName!)
+        : formName
+          ? `${pascalCase(formName)}::${ctrName}`
+          : ctrName
       if (term.args.length === 0) return qualifiedName
+      const fieldTypes = ctx.fieldTypeMap.get(term.name) ?? []
       const fields = term.args
-        .map(([field, t]) => {
+        .map(([field, t], i) => {
           const val = castExpr({ term: t, dep, ctx })
           const key = field ? snakeCase(field) : '_'
-          return `${key}: Box::new(${val})`
+          const ft = fieldTypes[i]
+          const needsBox = ft ? isBoxedField({ typ: ft.typ, ctx }) : true
+          return `${key}: ${needsBox ? `Box::new(${val})` : val}`
         })
         .join(', ')
       return `${qualifiedName} { ${fields} }`

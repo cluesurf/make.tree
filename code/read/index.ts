@@ -595,11 +595,23 @@ function readHost(fork: PFork): SurfHost {
   const children = childForks(fork, 2)
 
   let sift: Surf | undefined
-  if (children.length > 0) {
-    sift = readSiftExpr(children[0]!)
+  const list: Surf[] = []
+
+  for (const child of children) {
+    const word = childWord(child, 0)
+    if (word === 'term') {
+      const termChildren = childForks(child, 1)
+      if (termChildren.length > 0) {
+        list.push(readSiftExpr(termChildren[0]!))
+      }
+    } else if (!sift) {
+      sift = readSiftExpr(child)
+    }
   }
 
-  return { form: 'host', name, sift, site }
+  const result: SurfHost = { form: 'host', name, sift, site }
+  if (list.length > 0) result.list = list
+  return result
 }
 
 // -- load --
@@ -759,9 +771,8 @@ function readSiftExpr(fork: PFork): Surf {
   const kw = headWord(fork)
   switch (kw) {
     case 'loan':
-      return readSiftPath(fork, 'sift-loan')
     case 'move':
-      return readSiftPath(fork, 'sift-move')
+    case 'cite':
     case 'read':
       return readSiftPath(fork, 'sift-read')
     case 'link':
@@ -778,14 +789,14 @@ function readSiftExpr(fork: PFork): Surf {
       return readMake(fork, [])
     default:
       // Bare word treated as variable reference
-      if (kw) return { form: 'sift-loan', path: [kw], site }
+      if (kw) return { form: 'sift-read', path: [kw], site }
       return { form: 'sift-mark', val: 0, site }
   }
 }
 
 function readSiftPath(
   fork: PFork,
-  form: 'sift-loan' | 'sift-move' | 'sift-read' | 'sift-link',
+  form: 'sift-read' | 'sift-link',
 ): Surf {
   const raw = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
   const path = raw.split('/')

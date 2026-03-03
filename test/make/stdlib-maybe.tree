@@ -7,26 +7,26 @@ form maybe
 task maybe-map
   take m, like maybe
   take f
-  fork case, loan m
+  fork case, read m
     hook some, base value
       back make some
         bind value, call f
-          bind x, loan value
+          bind x, read value
     hook none
       back make none
 
 task maybe-unwrap
   take m, like maybe
   take fallback
-  fork case, loan m
+  fork case, read m
     hook some, base value
-      back loan value
+      back read value
     hook none
-      back loan fallback
+      back read fallback
 
 task maybe-is-some
   take m, like maybe
-  fork case, loan m
+  fork case, read m
     hook some, base value
       back wave true
     hook none
@@ -34,7 +34,7 @@ task maybe-is-some
 
 task maybe-is-none
   take m, like maybe
-  fork case, loan m
+  fork case, read m
     hook some, base value
       back wave false
     hook none
@@ -43,9 +43,9 @@ task maybe-is-none
 task maybe-from-wave
   take cond, like bool
   take value
-  fork case, loan cond
+  fork case, read cond
     hook true
       back make some
-        bind value, loan value
+        bind value, read value
     hook false
       back make none

@@ -9,4 +9,4 @@ task make-zero
 task make-succ
   take p, like nat
   back make succ
-    bind pred, loan p
+    bind pred, read p

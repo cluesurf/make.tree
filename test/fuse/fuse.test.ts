@@ -26,8 +26,8 @@ describe('fuse/index', () => {
         //       take a, like u64
         //       take b, like u64
         //       back call add-prim
-        //         bind a, loan a
-        //         bind b, loan b
+        //         bind a, read a
+        //         bind b, read b
         {
           form: 'tree',
           name: 'adder',
@@ -49,8 +49,8 @@ describe('fuse/index', () => {
                   form: 'call',
                   name: 'add-prim',
                   bind: [
-                    { form: 'bind', name: 'a', sift: { form: 'sift-loan', path: ['a'], site }, site },
-                    { form: 'bind', name: 'b', sift: { form: 'sift-loan', path: ['b'], site }, site },
+                    { form: 'bind', name: 'a', sift: { form: 'sift-read', path: ['a'], site }, site },
+                    { form: 'bind', name: 'b', sift: { form: 'sift-read', path: ['b'], site }, site },
                   ],
                   hook: {},
                   site,
@@ -127,7 +127,7 @@ describe('fuse/index', () => {
                   form: 'call',
                   name: 'mul',
                   bind: [
-                    { form: 'bind', name: 'a', sift: { form: 'sift-loan', path: ['n'], site }, site },
+                    { form: 'bind', name: 'a', sift: { form: 'sift-read', path: ['n'], site }, site },
                     { form: 'bind', name: 'b', sift: { form: 'sift-mark', val: 2, site }, site },
                   ],
                   hook: {},
@@ -173,7 +173,7 @@ describe('fuse/index', () => {
         name: 'id',
         head: [],
         base: [{ form: 'base', name: 'x', like: { form: 'type-name', name: 'u64' }, site }],
-        flow: [{ form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site }],
+        flow: [{ form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site }],
         task: [],
         site,
       } as SurfTask],
@@ -217,7 +217,7 @@ describe('fuse/index', () => {
               bind: [],
               site,
             } as SurfFuse,
-            { form: 'back', sift: { form: 'sift-loan', path: ['x'], site }, site },
+            { form: 'back', sift: { form: 'sift-read', path: ['x'], site }, site },
           ],
           task: [],
           site,

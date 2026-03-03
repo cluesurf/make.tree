@@ -1,0 +1,76 @@
+mask printable
+  task to-text
+    take self, like self
+    like text
+
+mask numeric
+  task to-number
+    take self, like self
+    like u64
+
+form color
+  case red
+  case green
+  case blue
+
+  wear printable
+    task to-text
+      take self, like color
+      fork case, read self
+        hook red
+          back text <red>
+        hook green
+          back text <green>
+        hook blue
+          back text <blue>
+
+  wear numeric
+    task to-number
+      take self, like color
+      fork case, read self
+        hook red
+          back mark 1
+        hook green
+          back mark 2
+        hook blue
+          back mark 3
+
+  wear helpers
+    task warmth
+      take self, like color
+      fork case, read self
+        hook red
+          back mark 1
+        hook green
+          back mark 0
+        hook blue
+          back mark 0
+
+form shape
+  case circle
+  case square
+
+suit shape
+  wear printable
+    task to-text
+      take self, like shape
+      fork case, read self
+        hook circle
+          back text <circle>
+        hook square
+          back text <square>
+
+task make-red
+  back make red
+
+task make-green
+  back make green
+
+task make-blue
+  back make blue
+
+task make-circle
+  back make circle
+
+task make-square
+  back make square

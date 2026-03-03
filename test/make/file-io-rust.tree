@@ -7,8 +7,8 @@ task write-file
   take content, like text
   save r
     call fs/write
-      bind path, loan path
-      bind content, loan content
+      bind path, read path
+      bind content, read content
   call r/unwrap
   back text <done>
 
@@ -16,5 +16,5 @@ task read-file
   take path, like text
   save r
     call fs/read-to-string
-      bind path, loan path
+      bind path, read path
   back call r/unwrap

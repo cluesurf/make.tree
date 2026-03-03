@@ -280,6 +280,6 @@ function bindToString(bind: SurfBind): string {
   const sift = bind.sift
   if (sift.form === 'sift-mark') return String(sift.val)
   if (sift.form === 'sift-text') return sift.val
-  if (sift.form === 'sift-loan') return sift.path.join('/')
+  if (sift.form === 'sift-read') return sift.path.join('/')
   return ''
 }

@@ -15,11 +15,13 @@
  */
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
+import type { TraitMeta } from '@/cast/trait'
 
 type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
+  ctrToEnum: Map<string, string>
   book: Book
 }
 
@@ -30,58 +32,46 @@ type TailCtx = {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book }): string {
+export function castBook(input: { book: Book; traits?: TraitMeta }): string {
   const ctx = analyze({ book: input.book })
   const lines: string[] = []
 
+  // Build set of method names that belong to impl blocks
+  const implMethods = new Set<string>()
+  for (const impl of input.traits?.impls ?? []) {
+    for (const m of impl.methods) implMethods.add(m)
+  }
+
+  // Phase 1: Enums
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') {
+      lines.push(castEnum({ name, term: val, ctx }))
+    }
+  }
+
+  // Phase 2: Protocols (from masks)
+  for (const mask of input.traits?.masks ?? []) {
+    lines.push(castProtocol({ mask }))
+  }
+
+  // Phase 3: Extensions (from impls)
+  for (const impl of input.traits?.impls ?? []) {
+    lines.push(castExtension({ impl, ctx, masks: input.traits?.masks ?? [] }))
+  }
+
+  // Phase 4: Standalone functions (skip impl methods)
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
 
-    if (val.form === 'adt') {
-      lines.push(castEnum({ name, term: val, ctx }))
-      continue
-    }
-
+    if (val.form === 'adt') continue
     if (isTypeOnly(val)) continue
+    if (implMethods.has(name)) continue
 
     const safeName = camelCase(name)
 
     if (val.form === 'lam') {
-      const { params, body } = unwrapLam({ term: val, dep: 0 })
-      const paramStr = params.map(p => `_ ${p.name}: Any`).join(', ')
-      const paramNames = params.map(p => p.name)
-      const isTailRec = hasSelfTailCall({
-        term: body,
-        refName: name,
-        arity: params.length,
-        dep: params.length,
-      })
-      const tail: TailCtx = isTailRec
-        ? { refName: name, params: paramNames }
-        : null
-      const bodyLines: string[] = []
-      const bodyIndent = isTailRec ? 2 : 1
-      castStmt({
-        term: body,
-        dep: params.length,
-        ctx,
-        lines: bodyLines,
-        indent: bodyIndent,
-        tail,
-      })
-      if (isTailRec) {
-        // Use var params for tail-call reassignment
-        const varParamStr = params
-          .map(p => `_ ${p.name}: Any`)
-          .join(', ')
-        lines.push(
-          `func ${safeName}(${varParamStr}) -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`,
-        )
-      } else {
-        lines.push(
-          `func ${safeName}(${paramStr}) -> Any {\n${bodyLines.join('\n')}\n}`,
-        )
-      }
+      lines.push(castFunction({ name, safeName, term: val, ctx }))
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
       lines.push(`let ${safeName}: Any = ${expr}`)
@@ -89,6 +79,121 @@ export function castBook(input: { book: Book }): string {
   }
 
   return lines.join('\n\n')
+}
+
+function castFunction(input: {
+  name: string
+  safeName: string
+  term: Term & { form: 'lam' }
+  ctx: EmitCtx
+}): string {
+  const { name, safeName, term, ctx } = input
+  const { params, body } = unwrapLam({ term, dep: 0 })
+  const paramStr = params.map(p => `_ ${p.name}: Any`).join(', ')
+  const paramNames = params.map(p => p.name)
+  const isTailRec = hasSelfTailCall({
+    term: body,
+    refName: name,
+    arity: params.length,
+    dep: params.length,
+  })
+  const tail: TailCtx = isTailRec
+    ? { refName: name, params: paramNames }
+    : null
+  const bodyLines: string[] = []
+  const bodyIndent = isTailRec ? 2 : 1
+  castStmt({
+    term: body,
+    dep: params.length,
+    ctx,
+    lines: bodyLines,
+    indent: bodyIndent,
+    tail,
+  })
+  if (isTailRec) {
+    const varParamStr = params
+      .map(p => `_ ${p.name}: Any`)
+      .join(', ')
+    return `func ${safeName}(${varParamStr}) -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`
+  }
+  return `func ${safeName}(${paramStr}) -> Any {\n${bodyLines.join('\n')}\n}`
+}
+
+// ---- Protocol / Extension Generation ----
+
+function castProtocol(input: {
+  mask: import('@/cast/trait').MaskInfo
+}): string {
+  const { mask } = input
+  const protocolName = pascalCase(mask.name)
+  const lines: string[] = []
+  lines.push(`protocol ${protocolName} {`)
+  for (const method of mask.methods) {
+    const safeName = camelCase(method.name)
+    const params: string[] = []
+    for (const p of method.params) {
+      if (p.name === 'self') continue
+      params.push(`_ ${camelCase(p.name)}: Any`)
+    }
+    lines.push(`    func ${safeName}(${params.join(', ')}) -> Any`)
+  }
+  lines.push('}')
+  return lines.join('\n')
+}
+
+function castExtension(input: {
+  impl: import('@/cast/trait').ImplInfo
+  ctx: EmitCtx
+  masks: import('@/cast/trait').MaskInfo[]
+}): string {
+  const { ctx, masks } = input
+  const implInfo = input.impl
+  const formName = pascalCase(implInfo.formName)
+  const lines: string[] = []
+
+  if (implInfo.maskName) {
+    const maskName = pascalCase(implInfo.maskName)
+    lines.push(`extension ${formName}: ${maskName} {`)
+  } else {
+    lines.push(`extension ${formName} {`)
+  }
+
+  for (const bookKey of implInfo.methods) {
+    const term = ctx.book.get(bookKey)
+    if (!term) continue
+
+    const shortName = bookKey.includes('/') ? bookKey.split('/').pop()! : bookKey
+    const safeName = camelCase(shortName)
+    const val = unwrapAnn(term)
+
+    if (val.form === 'lam') {
+      const { params, body } = unwrapLam({ term: val, dep: 0 })
+
+      // Skip self param (implicit in Swift extensions)
+      const hasSelfParam = params.length > 0 && params[0]!.name === 'self'
+      const startIdx = hasSelfParam ? 1 : 0
+      const methodParams: string[] = []
+      for (let i = startIdx; i < params.length; i++) {
+        methodParams.push(`_ ${params[i]!.name}: Any`)
+      }
+      const paramStr = methodParams.join(', ')
+
+      const bodyLines: string[] = []
+      castStmt({
+        term: body,
+        dep: params.length,
+        ctx,
+        lines: bodyLines,
+        indent: 2,
+      })
+      lines.push(
+        `    func ${safeName}(${paramStr}) -> Any {\n${bodyLines.join('\n')}\n    }`,
+      )
+    }
+  }
+
+  lines.push('}')
+  return lines.join('\n')
 }
 
 // ---- Enum Generation ----
@@ -104,7 +209,7 @@ function castEnum(input: {
   lines.push(`enum ${enumName} {`)
   for (const ctr of term.ctrs) {
     const fields = teleToFieldNames(ctr.tele)
-    const ctrName = camelCase(ctr.name)
+    const ctrName = swiftIdent(camelCase(ctr.name))
     if (fields.length === 0) {
       lines.push(`    case ${ctrName}`)
     } else {
@@ -124,6 +229,7 @@ function analyze(input: { book: Book }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
+  const ctrToEnum = new Map<string, string>()
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -132,6 +238,7 @@ function analyze(input: { book: Book }): EmitCtx {
       for (const ctr of val.ctrs) {
         tagMap.set(ctr.name, localTag++)
         fieldMap.set(ctr.name, teleToFieldNames(ctr.tele))
+        ctrToEnum.set(ctr.name, name)
       }
     }
     if (val.form === 'lam') {
@@ -139,7 +246,7 @@ function analyze(input: { book: Book }): EmitCtx {
     }
   }
 
-  return { tagMap, fieldMap, arityMap, book: input.book }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, book: input.book }
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -392,9 +499,16 @@ function castMatchStmt(input: {
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
-  lines.push(`${pad}switch ${scrExpr} {`)
+  // Determine the enum type from the first arm's constructor
+  const firstCtr = arms[0]?.[0]
+  const enumType = firstCtr ? ctx.ctrToEnum.get(firstCtr) : undefined
+  const castExprStr = enumType
+    ? `${scrExpr} as! ${pascalCase(enumType)}`
+    : scrExpr
+
+  lines.push(`${pad}switch ${castExprStr} {`)
   for (const [name, bod] of arms) {
-    const ctrName = camelCase(name)
+    const ctrName = swiftIdent(camelCase(name))
     const fields = ctx.fieldMap.get(name) ?? []
 
     let armBod = bod
@@ -417,8 +531,7 @@ function castMatchStmt(input: {
       }
     }
 
-    const enumType = findEnumForCtr({ name, ctx })
-    const prefix = enumType ? `.${ctrName}` : `.${ctrName}`
+    const prefix = `.${ctrName}`
     const bindStr =
       bindings.length > 0 ? `(${bindings.join(', ')})` : ''
     lines.push(`${pad}    case ${prefix}${bindStr}:`)
@@ -554,7 +667,7 @@ function castExpr(input: {
     case 'nat':
       return String(term.val)
     case 'con': {
-      const ctrName = camelCase(term.name)
+      const ctrName = swiftIdent(camelCase(term.name))
       const enumType = findEnumForCtr({ name: term.name, ctx })
       const prefix = enumType
         ? `${pascalCase(enumType)}.${ctrName}`
@@ -672,15 +785,23 @@ function findEnumForCtr(input: {
   name: string
   ctx: EmitCtx
 }): string | null {
-  for (const [bookName, term] of input.ctx.book) {
-    const val = unwrapAnn(term)
-    if (val.form === 'adt') {
-      for (const ctr of val.ctrs) {
-        if (ctr.name === input.name) return bookName
-      }
-    }
-  }
-  return null
+  return input.ctx.ctrToEnum.get(input.name) ?? null
+}
+
+const SWIFT_KEYWORDS = new Set([
+  'true', 'false', 'nil', 'self', 'Self', 'super',
+  'class', 'struct', 'enum', 'protocol', 'extension',
+  'func', 'var', 'let', 'import', 'return', 'if', 'else',
+  'switch', 'case', 'default', 'for', 'while', 'repeat',
+  'break', 'continue', 'in', 'is', 'as', 'try', 'throw',
+  'throws', 'catch', 'where', 'guard', 'do', 'init', 'deinit',
+  'typealias', 'associatedtype', 'operator', 'subscript',
+])
+
+/** Escape Swift reserved keywords with backticks. */
+function swiftIdent(name: string): string {
+  if (SWIFT_KEYWORDS.has(name)) return `\`${name}\``
+  return name
 }
 
 function castOper(oper: Oper): string {

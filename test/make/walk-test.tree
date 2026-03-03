@@ -5,18 +5,18 @@ task count-to
   save i, mark 0
   walk test
     call lt
-      bind a, loan i
-      bind b, loan n
+      bind a, read i
+      bind b, read n
     hook step
       save total
         call add
-          bind a, loan total
-          bind b, loan i
+          bind a, read total
+          bind b, read i
       save i
         call add
-          bind a, loan i
+          bind a, read i
           bind b, mark 1
-  back loan total
+  back read total
 
 task factorial
   take n, like u64
@@ -24,29 +24,29 @@ task factorial
   save i, mark 1
   walk test
     call lte
-      bind a, loan i
-      bind b, loan n
+      bind a, read i
+      bind b, read n
     hook step
       save result
         call mul
-          bind a, loan result
-          bind b, loan i
+          bind a, read result
+          bind b, read i
       save i
         call add
-          bind a, loan i
+          bind a, read i
           bind b, mark 1
-  back loan result
+  back read result
 
 task count-down
   take n, like u64
-  save i, loan n
+  save i, read n
   walk test
     call gt
-      bind a, loan i
+      bind a, read i
       bind b, mark 0
     hook step
       save i
         call sub
-          bind a, loan i
+          bind a, read i
           bind b, mark 1
-  back loan i
+  back read i
