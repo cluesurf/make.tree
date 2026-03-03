@@ -506,7 +506,7 @@ describe('term/desugar', () => {
         case: [
           { form: 'case-arm', name: 'zero', link: [], site },
           { form: 'case-arm', name: 'succ', link: [
-            { form: 'link', name: 'pred', like: 'nat', site },
+            { form: 'link', name: 'pred', like: { form: 'type-name', name: 'nat' }, site },
           ], site },
         ],
         site,
@@ -547,7 +547,7 @@ describe('term/desugar', () => {
           } as SurfForm,
           {
             form: 'task', name: 'not', head: [],
-            base: [{ form: 'base', name: 'b', like: 'bool', site }],
+            base: [{ form: 'base', name: 'b', like: { form: 'type-name', name: 'bool' }, site }],
             flow: [
               {
                 form: 'fork', mode: 'case',

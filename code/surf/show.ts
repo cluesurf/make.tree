@@ -5,7 +5,7 @@
  * Used for --show-surf debug flag and error messages.
  */
 
-import type { Surf, SurfCard } from '@/surf/form'
+import type { Surf, SurfCard, SurfType } from '@/surf/form'
 
 /** Print a Surf node to readable Term syntax. */
 export function showSurf(node: Surf): string {
@@ -29,7 +29,7 @@ function showNode(node: Surf, dep: number): string {
       }
       for (const b of node.base) {
         parts.push(
-          `${pad}  base ${b.name}${b.like ? `, like ${b.like}` : ''}`,
+          `${pad}  base ${b.name}${b.like ? `, like ${showType(b.like)}` : ''}`,
         )
       }
       for (const s of node.flow) {
@@ -50,12 +50,12 @@ function showNode(node: Surf, dep: number): string {
       }
       for (const l of node.link) {
         parts.push(
-          `${pad}  link ${l.name}${l.like ? `, like ${l.like}` : ''}`,
+          `${pad}  link ${l.name}${l.like ? `, like ${showType(l.like)}` : ''}`,
         )
       }
       for (const c of node.case) {
         const fields = c.link
-          .map(l => `${l.name}${l.like ? `: ${l.like}` : ''}`)
+          .map(l => `${l.name}${l.like ? `: ${showType(l.like)}` : ''}`)
           .join(', ')
         parts.push(
           `${pad}  case ${c.name}${fields ? `, ${fields}` : ''}`,
@@ -170,11 +170,11 @@ function showNode(node: Surf, dep: number): string {
     }
 
     case 'base': {
-      return `${pad}base ${node.name}${node.like ? `, like ${node.like}` : ''}`
+      return `${pad}base ${node.name}${node.like ? `, like ${showType(node.like)}` : ''}`
     }
 
     case 'link': {
-      return `${pad}link ${node.name}${node.like ? `, like ${node.like}` : ''}`
+      return `${pad}link ${node.name}${node.like ? `, like ${showType(node.like)}` : ''}`
     }
 
     case 'hook': {
@@ -220,6 +220,14 @@ function showNode(node: Surf, dep: number): string {
     default:
       return `${pad}<unknown: ${(node as any).form}>`
   }
+}
+
+/** Format a SurfType as readable text. */
+function showType(typ: SurfType): string {
+  if (typ.form === 'type-or') {
+    return `or(${typ.list.map(showType).join(', ')})`
+  }
+  return typ.name
 }
 
 /** Format a sift expression inline. */

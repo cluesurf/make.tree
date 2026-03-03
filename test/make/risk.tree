@@ -1,0 +1,14 @@
+task safe-add
+  take a, like u64
+  take b, like u64
+  back call add
+    bind a, loan a
+    bind b, loan b
+
+task unchecked-add
+  risk true
+  take a, like u64
+  take b, like u64
+  back call add
+    bind a, loan a
+    bind b, loan b

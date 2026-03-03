@@ -1,0 +1,9 @@
+form integer
+  link dock
+    like or
+      like integer-32
+      like integer-grow
+
+task read-dock
+  take val, like integer
+  back loan val

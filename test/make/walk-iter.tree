@@ -1,0 +1,8 @@
+task print-all
+  take items
+  walk list
+    loan items
+    hook tick
+      take item
+      show loan item
+  back mark 0

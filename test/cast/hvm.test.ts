@@ -348,7 +348,7 @@ describe('cast/hvm', () => {
           } as SurfForm,
           {
             form: 'task', name: 'not', head: [],
-            base: [{ form: 'base', name: 'b', like: 'bool', site }],
+            base: [{ form: 'base', name: 'b', like: { form: 'type-name', name: 'bool' }, site }],
             flow: [{
               form: 'fork', mode: 'case',
               sift: { form: 'sift-loan', path: ['b'], site },

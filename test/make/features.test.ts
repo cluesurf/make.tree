@@ -132,3 +132,27 @@ describe('multi-file with load', () => {
     expect(ts).toContain('export function makeSucc(p)')
   })
 })
+
+describe('union types (like or)', () => {
+  it('compiles form with union type link without error', () => {
+    const ts = compileFile('union.tree')
+    expect(ts).toContain('export function readDock(val)')
+  })
+})
+
+describe('risk unsafe markers', () => {
+  it('compiles tasks with risk true normally', () => {
+    const ts = compileFile('risk.tree')
+    expect(ts).toContain('export function safeAdd(a, b)')
+    expect(ts).toContain('export function uncheckedAdd(a, b)')
+  })
+})
+
+describe('walk iteration (for...of)', () => {
+  it('generates for-of loop from walk list', () => {
+    const ts = compileFile('walk-iter.tree')
+    expect(ts).toContain('for (const')
+    expect(ts).toContain('of ')
+    expect(ts).toContain('console.log(')
+  })
+})
