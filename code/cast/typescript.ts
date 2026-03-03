@@ -247,6 +247,12 @@ function castStmt(input: {
         return
       }
 
+      // Runtime primitive: .for in statement mode → for-of loop
+      if (func.form === 'ref' && func.name === '.for' && args.length === 2 && args[1]!.form === 'lam') {
+        castForStmt({ iter: args[0]!, lam: args[1]!, dep, ctx, lines, indent })
+        return
+      }
+
       // Self-tail-call → reassign params + continue
       if (tail && func.form === 'ref' && func.name === tail.refName && args.length === tail.params.length) {
         if (args.length === 1) {
@@ -275,16 +281,6 @@ function castStmt(input: {
       const msg = castExpr({ term: term.msg, dep, ctx })
       lines.push(`${pad}console.log(${msg});`)
       castStmt({ term: term.val, dep, ctx, lines, indent, tail })
-      return
-    }
-
-    case 'for': {
-      const name = varName({ name: term.name, dep })
-      const iter = castExpr({ term: term.iter, dep, ctx })
-      lines.push(`${pad}for (const ${name} of ${iter}) {`)
-      const bodTerm = term.bod({ form: 'var', name, idx: dep })
-      castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent: indent + 1 })
-      lines.push(`${pad}}`)
       return
     }
 
@@ -480,6 +476,41 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
         return `(${scrExpr} === 0 ? ${zeroExpr} : (${succExpr})(${scrExpr} - 1))`
       }
 
+      // Runtime primitives: Ref names starting with "."
+      if (func.form === 'ref' && func.name.startsWith('.')) {
+        const prim = func.name.slice(1)
+
+        // .safe → (val ?? undefined)
+        if (prim === 'safe' && args.length === 1) {
+          const inner = castExpr({ term: args[0]!, dep, ctx })
+          return `(${inner} ?? undefined)`
+        }
+
+        // .map → new Map(entries)
+        if (prim === 'map' && args.length === 1) {
+          const entries = args[0]!
+          if (entries.form === 'lst' && entries.list.length === 0) return 'new Map()'
+          const entriesExpr = castExpr({ term: entries, dep, ctx })
+          return `new Map(${entriesExpr})`
+        }
+
+        // .for → IIFE wrapping for-of (expression context)
+        if (prim === 'for' && args.length === 2 && args[1]!.form === 'lam') {
+          const bodyLines: string[] = []
+          castForStmt({ iter: args[0]!, lam: args[1]!, dep, ctx, lines: bodyLines, indent: 1 })
+          return `(() => {\n${bodyLines.join('\n')}\n})()`
+        }
+
+        // Method/property dispatch: .save, .read, .size, etc.
+        if (args.length >= 1) {
+          const obj = castExpr({ term: args[0]!, dep, ctx })
+          const methodName = mapMethodName(prim)
+          if (args.length === 1) return `${obj}.${methodName}`
+          const methodArgs = args.slice(1).map(a => castExpr({ term: a, dep, ctx }))
+          return `${obj}.${methodName}(${methodArgs.join(', ')})`
+        }
+      }
+
       // Multi-arg call
       const funcStr = castExpr({ term: func, dep, ctx })
       const argsStr = args.map(a => castExpr({ term: a, dep, ctx }))
@@ -610,43 +641,32 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
     case 'met':
       return `undefined /* meta ${term.uid} */`
 
-    case 'safe': {
-      const inner = castExpr({ term: term.val, dep, ctx })
-      return `(${inner} ?? undefined)`
-    }
-
-    case 'method': {
-      const obj = castExpr({ term: term.obj, dep, ctx })
-      const methodName = mapMethodName(term.name)
-      const args = term.args.map(a => castExpr({ term: a, dep, ctx }))
-      return `${obj}.${methodName}(${args.join(', ')})`
-    }
-
-    case 'new': {
-      const args = term.args.map(a => castExpr({ term: a, dep, ctx }))
-      return `new ${term.name}(${args.join(', ')})`
-    }
-
-    case 'get': {
-      const obj = castExpr({ term: term.obj, dep, ctx })
-      return `${obj}.${sanitizeName(term.name)}`
-    }
-
-    case 'for': {
-      const bodyLines: string[] = []
-      castStmt({ term, dep, ctx, lines: bodyLines, indent: 1 })
-      return `(() => {\n${bodyLines.join('\n')}\n})()`
-    }
-
-    case 'union':
-      return 'undefined'
-
     default:
       return 'undefined'
   }
 }
 
 // ---- Helpers ----
+
+/** Emit a for-of loop from a .for runtime primitive (App(App(Ref ".for") iter) lam). */
+function castForStmt(input: {
+  iter: Term
+  lam: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+}): void {
+  const { iter, lam, dep, ctx, lines, indent } = input
+  const pad = '  '.repeat(indent)
+  if (lam.form !== 'lam') return
+  const name = varName({ name: lam.name, dep })
+  const iterExpr = castExpr({ term: iter, dep, ctx })
+  lines.push(`${pad}for (const ${name} of ${iterExpr}) {`)
+  const bodTerm = lam.bod({ form: 'var', name, idx: dep })
+  castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent: indent + 1 })
+  lines.push(`${pad}}`)
+}
 
 function unwrapLam(input: { term: Term; dep: number }): {
   params: Array<{ name: string }>
@@ -688,7 +708,6 @@ function isTypeOnly(term: Term): boolean {
     case 'f64':
     case 'slf':
     case 'adt':
-    case 'union':
       return true
     default:
       return false

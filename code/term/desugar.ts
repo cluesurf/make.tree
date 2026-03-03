@@ -408,13 +408,13 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
     const objName = name.slice(0, slashIdx)
     const methodName = name.slice(slashIdx + 1)
     const obj = lookupPath({ path: [objName], ctx })
-    if (call.bind.length === 0) {
-      return { form: 'get', obj, name: methodName }
+    // Encode as App(Ref ".name") applied to obj then args
+    let result: Term = { form: 'app', func: { form: 'ref', name: `.${methodName}` }, argm: obj }
+    for (const bind of call.bind) {
+      const arg = bind.sift ? desugarSift({ sift: bind.sift, ctx }) : freshMeta(ctx)
+      result = { form: 'app', func: result, argm: arg }
     }
-    const args: Term[] = call.bind.map(b =>
-      b.sift ? desugarSift({ sift: b.sift, ctx }) : freshMeta(ctx),
-    )
-    return { form: 'method', obj, name: methodName, args }
+    return result
   }
 
   let result: Term = { form: 'ref', name }
@@ -445,7 +445,7 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
 function desugarMake(input: { make: SurfMake; ctx: Ctx }): Term {
   const { make, ctx } = input
 
-  // make find → new Map(entries)
+  // make find → App(Ref ".map") (Lst entries)
   if (make.name === 'find') {
     const entries: Term[] = make.bind.map(b => {
       const key: Term = { form: 'txt', val: b.name }
@@ -454,13 +454,10 @@ function desugarMake(input: { make: SurfMake; ctx: Ctx }): Term {
         : freshMeta(ctx)
       return { form: 'lst', list: [key, val] }
     })
-    if (entries.length === 0) {
-      return { form: 'new', name: 'Map', args: [] }
-    }
     return {
-      form: 'new',
-      name: 'Map',
-      args: [{ form: 'lst', list: entries }],
+      form: 'app',
+      func: { form: 'ref', name: '.map' },
+      argm: { form: 'lst', list: entries },
     }
   }
 
@@ -524,7 +521,7 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
 function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
   const { walk, ctx } = input
 
-  // Iteration modes: list, find
+  // Iteration modes: list, find → App(App(Ref ".for") iter) (Lam "x" body)
   if (walk.mode === 'list' || walk.mode === 'find') {
     const iter = walk.sift
       ? desugarSift({ sift: walk.sift, ctx })
@@ -532,10 +529,9 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
     const hook = walk.hook[0]
     if (!hook) return { form: 'con', name: 'Unit', args: [] }
     const paramName = hook.base[0]?.name ?? 'item'
-    return {
-      form: 'for',
+    const handler: Term = {
+      form: 'lam',
       name: paramName,
-      iter,
       bod: x => {
         const newScope = new Map(ctx.scope)
         newScope.set(paramName, x)
@@ -544,6 +540,11 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
           ctx: { ...ctx, scope: newScope },
         })
       },
+    }
+    return {
+      form: 'app',
+      func: { form: 'app', func: { form: 'ref', name: '.for' }, argm: iter },
+      argm: handler,
     }
   }
 
@@ -658,7 +659,7 @@ function buildTele(input: {
 /** Resolve a structured type expression to a Core Term. */
 function resolveType(typ: SurfType): Term {
   if (typ.form === 'type-or') {
-    return { form: 'union', list: typ.list.map(t => resolveType(t)) }
+    return { form: 'set' }
   }
   return resolveTypeName(typ.name)
 }
@@ -695,14 +696,14 @@ function lookupPath(input: { path: string[]; ctx: Ctx }): Term {
   let base: Term = ctx.scope.get(name) ?? { form: 'ref', name }
 
   for (let i = 1; i < path.length; i++) {
-    base = { form: 'get', obj: base, name: path[i]! }
+    base = { form: 'app', func: { form: 'ref', name: `.${path[i]!}` }, argm: base }
   }
 
   return base
 }
 
-/** Wrap a term in TermSafe if the safe flag is set. */
+/** Wrap a term in App(Ref ".safe") if the safe flag is set. */
 function maybeSafe(term: Term, safe?: boolean): Term {
-  if (safe) return { form: 'safe', val: term }
+  if (safe) return { form: 'app', func: { form: 'ref', name: '.safe' }, argm: term }
   return term
 }
