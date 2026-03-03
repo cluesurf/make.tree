@@ -33,6 +33,11 @@ import type {
   SurfWalk,
   SurfHook,
   SurfHost,
+  SurfLoad,
+  SurfFind,
+  SurfTree,
+  SurfTreeHook,
+  SurfFuse,
 } from '@/surf/form'
 import { VOID_SITE } from '@/kink/site'
 
@@ -56,6 +61,7 @@ type PLine = {
 type PFork = {
   form: 'tree-fork'
   nest: Array<PNode>
+  optional?: boolean
 }
 
 type PKnit = {
@@ -141,6 +147,32 @@ function childNode(fork: PFork, i: number): PNode | undefined {
   return fork.nest[i]
 }
 
+/** Read a knit as a template string, preserving {nick} placeholders. */
+function knitText(knit: PKnit): string {
+  let text = ''
+  for (const node of knit.nest) {
+    if (node.form === 'tree-cord') {
+      text += node.leaf.text
+    } else if (node.form === 'tree-nick') {
+      // Nick contains a nested fork with the interpolation variable
+      if (node.nest) {
+        const inner = headWord(node.nest)
+        text += `{${inner ?? ''}}`
+      }
+    }
+  }
+  return text
+}
+
+/** Get the full template string from a child Fork's head knit. */
+function childKnitText(fork: PFork, i: number): string | undefined {
+  const child = fork.nest[i]
+  if (!child || child.form !== 'tree-fork') return undefined
+  const knit = child.nest[0]
+  if (!knit || knit.form !== 'tree-knit') return undefined
+  return knitText(knit)
+}
+
 /** Get all child Forks from index start onwards */
 function childForks(fork: PFork, start: number): PFork[] {
   const result: PFork[] = []
@@ -162,6 +194,12 @@ function readTop(fork: PFork): Surf | null {
       return readTask(fork)
     case 'host':
       return readHost(fork)
+    case 'load':
+      return readLoad(fork)
+    case 'tree':
+      return readTree(fork)
+    case 'fuse':
+      return readFuse(fork)
     default:
       return null
   }
@@ -170,7 +208,7 @@ function readTop(fork: PFork): Surf | null {
 // -- form --
 
 function readForm(fork: PFork): SurfForm {
-  const name = childWord(fork, 1) ?? ''
+  const name = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
   const head: SurfHead[] = []
   const link: SurfLink[] = []
   const cases: SurfCaseArm[] = []
@@ -192,6 +230,9 @@ function readForm(fork: PFork): SurfForm {
       case 'task':
         task.push(readTask(child))
         break
+      case 'fuse':
+        bond.push(readFuse(child))
+        break
     }
   }
 
@@ -201,7 +242,7 @@ function readForm(fork: PFork): SurfForm {
 // -- task --
 
 function readTask(fork: PFork): SurfTask {
-  const name = childWord(fork, 1) ?? ''
+  const name = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
   const head: SurfHead[] = []
   const base: SurfBase[] = []
   const flow: Surf[] = []
@@ -302,6 +343,8 @@ function readStatement(fork: PFork): Surf | null {
       return { form: 'dive', sift: readSiftFromChild(fork), site }
     case 'halt':
       return { form: 'halt', site }
+    case 'fuse':
+      return readFuse(fork)
     default:
       return null
   }
@@ -501,6 +544,73 @@ function readHost(fork: PFork): SurfHost {
   return { form: 'host', name, sift, site }
 }
 
+// -- load --
+
+function readLoad(fork: PFork): SurfLoad {
+  const pathStr = childWord(fork, 1) ?? ''
+  const path = pathStr.split('/')
+  const find: SurfFind[] = []
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'find') {
+      find.push(readFind(child))
+    }
+  }
+  return { form: 'load', path, find, hook: [], site }
+}
+
+function readFind(fork: PFork): SurfFind {
+  const kind = childWord(fork, 1) ?? ''
+  const argFork = childFork(fork, 1)
+  const name = argFork ? childWord(argFork, 1) ?? '' : ''
+  return { form: 'find', kind, name, site }
+}
+
+// -- tree --
+
+function readTree(fork: PFork): SurfTree {
+  const name = childWord(fork, 1) ?? ''
+  const base: SurfBase[] = []
+  const hook: SurfTreeHook[] = []
+
+  for (const child of childForks(fork, 2)) {
+    const kw = headWord(child)
+    if (kw === 'take') {
+      base.push(readBase(child))
+    } else if (kw === 'hook') {
+      hook.push(readTreeHook(child))
+    }
+  }
+
+  return { form: 'tree', name, base, hook, site }
+}
+
+function readTreeHook(fork: PFork): SurfTreeHook {
+  const name = childWord(fork, 1) ?? ''
+  const list: Surf[] = []
+
+  for (const child of childForks(fork, 2)) {
+    const node = readTop(child) ?? readStatement(child)
+    if (node) list.push(node)
+  }
+
+  return { form: 'tree-hook', name, list, site }
+}
+
+// -- fuse --
+
+function readFuse(fork: PFork): SurfFuse {
+  const name = childWord(fork, 1) ?? ''
+  const bind: SurfBind[] = []
+
+  for (const child of childForks(fork, 2)) {
+    if (headWord(child) === 'bind') {
+      bind.push(readBind(child))
+    }
+  }
+
+  return { form: 'fuse', name, bind, site }
+}
+
 // -- Sift expressions (value expressions) --
 
 function readSiftExpr(fork: PFork): Surf {
@@ -536,6 +646,11 @@ function readSiftPath(
   form: 'sift-loan' | 'sift-move' | 'sift-read' | 'sift-link',
 ): Surf {
   const name = childWord(fork, 1) ?? ''
+  const child = childFork(fork, 1)
+  const safe = child?.optional === true
+  if (safe) {
+    return { form, path: [name], safe, site }
+  }
   return { form, path: [name], site }
 }
 

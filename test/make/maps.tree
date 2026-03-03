@@ -1,0 +1,20 @@
+task make-map
+  save m
+    make find
+      bind foo, text <bar>
+      bind key, mark 42
+  back loan m
+
+task map-ops
+  save m
+    make find
+  save _
+    call m/save
+      bind k, text <hello>
+      bind v, mark 1
+  back call m/read
+    bind k, text <hello>
+
+task get-size
+  take m
+  back call m/size

@@ -1,0 +1,43 @@
+load ./nat
+  find form nat
+
+task fib
+  take n, like nat
+  fork case, loan n
+    hook zero
+      back mark 0
+    hook succ, base pred
+      fork case, loan pred
+        hook zero
+          back mark 1
+        hook succ, base pp
+          save a
+            call fib
+              bind n, loan pred
+          save b
+            call fib
+              bind n, loan pp
+          back call add
+            bind a, loan a
+            bind b, loan b
+
+task fib-tail
+  take n, like nat
+  take a, like u64
+  take b, like u64
+  fork case, loan n
+    hook zero
+      back loan a
+    hook succ, base pred
+      back call fib-tail
+        bind n, loan pred
+        bind a, loan b
+        bind b, call add
+          bind a, loan a
+          bind b, loan b
+
+task double
+  take n, like u64
+  back call mul
+    bind a, loan n
+    bind b, mark 2

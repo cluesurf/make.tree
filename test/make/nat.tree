@@ -1,0 +1,12 @@
+form nat
+  case zero
+  case succ
+    link pred
+
+task make-zero
+  back make zero
+
+task make-succ
+  take p, like nat
+  back make succ
+    bind pred, loan p

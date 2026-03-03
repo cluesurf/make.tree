@@ -1,0 +1,12 @@
+tree doubler
+  take name
+
+  hook bind
+    task double-{name}
+      take n, like u64
+      back call mul
+        bind a, loan n
+        bind b, mark 2
+
+fuse doubler
+  bind name, text <int>

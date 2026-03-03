@@ -184,26 +184,51 @@ export type SurfLoadHook = SurfMixin & {
   name: string
 }
 
+// -- Macros --
+
+export type SurfTree = SurfMixin & {
+  form: 'tree'
+  name: string
+  base: SurfBase[]
+  hook: SurfTreeHook[]
+}
+
+export type SurfTreeHook = SurfMixin & {
+  form: 'tree-hook'
+  name: string
+  list: Surf[]
+}
+
+export type SurfFuse = SurfMixin & {
+  form: 'fuse'
+  name: string
+  bind: SurfBind[]
+}
+
 // -- Value expressions (sift) --
 
 export type SurfSiftLink = SurfMixin & {
   form: 'sift-link'
   path: string[]
+  safe?: boolean
 }
 
 export type SurfSiftMove = SurfMixin & {
   form: 'sift-move'
   path: string[]
+  safe?: boolean
 }
 
 export type SurfSiftRead = SurfMixin & {
   form: 'sift-read'
   path: string[]
+  safe?: boolean
 }
 
 export type SurfSiftLoan = SurfMixin & {
   form: 'sift-loan'
   path: string[]
+  safe?: boolean
 }
 
 export type SurfSiftText = SurfMixin & {
@@ -270,6 +295,10 @@ export type Surf =
   | SurfLoad
   | SurfFind
   | SurfLoadHook
+  // Macros
+  | SurfTree
+  | SurfTreeHook
+  | SurfFuse
   // Value expressions
   | SurfSiftLink
   | SurfSiftMove

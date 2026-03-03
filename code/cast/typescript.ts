@@ -600,6 +600,28 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
     case 'met':
       return `undefined /* meta ${term.uid} */`
 
+    case 'safe': {
+      const inner = castExpr({ term: term.val, dep, ctx })
+      return `(${inner} ?? undefined)`
+    }
+
+    case 'method': {
+      const obj = castExpr({ term: term.obj, dep, ctx })
+      const methodName = mapMethodName(term.name)
+      const args = term.args.map(a => castExpr({ term: a, dep, ctx }))
+      return `${obj}.${methodName}(${args.join(', ')})`
+    }
+
+    case 'new': {
+      const args = term.args.map(a => castExpr({ term: a, dep, ctx }))
+      return `new ${term.name}(${args.join(', ')})`
+    }
+
+    case 'get': {
+      const obj = castExpr({ term: term.obj, dep, ctx })
+      return `${obj}.${sanitizeName(term.name)}`
+    }
+
     default:
       return 'undefined'
   }
@@ -661,6 +683,17 @@ function varName(input: { name: string; dep: number }): string {
 
 function sanitizeName(name: string): string {
   return name.replace(/[/.-](.)/g, (_, c) => c.toUpperCase())
+}
+
+/** Map tree-lang method names to JS equivalents. */
+function mapMethodName(name: string): string {
+  const map: Record<string, string> = {
+    save: 'set',
+    read: 'get',
+    push: 'push',
+    halt: 'end',
+  }
+  return map[name] ?? sanitizeName(name)
 }
 
 function castOper(oper: Oper): string {

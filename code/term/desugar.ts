@@ -331,16 +331,16 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
         : { form: 'con', name: 'False', args: [] }
 
     case 'sift-link':
-      return lookupPath({ path: sift.path, ctx })
+      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
 
     case 'sift-loan':
-      return lookupPath({ path: sift.path, ctx })
+      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
 
     case 'sift-move':
-      return lookupPath({ path: sift.path, ctx })
+      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
 
     case 'sift-read':
-      return lookupPath({ path: sift.path, ctx })
+      return maybeSafe(lookupPath({ path: sift.path, ctx }), sift.safe)
 
     case 'call':
       return desugarCall({ call: sift, ctx })
@@ -354,19 +354,39 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
 }
 
 /**
- * Desugar a call to a chain of App nodes.
+ * Desugar a call to a chain of App nodes, or a method call.
  *
  *   call add, bind a, mark 1, bind b, mark 2
+ *   → App (App (Ref "add") (Num 1)) (Num 2)
  *
- * → App (App (Ref "add") (Num 1)) (Num 2)
+ *   call x/save, bind val, mark 42
+ *   → Method x "save" [Num 42]
  */
 function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
-  let result: Term = { form: 'ref', name: input.call.name }
+  const { call, ctx } = input
+  const name = call.name
 
-  for (const bind of input.call.bind) {
+  // Method/property access: name contains "/" (e.g. "x/save", "x/size")
+  const slashIdx = name.indexOf('/')
+  if (slashIdx !== -1) {
+    const objName = name.slice(0, slashIdx)
+    const methodName = name.slice(slashIdx + 1)
+    const obj = lookupPath({ path: [objName], ctx })
+    if (call.bind.length === 0) {
+      return { form: 'get', obj, name: methodName }
+    }
+    const args: Term[] = call.bind.map(b =>
+      b.sift ? desugarSift({ sift: b.sift, ctx }) : freshMeta(ctx),
+    )
+    return { form: 'method', obj, name: methodName, args }
+  }
+
+  let result: Term = { form: 'ref', name }
+
+  for (const bind of call.bind) {
     const arg = bind.sift
-      ? desugarSift({ sift: bind.sift, ctx: input.ctx })
-      : freshMeta(input.ctx)
+      ? desugarSift({ sift: bind.sift, ctx })
+      : freshMeta(ctx)
     result = { form: 'app', func: result, argm: arg }
   }
 
@@ -374,21 +394,59 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
 }
 
 /**
- * Desugar a make (constructor application) to a Con node.
+ * Desugar a make (constructor application) to a Con node,
+ * or a built-in collection constructor.
  *
  *   make succ, bind pred, mark 5
+ *   → Con "succ" [("pred", Num 5)]
  *
- * → Con "succ" [("pred", Num 5)]
+ *   make find, bind k1, text v1, bind k2, text v2
+ *   → New "Map" [Lst [[k1, v1], [k2, v2]]]
+ *
+ *   make list, bind a, bind b
+ *   → Lst [a, b]
  */
 function desugarMake(input: { make: SurfMake; ctx: Ctx }): Term {
-  const args: [string | null, Term][] = input.make.bind.map(b => {
+  const { make, ctx } = input
+
+  // make find → new Map(entries)
+  if (make.name === 'find') {
+    const entries: Term[] = make.bind.map(b => {
+      const key: Term = { form: 'txt', val: b.name }
+      const val = b.sift
+        ? desugarSift({ sift: b.sift, ctx })
+        : freshMeta(ctx)
+      return { form: 'lst', list: [key, val] }
+    })
+    if (entries.length === 0) {
+      return { form: 'new', name: 'Map', args: [] }
+    }
+    return {
+      form: 'new',
+      name: 'Map',
+      args: [{ form: 'lst', list: entries }],
+    }
+  }
+
+  // make list → array literal
+  if (make.name === 'list') {
+    const items: Term[] = make.bind.map(b => {
+      return b.sift
+        ? desugarSift({ sift: b.sift, ctx })
+        : freshMeta(ctx)
+    })
+    return { form: 'lst', list: items }
+  }
+
+  // Default: ADT constructor
+  const args: [string | null, Term][] = make.bind.map(b => {
     const val = b.sift
-      ? desugarSift({ sift: b.sift, ctx: input.ctx })
-      : freshMeta(input.ctx)
+      ? desugarSift({ sift: b.sift, ctx })
+      : freshMeta(ctx)
     return [b.name || null, val]
   })
 
-  return { form: 'con', name: input.make.name, args }
+  return { form: 'con', name: make.name, args }
 }
 
 /**
@@ -569,4 +627,10 @@ function lookupPath(input: { path: string[]; ctx: Ctx }): Term {
 
   // Not in scope: treat as a top-level reference
   return { form: 'ref', name: path.join('/') }
+}
+
+/** Wrap a term in TermSafe if the safe flag is set. */
+function maybeSafe(term: Term, safe?: boolean): Term {
+  if (safe) return { form: 'safe', val: term }
+  return term
 }

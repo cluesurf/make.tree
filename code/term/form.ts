@@ -203,6 +203,34 @@ export type TermLog = {
   val: Term
 }
 
+/** Optional/safe access (generates ?. in TS) */
+export type TermSafe = {
+  form: 'safe'
+  val: Term
+}
+
+/** Method call: obj.method(args) */
+export type TermMethod = {
+  form: 'method'
+  obj: Term
+  name: string
+  args: Term[]
+}
+
+/** New constructor: new Map(), new Set(), etc. */
+export type TermNew = {
+  form: 'new'
+  name: string
+  args: Term[]
+}
+
+/** Property access: obj.field */
+export type TermGet = {
+  form: 'get'
+  obj: Term
+  name: string
+}
+
 /** Union of all core term variants. */
 export type Term =
   | TermAll
@@ -232,6 +260,10 @@ export type Term =
   | TermVar
   | TermSrc
   | TermLog
+  | TermSafe
+  | TermMethod
+  | TermNew
+  | TermGet
 
 /** Constructor in an ADT. */
 export type Ctr = {
