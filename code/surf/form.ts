@@ -28,6 +28,8 @@ export type SurfTask = SurfMixin & {
   like?: SurfType
   risk?: boolean
   wait?: boolean
+  hide?: boolean
+  firm?: boolean
 }
 
 export type SurfForm = SurfMixin & {
@@ -36,9 +38,13 @@ export type SurfForm = SurfMixin & {
   head: SurfHead[]
   link: SurfLink[]
   case: SurfCaseArm[]
-  bond: SurfBond[]
+  bond: Surf[]
   task: SurfTask[]
   wear: SurfWear[]
+  like?: SurfType
+  hide?: boolean
+  firm?: boolean
+  hold?: Surf[]
 }
 
 export type SurfMask = SurfMixin & {
@@ -68,8 +74,9 @@ export type SurfTest = SurfMixin & {
 // -- Type expressions --
 
 export type SurfType =
-  | { form: 'type-name'; name: string }
+  | { form: 'type-name'; name: string; args?: SurfType[] }
   | { form: 'type-or'; list: SurfType[] }
+  | { form: 'type-and'; list: SurfType[] }
   | { form: 'type-fn'; params: SurfType[]; ret?: SurfType }
 
 // -- Type annotations --
@@ -161,6 +168,21 @@ export type SurfRest = SurfMixin & {
   form: 'rest'
 }
 
+export type SurfNext = SurfMixin & {
+  form: 'next'
+}
+
+export type SurfSlot = SurfMixin & {
+  form: 'slot'
+  name: string
+}
+
+export type SurfBeam = SurfMixin & {
+  form: 'beam'
+  name: string
+  flow: Surf[]
+}
+
 export type SurfMeet = SurfMixin & {
   form: 'meet'
   mode: 'and' | 'or'
@@ -206,8 +228,9 @@ export type SurfLoad = SurfMixin & {
 
 export type SurfFind = SurfMixin & {
   form: 'find'
-  kind: string
   name: string
+  kind?: string
+  alias?: string
 }
 
 export type SurfLoadHook = SurfMixin & {
@@ -285,6 +308,22 @@ export type SurfTell = SurfMixin & { form: 'tell', sift?: Surf }
 export type SurfKink = SurfMixin & { form: 'kink-log', sift?: Surf }
 export type SurfBust = SurfMixin & { form: 'bust', sift?: Surf }
 
+// -- Namespaces --
+
+export type SurfBook = SurfMixin & {
+  form: 'book'
+  name: string
+  list: Surf[]
+}
+
+// -- Conditional implementations --
+
+export type SurfCoat = SurfMixin & {
+  form: 'coat'
+  head: SurfHead[]
+  suit: SurfSuit[]
+}
+
 /** Union of all surface AST nodes. */
 export type Surf =
   // Definitions
@@ -310,10 +349,13 @@ export type Surf =
   | SurfBack
   | SurfHalt
   | SurfRest
+  | SurfNext
   | SurfMeet
   | SurfFork
   | SurfWalk
   | SurfHook
+  | SurfSlot
+  | SurfBeam
   // Modules
   | SurfBear
   | SurfLoad
@@ -330,6 +372,9 @@ export type Surf =
   | SurfSiftMark
   | SurfSiftComb
   | SurfSiftWave
+  // Namespaces
+  | SurfBook
+  | SurfCoat
   // Logging
   | SurfShow
   | SurfDive

@@ -68,8 +68,8 @@ Can have a `read/hint` folder with all the abstracted notes on the tasks
 and forms and such.
 
     load ./foo
-      find task create-something
-      find task do-another
+      find create-something
+      find do-another
 
     task create-something
       note <Something>

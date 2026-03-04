@@ -62,7 +62,9 @@ function showNode(node: Surf, dep: number): string {
         )
       }
       for (const b of node.bond) {
-        parts.push(`${pad}  bond ${b.name}`)
+        if (b.form === 'bond') {
+          parts.push(`${pad}  bond ${b.name}`)
+        }
       }
       for (const t of node.task) {
         parts.push(showNode(t, dep + 1))
@@ -156,7 +158,8 @@ function showNode(node: Surf, dep: number): string {
       const path = node.path.join('/')
       const parts = [`${pad}load ${path}`]
       for (const f of node.find) {
-        parts.push(`${pad}  find ${f.kind} ${f.name}`)
+        const kindStr = f.kind ? `, like ${f.kind}` : ''
+        parts.push(`${pad}  find ${f.name}${kindStr}`)
       }
       return parts.join('\n')
     }

@@ -88,7 +88,7 @@ describe('load/index', () => {
         ].join('\n'),
         '/src/main.tree': [
           'load ./nat',
-          '  find form nat',
+          '  find nat',
           '',
           'task double',
           '  take n, like u64',

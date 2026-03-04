@@ -1,5 +1,5 @@
 load ./nat
-  find form nat
+  find nat
 
 task fib
   take n, like nat

@@ -89,10 +89,13 @@ function loadFile(input: {
           // If the load has `find` directives, only import named items
           const loadNode = node as SurfLoad
           if (loadNode.find && loadNode.find.length > 0) {
-            const wanted = new Set(loadNode.find.map(f => f.name))
+            const aliasMap = new Map<string, string>()
+            for (const f of loadNode.find) {
+              aliasMap.set(f.name, f.alias ?? f.name)
+            }
             for (const [name, term] of stdResult.book) {
-              if (wanted.has(name)) {
-                book.set(name, term)
+              if (aliasMap.has(name)) {
+                book.set(aliasMap.get(name)!, term)
               }
             }
           } else {

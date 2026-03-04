@@ -372,7 +372,7 @@ task use-bool
     const testFile = path.resolve(__dirname, '_tmp_find_test.tree')
     const testText = `
 load @cluesurf/base/code/base/form/maybe
-  find form maybe
+  find maybe
 
 task wrap
   take x, like u64
@@ -742,5 +742,85 @@ form kink
     expect(ts).toContain('export type Kink')
     expect(ts).toContain('note: string')
     expect(ts).toContain('code: number')
+  })
+})
+
+describe('send back syntax', () => {
+  it('send back with inline value compiles', () => {
+    const book = compileText(`
+task greet
+  send back, text <hello>
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('"hello"')
+  })
+
+  it('send back with read compiles', () => {
+    const book = compileText(`
+task identity
+  take x, like u64
+  send back, read x
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('function identity')
+    expect(ts).toContain('return x')
+  })
+
+  it('send back with indented call compiles', () => {
+    const book = compileText(`
+task add
+  take a, like u64
+  take b, like u64
+  send back
+    call add
+      bind a, read a
+      bind b, read b
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('function add')
+    expect(ts).toContain('return')
+  })
+
+  it('send back with mark compiles', () => {
+    const book = compileText(`
+task zero
+  send back, mark 0
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('0')
+  })
+
+  it('send back with make compiles', () => {
+    const book = compileText(`
+form maybe
+  case some
+    link value
+  case none
+
+task get-none
+  send back, make none
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('getNone')
+  })
+
+  it('send back with wave compiles', () => {
+    const book = compileText(`
+task check
+  take x, like u64
+  send back, wave true
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('function check')
+  })
+
+  it('bare send back compiles', () => {
+    const book = compileText(`
+task noop
+  take x, like u64
+  send back
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('function noop')
   })
 })
