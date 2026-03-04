@@ -64,10 +64,14 @@ describe('type annotations', () => {
     expect(result.code).toMatch(/<T>/)
   })
 
-  it('does not annotate unknown types with any', () => {
+  it('does not annotate unknown types with any in function params', () => {
     const result = compileSingle('fibonacci.tree')
-    // Should NOT contain `: any` - we omit when type is unknown
-    expect(result.code).not.toMatch(/: any[,)\s]/)
+    // Function params should NOT contain `: any` - we omit when type is unknown
+    // ADT field types may contain `any` for unresolvable references
+    const funcLines = result.code.split('\n').filter(l => l.includes('function '))
+    for (const line of funcLines) {
+      expect(line).not.toMatch(/: any[,)\s]/)
+    }
   })
 })
 

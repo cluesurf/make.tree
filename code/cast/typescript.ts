@@ -63,6 +63,25 @@ export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: Asy
     }
   }
 
+  // Collect form names for type resolution in ADT emission
+  const formNames = new Set<string>()
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') formNames.add(name)
+  }
+
+  // Emit ADT type declarations
+  if (emitTypes) {
+    for (const [name, term] of input.book) {
+      const val = unwrapAnn(term)
+      if (val.form === 'adt') {
+        // Skip maybe - it maps to native T | null
+        if (isMaybe(name)) continue
+        lines.push(castAdtType({ name, term: val as Term & { form: 'adt' }, ctx, formNames }))
+      }
+    }
+  }
+
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
     if (isTypeOnly(val)) continue
@@ -390,12 +409,79 @@ function extractHeadParams(term: Term): string[] {
   if (typ.form === 'ann') typ = typ.typ
   if (typ.form === 'src') typ = (typ as any).val
 
+  // ADT terms store head params in their type field
+  if (typ.form === 'adt') typ = typ.type
+
   const params: string[] = []
   while (typ.form === 'all' && typ.inp.form === 'set') {
     params.push(typ.name)
     typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
   }
   return params
+}
+
+/** Emit a TypeScript type declaration for an ADT (discriminated union). */
+function castAdtType(input: {
+  name: string
+  term: Term & { form: 'adt' }
+  ctx: EmitCtx
+  formNames: Set<string>
+}): string {
+  const { name, term, ctx, formNames } = input
+  const safeName = capitalize(sanitizeName(name))
+  const heads = ctx.headParams.get(name) ?? []
+  const genericStr = heads.length > 0 ? `<${heads.map(h => capitalize(h)).join(', ')}>` : ''
+
+  // No constructors = struct-like (single variant with fields from links)
+  if (term.ctrs.length === 0) {
+    // Emit as an interface with the link fields from the ADT's index telescope
+    const fields: string[] = []
+    let tele = term.indx
+    while (tele.form === 'ext') {
+      const fieldName = sanitizeName(tele.name)
+      const fieldType = resolveType({ term: tele.typ, heads, formNames, ctrToEnum: ctx.ctrToEnum })
+      fields.push(`  ${fieldName}: ${fieldType}`)
+      tele = tele.bod({ form: 'var', name: tele.name, idx: 0 })
+    }
+    if (fields.length === 0) {
+      return `export type ${safeName}${genericStr} = {}`
+    }
+    return `export type ${safeName}${genericStr} = {\n${fields.join('\n')}\n}`
+  }
+
+  // Single constructor = struct-like, no tag needed
+  if (term.ctrs.length === 1) {
+    const ctr = term.ctrs[0]!
+    const fields: string[] = []
+    let tele = ctr.tele
+    while (tele.form === 'ext') {
+      const fieldName = sanitizeName(tele.name)
+      const fieldType = resolveType({ term: tele.typ, heads, formNames, ctrToEnum: ctx.ctrToEnum })
+      fields.push(`  ${fieldName}: ${fieldType}`)
+      tele = tele.bod({ form: 'var', name: tele.name, idx: 0 })
+    }
+    if (fields.length === 0) {
+      return `export type ${safeName}${genericStr} = {}`
+    }
+    return `export type ${safeName}${genericStr} = {\n${fields.join('\n')}\n}`
+  }
+
+  // Multiple constructors = discriminated union with $ tag
+  const variants: string[] = []
+  for (const ctr of term.ctrs) {
+    const tag = ctx.tagMap.get(ctr.name)
+    const fields: string[] = []
+    fields.push(`$: ${tag ?? JSON.stringify(ctr.name)}`)
+    let tele = ctr.tele
+    while (tele.form === 'ext') {
+      const fieldName = sanitizeName(tele.name)
+      const fieldType = resolveType({ term: tele.typ, heads, formNames, ctrToEnum: ctx.ctrToEnum })
+      fields.push(`${fieldName}: ${fieldType}`)
+      tele = tele.bod({ form: 'var', name: tele.name, idx: 0 })
+    }
+    variants.push(`{ ${fields.join(', ')} }`)
+  }
+  return `export type ${safeName}${genericStr} = ${variants.join(' | ')}`
 }
 
 function teleToFieldNames(tele: Tele): string[] {

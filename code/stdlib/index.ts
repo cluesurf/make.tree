@@ -118,11 +118,11 @@ legacy.set('@cluesurf/term/code/folder', {
 
 /**
  * Default stdlib root: the deck/seed/deck/ directory containing
- * base.tree/ and case.tree/ packages.
+ * base.tree/ and bind.tree/ packages.
  */
 let stdlibRoot: string | null = null
 
-/** Set the root directory where base.tree/ and case.tree/ live. */
+/** Set the root directory where base.tree/ and bind.tree/ live. */
 export function setStdlibRoot(input: { root: string }): void {
   stdlibRoot = input.root
 }
@@ -160,7 +160,7 @@ export function clearStdlibCache(): void {
  *
  * Maps:
  *   @cluesurf/base/code/base/form/boolean -> base.tree/code/base/form/boolean/base.tree
- *   @cluesurf/case/code/node/fs           -> case.tree/code/node/fs/base.tree
+ *   @cluesurf/bind/code/node/fs           -> bind.tree/code/node/fs/base.tree
  */
 export function resolvePackagePath(input: {
   loadPath: string
@@ -169,11 +169,11 @@ export function resolvePackagePath(input: {
   const { loadPath, root } = input
 
   // Match @cluesurf/<pkg>/code/<rest>
-  const match = loadPath.match(/^@cluesurf\/(base|case)\/(.+)$/)
+  const match = loadPath.match(/^@cluesurf\/(base|bind)\/(.+)$/)
   if (!match) return null
 
   const [, pkg, rest] = match
-  // Package directory: base.tree or case.tree
+  // Package directory: base.tree or bind.tree
   const pkgDir = `${pkg}.tree`
   // The rest maps to a directory with base.tree inside
   const filePath = path.resolve(root, pkgDir, `${rest}/base.tree`)

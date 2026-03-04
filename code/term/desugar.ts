@@ -252,6 +252,15 @@ function desugarForm(input: { form: SurfForm; ctx: Ctx }): Term {
     tele: buildTele({ links: c.link, idx: 0, ret: selfRef }),
   }))
 
+  // Struct-like form: links at form level with no case arms become
+  // a single implicit constructor named after the form
+  if (ctrs.length === 0 && form.link.length > 0) {
+    ctrs.push({
+      name: form.name,
+      tele: buildTele({ links: form.link, idx: 0, ret: selfRef }),
+    })
+  }
+
   return { form: 'adt', indx, ctrs, type: adtType }
 }
 

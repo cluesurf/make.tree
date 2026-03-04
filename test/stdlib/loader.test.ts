@@ -46,12 +46,12 @@ describe('resolvePackagePath', () => {
     expect(result).toContain('base.tree/code/base/form/boolean/base.tree')
   })
 
-  it('maps @cluesurf/case paths to filesystem', () => {
+  it('maps @cluesurf/bind paths to filesystem', () => {
     const result = resolvePackagePath({
-      loadPath: '@cluesurf/case/code/node/fs',
+      loadPath: '@cluesurf/bind/code/node/fs',
       root: stdlibRoot,
     })
-    expect(result).toContain('case.tree/code/node/fs/base.tree')
+    expect(result).toContain('bind.tree/code/node/fs/base.tree')
   })
 
   it('returns null for non-cluesurf paths', () => {
