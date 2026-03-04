@@ -892,14 +892,24 @@ function resolveType(typ: SurfType): Term {
 /** Resolve a type name string to a Core Term. */
 function resolveTypeName(name: string): Term {
   switch (name) {
-    case 'u64':
+    // Unsigned integers
+    case 'u8': case 'u16': case 'u32': case 'u64':
       return { form: 'u64' }
-    case 'f64':
+    // Signed integers
+    case 'i8': case 'i16': case 'i32': case 'i64':
+      return { form: 'u64' }
+    // Floats
+    case 'f32': case 'f64':
       return { form: 'f64' }
+    // Text
     case 'text':
       return { form: 'ref', name: 'String' }
-    case 'wave':
+    // Boolean
+    case 'boolean': case 'wave': case 'bool':
       return { form: 'ref', name: 'Bool' }
+    // Void
+    case 'void':
+      return { form: 'ref', name: 'Void' }
     default:
       return { form: 'ref', name }
   }
