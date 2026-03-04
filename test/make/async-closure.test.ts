@@ -38,10 +38,10 @@ describe('async (wait true)', () => {
   it('TypeScript: emits async function and await', () => {
     const { book, asyncMeta } = compileFile('async-test.tree')
     const ts = castTS({ book, asyncMeta })
-    expect(ts).toContain('export async function fetchData(url)')
+    expect(ts).toContain('export async function fetchData(url: string)')
     expect(ts).toContain('await fetchUrl(url)')
     // Non-async function should not have async keyword
-    expect(ts).toContain('export function process(x)')
+    expect(ts).toContain('export function process(x: number)')
     expect(ts).not.toContain('async function process')
   })
 
@@ -79,7 +79,7 @@ describe('closures/HOF (like task)', () => {
   it('TypeScript: compiles function-typed params and calls them', () => {
     const { book } = compileFile('closure-test.tree')
     const ts = castTS({ book })
-    expect(ts).toContain('export function apply(f, x)')
+    expect(ts).toContain('export function apply(f: (_fn0: number) => number, x: number)')
     expect(ts).toContain('f(x)')
   })
 

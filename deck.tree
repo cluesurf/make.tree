@@ -1,6 +1,6 @@
 
-deck @cluesurf/make
-  head <The TermTree Compiler Library>
+deck @cluesurf/mesh
+  head <The Seed Compiler Library>
   mark <0.0.1>
   link @cluesurf/base, mark <0.x.x>
   link @cluesurf/bind, mark <0.x.x>

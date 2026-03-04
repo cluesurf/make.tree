@@ -67,11 +67,11 @@ describe('swift: Bool', () => {
   })
 })
 
-describe('swift: Maybe', () => {
+describe('swift: Maybe (native optional)', () => {
   const sw = compileFile('stdlib-maybe.tree')
 
-  it('generates enum for Maybe', () => {
-    expect(sw).toContain('enum Maybe')
+  it('does not generate enum for Maybe (uses native Optional)', () => {
+    expect(sw).not.toContain('enum Maybe')
   })
 
   it('generates maybeMap', () => {
@@ -90,8 +90,8 @@ describe('swift: Maybe', () => {
     expect(sw).toContain('func maybeIsNone(')
   })
 
-  it('uses switch for pattern matching', () => {
-    expect(sw).toContain('switch')
+  it('uses if let for pattern matching', () => {
+    expect(sw).toContain('if let')
   })
 })
 

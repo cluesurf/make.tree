@@ -21,11 +21,23 @@ import type { AsyncMeta } from '@/term/desugar'
 
 // ---- Emit Context ----
 
+type ParamType = { name: string; type: string }
+type FuncType = { params: ParamType[]; ret: string }
+
 type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
+  ctrToEnum: Map<string, string>
+  headParams: Map<string, string[]>
+  typeInfo: Map<string, FuncType>
+  riskSet: Set<string>
   book: Book
+}
+
+/** Check if a form name is the maybe/optional type. */
+function isMaybe(name: string): boolean {
+  return name === 'maybe'
 }
 
 /** Tail-call context: tracks the current function for self-tail-call optimization. */
@@ -38,9 +50,10 @@ type TailCtx = {
 
 export type DockLoad = { path: string; name?: string }
 
-export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta }): string {
+export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; stripTypes?: boolean }): string {
   const ctx = analyze({ book: input.book })
   const asyncMeta = input.asyncMeta ?? new Map()
+  const emitTypes = !input.stripTypes
   const lines: string[] = []
 
   for (const load of input.dock ?? []) {
@@ -58,21 +71,42 @@ export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: Asy
     const isAsync = asyncMeta.get(name) === true
 
     if (val.form === 'lam') {
-      const { params, body } = unwrapLam({ term: val, dep: 0 })
-      const paramStr = params.map(p => p.name).join(', ')
+      const heads = ctx.headParams.get(name) ?? []
+      const genericStr = heads.length > 0 ? `<${heads.map(h => capitalize(h)).join(', ')}>` : ''
+
+      // Skip head param lambdas to get to value params
+      let valTerm: Term = val
+      let headDep = 0
+      for (let i = 0; i < heads.length; i++) {
+        if (valTerm.form === 'lam') {
+          valTerm = valTerm.bod({ form: 'var', name: valTerm.name, idx: headDep })
+          headDep++
+        }
+      }
+
+      const { params, body } = unwrapLam({ term: valTerm, dep: headDep })
+      const totalDep = headDep + params.length
+      const funcType = ctx.typeInfo.get(name)
+      const paramStr = params.map((p, i) => {
+        if (!emitTypes) return p.name
+        const typeAnn = funcType?.params[i]?.type
+        if (typeAnn && typeAnn !== 'any') return `${p.name}: ${typeAnn}`
+        return p.name
+      }).join(', ')
+      const retAnn = emitTypes && funcType?.ret && funcType.ret !== 'any' ? `: ${funcType.ret}` : ''
       const paramNames = params.map(p => p.name)
       const isTailRec = hasSelfTailCall({
-        term: body, refName: name, arity: params.length, dep: params.length,
+        term: body, refName: name, arity: totalDep, dep: totalDep,
       })
       const tail: TailCtx = isTailRec ? { refName: name, params: paramNames } : null
       const bodyLines: string[] = []
       const bodyIndent = isTailRec ? 2 : 1
-      castStmt({ term: body, dep: params.length, ctx, lines: bodyLines, indent: bodyIndent, tail })
+      castStmt({ term: body, dep: totalDep, ctx, lines: bodyLines, indent: bodyIndent, tail })
       const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
-        lines.push(`export ${asyncPrefix}function ${safeName}(${paramStr}) {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
+        lines.push(`export ${asyncPrefix}function ${safeName}${genericStr}(${paramStr})${retAnn} {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
       } else {
-        lines.push(`export ${asyncPrefix}function ${safeName}(${paramStr}) {\n${bodyLines.join('\n')}\n}`)
+        lines.push(`export ${asyncPrefix}function ${safeName}${genericStr}(${paramStr})${retAnn} {\n${bodyLines.join('\n')}\n}`)
       }
     } else {
       const expr = castExpr({ term: val, dep: 0, ctx })
@@ -83,11 +117,106 @@ export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: Asy
   return lines.join('\n\n')
 }
 
+/**
+ * Multi-file output: emit one TS string per source file.
+ *
+ * Takes a mapping of file paths to definition names so each file gets
+ * only its own definitions. Shared analysis (tag maps, type info) is
+ * computed once across all definitions.
+ */
+export function castBookToFiles(input: {
+  book: Book
+  fileMap: Map<string, string[]>
+  dock?: DockLoad[]
+  asyncMeta?: AsyncMeta
+}): Map<string, string> {
+  const ctx = analyze({ book: input.book })
+  const asyncMeta = input.asyncMeta ?? new Map()
+  const result = new Map<string, string>()
+
+  for (const [file, defNames] of input.fileMap) {
+    const fileBook: Book = new Map()
+    for (const name of defNames) {
+      const term = input.book.get(name)
+      if (term) fileBook.set(name, term)
+    }
+
+    const fileLines: string[] = []
+
+    // Add dock imports only to the first/main file
+    if (input.dock && result.size === 0) {
+      for (const load of input.dock) {
+        const name = load.name ? sanitizeName(load.name) : ''
+        if (name) {
+          fileLines.push(`import ${name} from '${load.path}'`)
+        }
+      }
+    }
+
+    for (const [name, term] of fileBook) {
+      const val = unwrapAnn(term)
+      if (isTypeOnly(val)) continue
+
+      const safeName = sanitizeName(name)
+      const isAsync = asyncMeta.get(name) === true
+
+      if (val.form === 'lam') {
+        const heads = ctx.headParams.get(name) ?? []
+        const genericStr = heads.length > 0 ? `<${heads.map(h => capitalize(h)).join(', ')}>` : ''
+
+        let valTerm: Term = val
+        let headDep = 0
+        for (let i = 0; i < heads.length; i++) {
+          if (valTerm.form === 'lam') {
+            valTerm = valTerm.bod({ form: 'var', name: valTerm.name, idx: headDep })
+            headDep++
+          }
+        }
+
+        const { params, body } = unwrapLam({ term: valTerm, dep: headDep })
+        const totalDep = headDep + params.length
+        const funcType = ctx.typeInfo.get(name)
+        const paramStr = params.map((p, i) => {
+          const typeAnn = funcType?.params[i]?.type
+          if (typeAnn && typeAnn !== 'any') return `${p.name}: ${typeAnn}`
+          return p.name
+        }).join(', ')
+        const retAnn = funcType?.ret && funcType.ret !== 'any' ? `: ${funcType.ret}` : ''
+        const paramNames = params.map(p => p.name)
+        const isTailRec = hasSelfTailCall({
+          term: body, refName: name, arity: totalDep, dep: totalDep,
+        })
+        const tail: TailCtx = isTailRec ? { refName: name, params: paramNames } : null
+        const bodyLines: string[] = []
+        const bodyIndent = isTailRec ? 2 : 1
+        castStmt({ term: body, dep: totalDep, ctx, lines: bodyLines, indent: bodyIndent, tail })
+        const asyncPrefix = isAsync ? 'async ' : ''
+        if (isTailRec) {
+          fileLines.push(`export ${asyncPrefix}function ${safeName}${genericStr}(${paramStr})${retAnn} {\n  while (true) {\n${bodyLines.join('\n')}\n  }\n}`)
+        } else {
+          fileLines.push(`export ${asyncPrefix}function ${safeName}${genericStr}(${paramStr})${retAnn} {\n${bodyLines.join('\n')}\n}`)
+        }
+      } else {
+        const expr = castExpr({ term: val, dep: 0, ctx })
+        fileLines.push(`export const ${safeName} = ${expr};`)
+      }
+    }
+
+    result.set(file, fileLines.join('\n\n'))
+  }
+
+  return result
+}
+
 export function castTerm(input: { term: Term; dep: number }): string {
   const ctx: EmitCtx = {
     tagMap: new Map(),
     fieldMap: new Map(),
     arityMap: new Map(),
+    ctrToEnum: new Map(),
+    headParams: new Map(),
+    typeInfo: new Map(),
+    riskSet: new Set(),
     book: new Map(),
   }
   return castExpr({ term: input.term, dep: input.dep, ctx })
@@ -99,6 +228,19 @@ function analyze(input: { book: Book }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
+  const ctrToEnum = new Map<string, string>()
+  const headParams = new Map<string, string[]>()
+  const typeInfo = new Map<string, FuncType>()
+  const riskSet = new Set<string>()
+
+  // First pass: collect form names for type resolution
+  const formNames = new Set<string>()
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') {
+      formNames.add(name)
+    }
+  }
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -108,15 +250,152 @@ function analyze(input: { book: Book }): EmitCtx {
       for (const ctr of val.ctrs) {
         tagMap.set(ctr.name, localTag++)
         fieldMap.set(ctr.name, teleToFieldNames(ctr.tele))
+        ctrToEnum.set(ctr.name, name)
       }
     }
 
     if (val.form === 'lam') {
       arityMap.set(name, countLamDepth(val))
     }
+
+    // Extract head (type) params from Ann's type annotation
+    const heads = extractHeadParams(term)
+    if (heads.length > 0) {
+      headParams.set(name, heads)
+    }
+
+    // Extract parameter and return types from type annotation
+    const funcType = extractFuncType({ term, heads, formNames, ctrToEnum })
+    if (funcType) {
+      typeInfo.set(name, funcType)
+    }
   }
 
-  return { tagMap, fieldMap, arityMap, book: input.book }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, typeInfo, riskSet, book: input.book }
+}
+
+/** Resolve a Core Term type to a TypeScript type string. */
+function resolveType(input: { term: Term; heads: string[]; formNames: Set<string>; ctrToEnum: Map<string, string> }): string {
+  const { term, heads, formNames, ctrToEnum } = input
+
+  switch (term.form) {
+    case 'u64':
+    case 'num':
+      return 'number'
+    case 'f64':
+    case 'flt':
+      return 'number'
+    case 'set':
+      return 'any'
+    case 'ref': {
+      const n = term.name
+      if (n === 'String' || n === 'Text' || n === 'text') return 'string'
+      if (n === 'Bool' || n === 'boolean' || n === 'bool') return 'boolean'
+      if (n === 'Nat' || n === 'nat') return 'number'
+      if (formNames.has(n)) return capitalize(sanitizeName(n))
+      if (n === 'void' || n === 'Void') return 'void'
+      return 'any'
+    }
+    case 'var': {
+      // Check if this is a type parameter
+      if (heads.includes(term.name)) {
+        return capitalize(term.name)
+      }
+      return 'any'
+    }
+    case 'all': {
+      // Function type: (x: A) => B
+      const params: string[] = []
+      let cur: Term = term
+      while (cur.form === 'all') {
+        const pType = resolveType({ term: cur.inp, heads, formNames, ctrToEnum })
+        params.push(`${cur.name}: ${pType}`)
+        cur = cur.bod({ form: 'var', name: cur.name, idx: 0 })
+      }
+      const ret = resolveType({ term: cur, heads, formNames, ctrToEnum })
+      return `(${params.join(', ')}) => ${ret}`
+    }
+    case 'app': {
+      // Application of type constructor (e.g., List<T>, Map<K,V>)
+      const { func, args } = unwrapApp(term)
+      if (func.form === 'ref') {
+        if (func.name === 'maybe') {
+          const inner = args.length > 0
+            ? resolveType({ term: args[0]!, heads, formNames, ctrToEnum })
+            : 'any'
+          return `${inner} | null`
+        }
+      }
+      return 'any'
+    }
+    case 'ann':
+      return resolveType({ term: term.typ, heads, formNames, ctrToEnum })
+    case 'src':
+      return resolveType({ term: term.val, heads, formNames, ctrToEnum })
+    default:
+      return 'any'
+  }
+}
+
+/** Strip Ann/Src wrappers to get to the actual type. */
+function stripWrappers(term: Term): Term {
+  let cur = term
+  while (true) {
+    if (cur.form === 'ann') { cur = cur.typ; continue }
+    if (cur.form === 'src') { cur = cur.val; continue }
+    if (cur.form === 'ins') { cur = cur.val; continue }
+    break
+  }
+  return cur
+}
+
+/** Extract function parameter types and return type from a term's type annotation. */
+function extractFuncType(input: {
+  term: Term
+  heads: string[]
+  formNames: Set<string>
+  ctrToEnum: Map<string, string>
+}): FuncType | null {
+  const { term, heads, formNames, ctrToEnum } = input
+
+  let typ = stripWrappers(term)
+
+  // Skip head params (type params have inp: Set)
+  while (typ.form === 'all' && stripWrappers(typ.inp).form === 'set') {
+    typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
+    typ = stripWrappers(typ)
+  }
+
+  // Now typ should be the function type: All(name, inp, bod)
+  if (typ.form !== 'all') return null
+
+  const params: ParamType[] = []
+  let cur: Term = typ
+  while (cur.form === 'all') {
+    const inp = stripWrappers(cur.inp)
+    const typeStr = resolveType({ term: inp, heads, formNames, ctrToEnum })
+    params.push({ name: cur.name, type: typeStr })
+    cur = cur.bod({ form: 'var', name: cur.name, idx: 0 })
+    cur = stripWrappers(cur)
+  }
+
+  const ret = resolveType({ term: cur, heads, formNames, ctrToEnum })
+  return { params, ret }
+}
+
+/** Extract type parameter names from a term's type annotation. */
+function extractHeadParams(term: Term): string[] {
+  // Task terms are Ann(val, typ) where typ is an All chain
+  let typ: Term = term
+  if (typ.form === 'ann') typ = typ.typ
+  if (typ.form === 'src') typ = (typ as any).val
+
+  const params: string[] = []
+  while (typ.form === 'all' && typ.inp.form === 'set') {
+    params.push(typ.name)
+    typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
+  }
+  return params
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -359,6 +638,42 @@ function castMatchStmt(input: {
     lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
   }
 
+  // Detect maybe type for native optional matching
+  const firstFormName = arms.length > 0 ? ctx.ctrToEnum.get(arms[0]![0]) : undefined
+  const isMaybeMatch = firstFormName !== undefined && isMaybe(firstFormName)
+
+  if (isMaybeMatch) {
+    // Native optional: if (x !== null) { ... } else { ... }
+    const someArm = arms.find(([n]) => n === 'some')
+    const noneArm = arms.find(([n]) => n === 'none')
+    lines.push(`${pad}if (${scrVar} !== null) {`)
+    if (someArm) {
+      let armBod = someArm[1]
+      let armDep = dep
+      const innerPad = '  '.repeat(indent + 1)
+      while (armBod.form === 'lam') {
+        const paramName = varName({ name: armBod.name, dep: armDep })
+        lines.push(`${innerPad}const ${paramName} = ${scrVar};`)
+        armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+        armDep++
+      }
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
+    }
+    lines.push(`${pad}} else {`)
+    if (noneArm) {
+      let armBod = noneArm[1]
+      let armDep = dep
+      while (armBod.form === 'lam') {
+        const paramName = varName({ name: armBod.name, dep: armDep })
+        armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+        armDep++
+      }
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
+    }
+    lines.push(`${pad}}`)
+    return
+  }
+
   const useTag = ctx.tagMap.size > 0
   const tagField = useTag ? '$' : 'tag'
 
@@ -514,10 +829,22 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
           return `await ${inner}`
         }
 
-        // .safe → (val ?? undefined)
+        // .safe → (val ?? null)
         if (prim === 'safe' && args.length === 1) {
           const inner = castExpr({ term: args[0]!, dep, ctx })
-          return `(${inner} ?? undefined)`
+          return `(${inner} ?? null)`
+        }
+
+        // .and → (a && b && ...)
+        if (prim === 'and' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' && ')})`
+        }
+
+        // .or → (a || b || ...)
+        if (prim === 'or' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' || ')})`
         }
 
         // .map → new Map(entries)
@@ -586,6 +913,14 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       return String(term.val)
 
     case 'con': {
+      // Native optional: maybe → null/value
+      const formName = ctx.ctrToEnum.get(term.name)
+      if (formName && isMaybe(formName)) {
+        if (term.name === 'none') return 'null'
+        if (term.name === 'some' && term.args.length > 0) {
+          return castExpr({ term: term.args[0]![1], dep, ctx })
+        }
+      }
       const useTag = ctx.tagMap.size > 0
       const tag = useTag ? ctx.tagMap.get(term.name) : undefined
 
@@ -766,6 +1101,11 @@ function varName(input: { name: string; dep: number }): string {
 
 function sanitizeName(name: string): string {
   return name.replace(/[/.-](.)/g, (_, c) => c.toUpperCase())
+}
+
+function capitalize(name: string): string {
+  if (!name) return name
+  return name[0]!.toUpperCase() + name.slice(1)
 }
 
 /** Map tree-lang method names to JS equivalents. */

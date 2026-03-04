@@ -161,6 +161,12 @@ export type SurfRest = SurfMixin & {
   form: 'rest'
 }
 
+export type SurfMeet = SurfMixin & {
+  form: 'meet'
+  mode: 'and' | 'or'
+  list: Surf[]
+}
+
 export type SurfFork = SurfMixin & {
   form: 'fork'
   mode: string
@@ -304,6 +310,7 @@ export type Surf =
   | SurfBack
   | SurfHalt
   | SurfRest
+  | SurfMeet
   | SurfFork
   | SurfWalk
   | SurfHook

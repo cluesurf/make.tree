@@ -25,6 +25,7 @@ type EmitCtx = {
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
   ctrToEnum: Map<string, string>
+  headParams: Map<string, string[]>
   book: Book
 }
 
@@ -32,6 +33,11 @@ type TailCtx = {
   refName: string
   params: string[]
 } | null
+
+/** Check if a form name is the maybe/optional type. */
+function isMaybe(name: string): boolean {
+  return name === 'maybe'
+}
 
 // ---- Public API ----
 
@@ -58,6 +64,7 @@ export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: As
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
     if (val.form === 'adt') {
+      if (isMaybe(name)) continue
       const impls = formImpls.get(name) ?? []
       lines.push(castSealed({
         name,
@@ -104,7 +111,21 @@ function castFunction(input: {
   isAsync?: boolean
 }): string {
   const { name, safeName, ctx, isAsync } = input
-  const { params, body } = unwrapLam({ term: input.term, dep: 0 })
+  const heads = ctx.headParams.get(name) ?? []
+  const genericStr = heads.length > 0 ? `<${heads.map(h => capitalize(h)).join(', ')}> ` : ''
+
+  // Skip head param lambdas
+  let valTerm: Term = input.term
+  let headDep = 0
+  for (let i = 0; i < heads.length; i++) {
+    if (valTerm.form === 'lam') {
+      valTerm = valTerm.bod({ form: 'var', name: valTerm.name, idx: headDep })
+      headDep++
+    }
+  }
+
+  const { params, body } = unwrapLam({ term: valTerm, dep: headDep })
+  const totalDep = headDep + params.length
   const paramStr = params
     .map(p => `${p.name}: Any`)
     .join(', ')
@@ -112,8 +133,8 @@ function castFunction(input: {
   const isTailRec = hasSelfTailCall({
     term: body,
     refName: name,
-    arity: params.length,
-    dep: params.length,
+    arity: totalDep,
+    dep: totalDep,
   })
   const tail: TailCtx = isTailRec
     ? { refName: name, params: paramNames }
@@ -122,7 +143,7 @@ function castFunction(input: {
   const bodyIndent = isTailRec ? 2 : 1
   castStmt({
     term: body,
-    dep: params.length,
+    dep: totalDep,
     ctx,
     lines: bodyLines,
     indent: bodyIndent,
@@ -133,9 +154,14 @@ function castFunction(input: {
     const varDecls = paramNames
       .map(p => `    var ${p} = ${p}`)
       .join('\n')
-    return `${suspendPrefix}fun ${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`
+    return `${suspendPrefix}fun ${genericStr}${safeName}(${paramStr}): Any {\n${varDecls}\n    while (true) {\n${bodyLines.join('\n')}\n    }\n}`
   }
-  return `${suspendPrefix}fun ${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`
+  return `${suspendPrefix}fun ${genericStr}${safeName}(${paramStr}): Any {\n${bodyLines.join('\n')}\n}`
+}
+
+function capitalize(name: string): string {
+  if (!name) return name
+  return name[0]!.toUpperCase() + name.slice(1)
 }
 
 // ---- Sealed Class Generation ----
@@ -257,6 +283,7 @@ function analyze(input: { book: Book }): EmitCtx {
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
   const ctrToEnum = new Map<string, string>()
+  const headParams = new Map<string, string[]>()
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -271,9 +298,25 @@ function analyze(input: { book: Book }): EmitCtx {
     if (val.form === 'lam') {
       arityMap.set(name, countLamDepth(val))
     }
+    const heads = extractHeadParams(term)
+    if (heads.length > 0) {
+      headParams.set(name, heads)
+    }
   }
 
-  return { tagMap, fieldMap, arityMap, ctrToEnum, book: input.book }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, book: input.book }
+}
+
+function extractHeadParams(term: Term): string[] {
+  let typ: Term = term
+  if (typ.form === 'ann') typ = typ.typ
+  if (typ.form === 'src') typ = (typ as any).val
+  const params: string[] = []
+  while (typ.form === 'all' && typ.inp.form === 'set') {
+    params.push(typ.name)
+    typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
+  }
+  return params
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -526,6 +569,42 @@ function castMatchStmt(input: {
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
+  // Detect maybe type for native optional matching
+  const firstEnumType = arms.length > 0 ? (ctx.ctrToEnum.get(arms[0]![0]) ?? null) : null
+  const isMaybeMatch = firstEnumType !== null && isMaybe(firstEnumType)
+
+  if (isMaybeMatch) {
+    // Native optional: if (x != null) { ... } else { ... }
+    const someArm = arms.find(([n]) => n === 'some')
+    const noneArm = arms.find(([n]) => n === 'none')
+    lines.push(`${pad}if (${scrExpr} != null) {`)
+    if (someArm) {
+      let armBod = someArm[1]
+      let armDep = dep
+      const innerPad = '    '.repeat(indent + 1)
+      while (armBod.form === 'lam') {
+        const paramName = varName({ name: armBod.name, dep: armDep })
+        lines.push(`${innerPad}val ${paramName} = ${scrExpr}`)
+        armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+        armDep++
+      }
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
+    }
+    lines.push(`${pad}} else {`)
+    if (noneArm) {
+      let armBod = noneArm[1]
+      let armDep = dep
+      while (armBod.form === 'lam') {
+        const paramName = varName({ name: armBod.name, dep: armDep })
+        armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+        armDep++
+      }
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
+    }
+    lines.push(`${pad}}`)
+    return
+  }
+
   lines.push(`${pad}when (${scrExpr}) {`)
   for (const [name, bod] of arms) {
     const fields = ctx.fieldMap.get(name) ?? []
@@ -675,6 +754,14 @@ function castExpr(input: {
         if (prim === 'safe' && args.length === 1) {
           return castExpr({ term: args[0]!, dep, ctx })
         }
+        if (prim === 'and' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' && ')})`
+        }
+        if (prim === 'or' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' || ')})`
+        }
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx })
           const methodName = camelCase(prim)
@@ -723,8 +810,15 @@ function castExpr(input: {
     case 'nat':
       return `${term.val}L`
     case 'con': {
-      const ctrName = pascalCase(term.name)
       const enumType = ctx.ctrToEnum.get(term.name) ?? null
+      // Native optional: maybe → null/value
+      if (enumType && isMaybe(enumType)) {
+        if (term.name === 'none') return 'null'
+        if (term.name === 'some' && term.args.length > 0) {
+          return castExpr({ term: term.args[0]![1], dep, ctx })
+        }
+      }
+      const ctrName = pascalCase(term.name)
       const qualName = enumType
         ? `${pascalCase(enumType)}.${ctrName}`
         : ctrName

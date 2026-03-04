@@ -161,7 +161,7 @@ describe('fuse/index', () => {
     const { book } = desugarCard({ card: expanded })
     const ts = castBook({ book })
 
-    expect(ts).toContain('export function doubleInt(n)')
+    expect(ts).toContain('export function doubleInt(n: number)')
     expect(ts).toContain('return (n * 2);')
   })
 

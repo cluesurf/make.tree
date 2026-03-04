@@ -282,7 +282,7 @@ describe('cast/typescript', () => {
       ])
 
       const result = castBook({ book })
-      expect(result).toContain('export function id(x)')
+      expect(result).toContain('export function id(x: number)')
       expect(result).toContain('return x;')
     })
 
@@ -670,7 +670,7 @@ describe('cast/typescript', () => {
       }
       const { book } = desugarCard({ card })
       const ts = castBook({ book })
-      expect(ts).toContain('export function id(x)')
+      expect(ts).toContain('export function id(x: number)')
       expect(ts).toContain('return x;')
     })
 
@@ -693,7 +693,7 @@ describe('cast/typescript', () => {
       }
       const { book } = desugarCard({ card })
       const ts = castBook({ book })
-      expect(ts).toContain('export function double(n)')
+      expect(ts).toContain('export function double(n: number)')
       expect(ts).toContain('return (n * 2);')
     })
 
@@ -755,7 +755,7 @@ describe('cast/typescript', () => {
       expect(ts).not.toContain('export const bool')
       expect(ts).not.toContain('export function bool')
       // not should be a function with inline match
-      expect(ts).toContain('export function not(b)')
+      expect(ts).toContain('export function not(b: boolean)')
       // Should use numeric tags since ADT is defined
       expect(ts).toContain('$')
     })

@@ -12,15 +12,20 @@ import type { Kink } from '@/kink/form'
 import type { Site } from '@/kink/site'
 import { showTerm } from '@/term/show'
 import { makeKink } from '@/kink/form'
+import { findSimilar } from '@/kink/show'
 
 /**
  * Convert a single Info record into a Kink error (or null if not an error).
+ *
+ * When `names` is provided (all known definition names), vague errors
+ * include "did you mean?" suggestions.
  */
 export function renderInfo(input: {
   info: Info
   fill: Fill
+  names?: string[]
 }): Kink | null {
-  const { info, fill } = input
+  const { info, fill, names } = input
 
   switch (info.form) {
     case 'error': {
@@ -50,12 +55,24 @@ export function renderInfo(input: {
     }
 
     case 'vague': {
+      let text = `unresolved reference: ${info.name}`
+      const rest: Record<string, unknown> = { name: info.name }
+
+      // "Did you mean?" suggestions
+      if (names && names.length > 0) {
+        const similar = findSimilar({ name: info.name, names })
+        if (similar.length > 0) {
+          text += `. did you mean: ${similar.join(', ')}?`
+          rest['hint'] = similar
+        }
+      }
+
       return makeKink({
         form: 'name-miss',
         rank: 'halt',
         site: brewSite(),
-        text: `unresolved reference: ${info.name}`,
-        rest: { name: info.name },
+        text,
+        rest,
       })
     }
 
@@ -68,16 +85,19 @@ export function renderInfo(input: {
 /**
  * Convert a list of Info records into Kink errors.
  * Filters out non-error records (solve, print).
+ *
+ * When `names` is provided, vague errors include "did you mean?" suggestions.
  */
 export function renderInfoList(input: {
   logs: Info[]
   fill: Fill
+  names?: string[]
 }): Kink[] {
-  const { logs, fill } = input
+  const { logs, fill, names } = input
   const result: Kink[] = []
 
   for (const info of logs) {
-    const kink = renderInfo({ info, fill })
+    const kink = renderInfo({ info, fill, names })
     if (kink && kink.rank === 'halt') {
       result.push(kink)
     }

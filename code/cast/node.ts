@@ -17,5 +17,5 @@ import type { Book } from '@/term/form'
 export type { DockLoad }
 
 export function castBook(input: { book: Book; dock?: DockLoad[] }): string {
-  return castBookBase({ book: input.book, dock: input.dock })
+  return castBookBase({ book: input.book, dock: input.dock, stripTypes: true })
 }

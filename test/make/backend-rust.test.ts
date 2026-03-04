@@ -69,11 +69,11 @@ describe('rust: Bool', () => {
   })
 })
 
-describe('rust: Maybe', () => {
+describe('rust: Maybe (native optional)', () => {
   const rs = compileFile('stdlib-maybe.tree')
 
-  it('generates enum for Maybe', () => {
-    expect(rs).toContain('enum Maybe')
+  it('does not generate enum Maybe (uses native Option)', () => {
+    expect(rs).not.toContain('enum Maybe')
   })
 
   it('generates maybe_map', () => {
@@ -92,8 +92,10 @@ describe('rust: Maybe', () => {
     expect(rs).toContain('fn maybe_is_none(')
   })
 
-  it('uses match for pattern matching', () => {
+  it('uses match with Some/None patterns', () => {
     expect(rs).toContain('match')
+    expect(rs).toContain('Some(')
+    expect(rs).toContain('None')
   })
 })
 

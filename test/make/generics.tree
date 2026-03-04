@@ -1,0 +1,14 @@
+task identity
+  head t
+  take x
+  back read x
+
+task apply
+  head a
+  head b
+  take f, like task
+    take x
+    back like head/b
+  take x
+  back call f
+    bind x, read x

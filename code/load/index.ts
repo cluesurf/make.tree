@@ -11,7 +11,7 @@ import { expandFuse } from '@/fuse'
 import { desugarCard } from '@/term/desugar'
 import { resolveStdlib } from '@/stdlib'
 import type { Book } from '@/term/form'
-import type { SurfCard } from '@/surf/form'
+import type { SurfCard, SurfLoad } from '@/surf/form'
 
 export type LoadEnv = {
   readFile: (path: string) => string
@@ -76,14 +76,29 @@ function loadFile(input: {
     if (node.form === 'load') {
       const loadPath = node.path.join('/')
 
-      // Package imports: resolve from built-in stdlib
+      // Package imports: resolve from built-in stdlib or filesystem
       if (loadPath.startsWith('@')) {
-        const stdCard = resolveStdlib(loadPath)
+        const stdCard = resolveStdlib({
+          loadPath,
+          parse: env.parse,
+        })
         if (stdCard && !visited.has(loadPath)) {
           visited.add(loadPath)
           const stdResult = desugarCard({ card: stdCard })
-          for (const [name, term] of stdResult.book) {
-            book.set(name, term)
+
+          // If the load has `find` directives, only import named items
+          const loadNode = node as SurfLoad
+          if (loadNode.find && loadNode.find.length > 0) {
+            const wanted = new Set(loadNode.find.map(f => f.name))
+            for (const [name, term] of stdResult.book) {
+              if (wanted.has(name)) {
+                book.set(name, term)
+              }
+            }
+          } else {
+            for (const [name, term] of stdResult.book) {
+              book.set(name, term)
+            }
           }
         }
         continue

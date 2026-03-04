@@ -32,6 +32,7 @@ import type {
   SurfHook,
   SurfLink,
   SurfWear,
+  SurfMeet,
   SurfType,
 } from '@/surf/form'
 import type { Term, Book, Ctr, Tele, Oper } from '@/term/form'
@@ -204,8 +205,8 @@ function desugarTask(input: { task: SurfTask; ctx: Ctx }): Term {
     cont: innerCtx => desugarFlow({ flow: task.flow, ctx: innerCtx }),
   })
 
-  // Build the type: All chain with metavar return type
-  const returnType = freshMeta(ctx)
+  // Build the type: All chain with explicit return type or metavar
+  const returnType = task.like ? resolveType(task.like) : freshMeta(ctx)
   const type = buildAllChain({ params, idx: 0, returnType })
 
   // Nested tasks become separate definitions in scope
@@ -359,6 +360,17 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
       }
     }
 
+    case 'meet': {
+      const meetTerm = desugarMeet({ meet: first as SurfMeet, ctx })
+      if (rest.length === 0) return meetTerm
+      return {
+        form: 'let',
+        name: '_',
+        val: meetTerm,
+        bod: () => desugarFlow({ flow: rest, ctx }),
+      }
+    }
+
     case 'make': {
       const makeTerm = desugarMake({ make: first, ctx })
       if (rest.length === 0) return makeTerm
@@ -442,6 +454,9 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
 
     case 'make':
       return desugarMake({ make: sift, ctx })
+
+    case 'meet':
+      return desugarMeet({ meet: sift as SurfMeet, ctx })
 
     default:
       return { form: 'hol', name: `unsupported:${sift.form}`, ctx: [] }
@@ -622,6 +637,32 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
   }
 
   return mat
+}
+
+/**
+ * Desugar a meet (logical AND/OR) to chained App(.and/.or, ...).
+ *
+ * meet and [a, b, c] → App(App(App(Ref ".and") a) b) c)
+ * meet or  [a, b, c] → App(App(App(Ref ".or") a) b) c)
+ */
+function desugarMeet(input: { meet: SurfMeet; ctx: Ctx }): Term {
+  const { meet, ctx } = input
+  const sentinel = meet.mode === 'and' ? '.and' : '.or'
+  const terms = meet.list.map(s => desugarSift({ sift: s, ctx }))
+  if (terms.length === 0) return { form: 'ref', name: 'true' }
+  let result = terms[0]!
+  for (let i = 1; i < terms.length; i++) {
+    result = {
+      form: 'app',
+      func: {
+        form: 'app',
+        func: { form: 'ref', name: sentinel } as Term,
+        argm: result,
+      },
+      argm: terms[i]!,
+    }
+  }
+  return result
 }
 
 /**

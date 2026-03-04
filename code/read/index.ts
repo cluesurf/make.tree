@@ -42,6 +42,7 @@ import type {
   SurfMask,
   SurfSuit,
   SurfBear,
+  SurfMeet,
   SurfType,
 } from '@/surf/form'
 import { VOID_SITE } from '@/kink/site'
@@ -481,6 +482,8 @@ function readStatement(fork: PFork): Surf | null {
       return { form: 'halt', sift: readSiftFromChild(fork), site }
     case 'rest':
       return { form: 'rest', site }
+    case 'meet':
+      return readMeet(fork)
     case 'fuse':
       return readFuse(fork)
     default:
@@ -514,6 +517,11 @@ function readBack(fork: PFork): SurfBack {
     }
   }
 
+  // back meet and/or → logical operation
+  if (siftKw === 'meet') {
+    return { form: 'back', sift: readMeet(siftFork, childForks(fork, 2)), site }
+  }
+
   // back <sift-expr>
   return { form: 'back', sift: readSiftExpr(siftFork), site }
 }
@@ -538,6 +546,24 @@ function readSave(fork: PFork): SurfSave {
   }
 
   return { form: 'save', path: [name], sift, site }
+}
+
+// -- meet --
+
+function readMeet(fork: PFork, extraChildren?: PFork[]): SurfMeet {
+  const mode = childWord(fork, 1) === 'or' ? 'or' : 'and'
+  const list: Surf[] = []
+  for (const child of childForks(fork, 2)) {
+    const expr = readSiftExpr(child)
+    if (expr) list.push(expr)
+  }
+  if (extraChildren) {
+    for (const child of extraChildren) {
+      const expr = readSiftExpr(child)
+      if (expr) list.push(expr)
+    }
+  }
+  return { form: 'meet', mode, list, site }
 }
 
 // -- fork --
@@ -890,6 +916,8 @@ function readSiftExpr(fork: PFork): Surf {
       return readCall(fork, [])
     case 'make':
       return readMake(fork, [])
+    case 'meet':
+      return readMeet(fork)
     default:
       // Bare word treated as variable reference
       if (kw) return { form: 'sift-read', path: [kw], site }

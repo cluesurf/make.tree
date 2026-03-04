@@ -71,11 +71,11 @@ describe('kotlin: Bool', () => {
   })
 })
 
-describe('kotlin: Maybe', () => {
+describe('kotlin: Maybe (native optional)', () => {
   const kt = compileFile('stdlib-maybe.tree')
 
-  it('generates sealed class for Maybe', () => {
-    expect(kt).toContain('sealed class Maybe')
+  it('does not generate sealed class for Maybe (uses native null)', () => {
+    expect(kt).not.toContain('sealed class Maybe')
   })
 
   it('generates maybeMap', () => {
@@ -94,8 +94,8 @@ describe('kotlin: Maybe', () => {
     expect(kt).toContain('fun maybeIsNone(')
   })
 
-  it('uses when for pattern matching', () => {
-    expect(kt).toContain('when (')
+  it('uses null check for pattern matching', () => {
+    expect(kt).toContain('!= null')
   })
 })
 

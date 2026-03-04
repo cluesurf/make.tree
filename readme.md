@@ -1,8 +1,8 @@
 
 
-<h3 align='center'>make.tree</h3>
+<h3 align='center'>mesh.tree</h3>
 <p align='center'>
-  The TermTree Compiler
+  The Seed Compiler and Runtime
 </p>
 
 <br/>
@@ -16,12 +16,17 @@ reach but not native speed. Swift and Kotlin lock you into their
 ecosystems. You end up maintaining parallel codebases that drift apart
 over time.
 
-`make.tree` is a compiler for the `.tree` language that solves this by
-compiling a single source to **Rust, TypeScript, Kotlin, Swift, and
-HVM**. You write your logic once. The compiler produces idiomatic,
-native code for each target, not a lowest-common-denominator
-abstraction, but output that looks like it was written by hand for that
-platform.
+`mesh.tree` is the compiler and runtime for the Seed language. It
+compiles `.tree` source to **Rust, TypeScript, Kotlin, Swift, and
+HVM**, producing idiomatic native code for each target. Not a
+lowest-common-denominator abstraction, but output that looks like it
+was written by hand for that platform.
+
+The name "mesh" comes from weaving. The compiler is the loom that
+weaves `.tree` source into native code across platforms. The runtime
+is the fabric that holds it together at execution time, managing
+definitions, hot-swapping changes, and bridging to HVM for pure
+parallel computation.
 
 The key insight is splitting work by what each target does best.
 Platform-specific code (file I/O, networking, UI) compiles to Rust,
@@ -32,6 +37,8 @@ lambda calculus on interaction nets for automatic parallelism across
 GPUs and multi-core CPUs.
 
 ## What It Does
+
+### Compiler
 
 - **Multi-target compilation**: One `.tree` source compiles to five
   backends, each producing idiomatic output for its platform.
@@ -47,11 +54,28 @@ GPUs and multi-core CPUs.
   errors with `?`-style short-circuit propagation.
 - **Tail call optimization**: Self-recursive tail calls compile to loops
   automatically.
-- **Cross-platform standard library**: Abstract interfaces for file I/O,
-  HTTP, crypto, and more, with platform-specific implementations
-  selected at compile time.
+- **Async/await**: `wait true` on tasks and calls compiles to native
+  async for each platform (`async fn`/`.await` in Rust,
+  `async function`/`await` in TS, `suspend fun` in Kotlin,
+  `func ... async` in Swift, IO continuations in HVM).
+- **Closures/HOF**: Function-typed parameters (`like task`) compile to
+  `impl Fn(A) -> B` in Rust, native lambdas elsewhere.
+
+### Runtime
+
+- **Definition management**: Loads compiled output, maintains a merged
+  book of all definitions across files.
+- **Hot-swap**: Receives re-compiled output for a changed file, diffs
+  the definitions, removes old ones, inserts new ones. No full rebuild.
+- **HVM execution**: Bridges to HVM4 through WebAssembly, marshaling
+  values between JavaScript and HVM's binary term representation.
+- **IO interpretation**: Runs the IO protocol loop that lets pure HVM
+  programs perform side effects. Normalizes terms, dispatches native
+  primitives, feeds results back as continuations.
 
 ## How It Works
+
+### Compilation
 
 ```
 .tree source -> parse -> surface AST -> macro expand -> core terms -> backend codegen
@@ -66,6 +90,17 @@ Each backend translates core terms into the idioms of its target. Rust
 gets concrete enums with `match`. TypeScript gets `switch` dispatch with
 `while`-loop TCO. Kotlin gets `when` expressions with data classes.
 Swift gets enums with associated values and protocols.
+
+### Execution (HVM)
+
+```
+compiled HVM code -> load into runtime -> normalize -> IO loop -> result
+```
+
+The runtime receives compiled output. For HVM programs, it normalizes
+terms (pure, possibly parallel), then interprets IO nodes: IO/Call
+dispatches a native operation and applies the continuation, IO/Done
+returns the final result.
 
 ## Example
 
@@ -109,13 +144,15 @@ code/
   term/       Core terms, desugaring, type checker
   cast/       Backend code generators (rust, typescript, kotlin, swift, hvm)
   kink/       Error types and display
+  runtime/    Definition management, hot-swap
+  hvm/        HVM WASM bridge, value marshaling, IO loop
 test/         Unit tests, backend E2E tests, stdlib tests
 ```
 
 ## Getting Started
 
 ```bash
-# Build the compiler (TypeScript -> JavaScript)
+# Build (TypeScript -> JavaScript)
 pnpm make
 
 # Build in watch mode (auto-rebuild on changes)
@@ -134,8 +171,17 @@ pnpm lint
 pnpm host
 ```
 
-See [prerequisites](note/prerequisites.md) for platform-specific setup
-(Xcode, Android NDK, Emscripten, Docker).
+## Part of the Seed Ecosystem
+
+`mesh.tree` is one package in the Seed ecosystem:
+
+| Package   | Purpose                                   |
+| --------- | ----------------------------------------- |
+| seed.tree | Entrypoint                                |
+| mesh.tree | Compiler + runtime (this package)         |
+| deck.tree | Package manager                           |
+| case.tree | Environment types in tree code            |
+| base.tree | Stdlib (all tree code definitions)        |
 
 ## License
 

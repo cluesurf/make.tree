@@ -23,6 +23,7 @@ type EmitCtx = {
   fieldTypeMap: Map<string, Array<{ name: string; typ: string }>>
   arityMap: Map<string, number>
   ctrToEnum: Map<string, string>
+  headParams: Map<string, string[]>
   enumNames: Set<string>
   structNames: Set<string>
   dockNames: Set<string>
@@ -39,7 +40,12 @@ type TailCtx = {
 export type DockLoad = { path: string; name?: string }
 
 /** Names that map to Rust built-in types (skip enum generation). */
-const RUST_BUILTIN_FORMS = new Set(['result'])
+const RUST_BUILTIN_FORMS = new Set(['result', 'maybe'])
+
+/** Check if a form name is the maybe/optional type. */
+function isMaybe(name: string): boolean {
+  return name === 'maybe'
+}
 
 export function castBook(input: {
   book: Book
@@ -101,14 +107,30 @@ export function castBook(input: {
     const isAsync = asyncMeta.get(name) === true
 
     if (val.form === 'lam') {
-      const { params, body } = unwrapLam({ term: val, dep: 0 })
-      const usesHalt = hasHaltCall({ term: body, dep: params.length })
+      const heads = ctx.headParams.get(name) ?? []
+      const genericStr = heads.length > 0 ? `<${heads.map(h => capitalize(h)).join(', ')}>` : ''
+
+      // Skip head param lambdas
+      let valTerm: Term = val
+      let headDep = 0
+      for (let i = 0; i < heads.length; i++) {
+        if (valTerm.form === 'lam') {
+          valTerm = valTerm.bod({ form: 'var', name: valTerm.name, idx: headDep })
+          headDep++
+        }
+      }
+      // Also skip head param types from paramTypes
+      const valueParamTypes = paramTypes.slice(heads.length)
+
+      const { params, body } = unwrapLam({ term: valTerm, dep: headDep })
+      const totalDep = headDep + params.length
+      const usesHalt = hasHaltCall({ term: body, dep: totalDep })
       const returnType = usesHalt
         ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
         : baseReturnType
       const paramStr = params
         .map((p, i) => {
-          const typ = paramTypes[i] ?? 'impl Clone'
+          const typ = valueParamTypes[i] ?? 'impl Clone'
           return `${p.name}: ${typ}`
         })
         .join(', ')
@@ -116,8 +138,8 @@ export function castBook(input: {
       const isTailRec = hasSelfTailCall({
         term: body,
         refName: name,
-        arity: params.length,
-        dep: params.length,
+        arity: totalDep,
+        dep: totalDep,
       })
       const tail: TailCtx = isTailRec
         ? { refName: name, params: paramNames }
@@ -126,7 +148,7 @@ export function castBook(input: {
       const bodyIndent = isTailRec ? 2 : 1
       castStmt({
         term: body,
-        dep: params.length,
+        dep: totalDep,
         ctx,
         lines: bodyLines,
         indent: bodyIndent,
@@ -136,11 +158,11 @@ export function castBook(input: {
       const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
         lines.push(
-          `${asyncPrefix}fn ${safeName}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
+          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
         )
       } else {
         lines.push(
-          `${asyncPrefix}fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
+          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
         )
       }
     } else {
@@ -361,6 +383,8 @@ function resolveTraitTypeName(name: string | null): string {
       return 'f64'
     case 'text':
       return 'String'
+    case 'maybe':
+      return 'Option<impl Clone>'
     default:
       return pascalCase(name)
   }
@@ -401,6 +425,7 @@ function inferReturnType(input: {
 
   if (adts.size === 1 && !literals.hasNum && !literals.hasFlt && !literals.hasText) {
     const formName = [...adts][0]!
+    if (isMaybe(formName)) return 'Option<impl Clone>'
     return pascalCase(formName)
   }
 
@@ -562,6 +587,14 @@ function collectReturnInfo(input: {
 function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
   const { term, ctx } = input
   if (term.form === 'ref') {
+    if (isMaybe(term.name)) {
+      // Look up the some constructor's value field type
+      const someFields = ctx.fieldTypeMap.get('some')
+      if (someFields && someFields.length > 0 && someFields[0]!.typ !== 'impl Clone') {
+        return `Option<${someFields[0]!.typ}>`
+      }
+      return 'Option<impl Clone>'
+    }
     if (ctx.enumNames.has(term.name)) return pascalCase(term.name)
     return pascalCase(term.name)
   }
@@ -624,17 +657,40 @@ function analyze(input: { book: Book; dockNames: Set<string> }): EmitCtx {
     }
   }
 
+  // Extract head (type) params from Ann type annotations
+  const headParams = new Map<string, string[]>()
+  for (const [name, term] of input.book) {
+    const heads = extractHeadParams(term)
+    if (heads.length > 0) {
+      headParams.set(name, heads)
+    }
+  }
+
   return {
     tagMap,
     fieldMap,
     fieldTypeMap,
     arityMap,
     ctrToEnum,
+    headParams,
     enumNames,
     structNames,
     dockNames: input.dockNames,
     book: input.book,
   }
+}
+
+/** Extract type parameter names from a term's type annotation. */
+function extractHeadParams(term: Term): string[] {
+  let typ: Term = term
+  if (typ.form === 'ann') typ = typ.typ
+  if (typ.form === 'src') typ = (typ as any).val
+  const params: string[] = []
+  while (typ.form === 'all' && typ.inp.form === 'set') {
+    params.push(typ.name)
+    typ = typ.bod({ form: 'var', name: typ.name, idx: 0 })
+  }
+  return params
 }
 
 function teleToFieldNames(tele: Tele): string[] {
@@ -992,10 +1048,44 @@ function castMatchStmt(input: {
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx })
 
+  // Detect maybe type for native optional matching
+  const firstFormName = arms.length > 0 ? ctx.ctrToEnum.get(arms[0]![0]) : undefined
+  const isMaybeMatch = firstFormName !== undefined && isMaybe(firstFormName)
+
   lines.push(`${pad}match ${scrExpr}.clone() {`)
   for (const [name, bod] of arms) {
-    const ctrName = pascalCase(name)
     const formName = ctx.ctrToEnum.get(name)
+
+    let armBod = bod
+    let armDep = dep
+
+    if (isMaybeMatch) {
+      // Native optional pattern: Some(value) / None
+      if (name === 'some') {
+        const paramNames: string[] = []
+        while (armBod.form === 'lam') {
+          const paramName = varName({ name: armBod.name, dep: armDep })
+          paramNames.push(paramName)
+          armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+          armDep++
+        }
+        const bindStr = paramNames.length > 0 ? `(${paramNames.join(', ')})` : ''
+        lines.push(`${pad}    Some${bindStr} => {`)
+      } else {
+        // none arm: skip lambda unwrapping
+        while (armBod.form === 'lam') {
+          const paramName = varName({ name: armBod.name, dep: armDep })
+          armBod = armBod.bod({ form: 'var', name: paramName, idx: armDep })
+          armDep++
+        }
+        lines.push(`${pad}    None => {`)
+      }
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 2, tail, okWrap })
+      lines.push(`${pad}    }`)
+      continue
+    }
+
+    const ctrName = pascalCase(name)
     const isStruct = formName ? ctx.structNames.has(formName) : false
     const qualifiedName = isStruct
       ? pascalCase(formName!)
@@ -1003,9 +1093,6 @@ function castMatchStmt(input: {
         ? `${pascalCase(formName)}::${ctrName}`
         : ctrName
     const fields = ctx.fieldMap.get(name) ?? []
-
-    let armBod = bod
-    let armDep = dep
     const bindings: string[] = []
 
     const fieldTypes = ctx.fieldTypeMap.get(name) ?? []
@@ -1053,7 +1140,14 @@ function castMatchStmt(input: {
   }
 
   // Add wildcard arm if the match does not cover all constructors
-  if (arms.length > 0) {
+  if (isMaybeMatch) {
+    // Maybe has 2 constructors (some, none). If not both present, add wildcard.
+    const hasSome = arms.some(([n]) => n === 'some')
+    const hasNone = arms.some(([n]) => n === 'none')
+    if (!hasSome || !hasNone) {
+      lines.push(`${pad}    _ => { unreachable!() }`)
+    }
+  } else if (arms.length > 0) {
     const firstCtr = arms[0]![0]
     const formName = ctx.ctrToEnum.get(firstCtr)
     if (formName) {
@@ -1336,6 +1430,14 @@ function castExpr(input: {
         if (prim === 'safe' && args.length === 1) {
           return castExpr({ term: args[0]!, dep, ctx })
         }
+        if (prim === 'and' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' && ')})`
+        }
+        if (prim === 'or' && args.length >= 2) {
+          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          return `(${parts.join(' || ')})`
+        }
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx })
           const methodName = snakeCase(prim)
@@ -1387,8 +1489,16 @@ function castExpr(input: {
     case 'nat':
       return `${term.val}_u64`
     case 'con': {
-      const ctrName = pascalCase(term.name)
       const formName = ctx.ctrToEnum.get(term.name)
+      // Native optional: maybe → Option
+      if (formName && isMaybe(formName)) {
+        if (term.name === 'none') return 'None'
+        if (term.name === 'some' && term.args.length > 0) {
+          const val = castExpr({ term: term.args[0]![1], dep, ctx })
+          return `Some(${val})`
+        }
+      }
+      const ctrName = pascalCase(term.name)
       const isStruct = formName ? ctx.structNames.has(formName) : false
       const qualifiedName = isStruct
         ? pascalCase(formName!)
@@ -1563,6 +1673,11 @@ function snakeCase(name: string): string {
 
 function pascalCase(name: string): string {
   return name.replace(/(^|[/.\-])(.)/g, (_, __, c) => c.toUpperCase())
+}
+
+function capitalize(name: string): string {
+  if (!name) return name
+  return name[0]!.toUpperCase() + name.slice(1)
 }
 
 function castOper(oper: Oper): string {

@@ -56,8 +56,8 @@ fn main() {
     let w = Wrapper::Make { value: 42 };
     println!("unwrap={}", unwrap(w));
 
-    // Two-constructor: force unwrap of Some
-    let s = Maybe::Some { value: 99 };
+    // Two-constructor: force unwrap of Some (native Option)
+    let s = Some(99_u64);
     println!("force={}", force_unwrap(s));
 
     // Four-constructor: is_north
@@ -122,11 +122,11 @@ describe('rust: E2E single-arm pattern matches', () => {
 
   it('force_unwrap has wildcard or panic for missing arms', () => {
     expect(generatedRust).toContain('fn force_unwrap(')
-    // Should have either a wildcard arm `_ =>` or all arms covered
+    // Native optional: should have either a wildcard arm `_ =>` or both Some/None
     const hasWildcard = generatedRust.includes('_ =>')
     const hasBothArms =
-      generatedRust.includes('Maybe::Some') &&
-      generatedRust.includes('Maybe::None')
+      generatedRust.includes('Some(') &&
+      generatedRust.includes('None')
     expect(hasWildcard || hasBothArms).toBe(true)
   })
 

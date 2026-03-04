@@ -55,21 +55,21 @@ function compileWithLoader(name: string): string {
 }
 
 describe('optional paths (some?)', () => {
-  it('generates optional access with ?? undefined', () => {
+  it('generates optional access with ?? null', () => {
     // Requires rebuilt tree parser with optional flag on TreeFork
     const ts = compileFile('optional.tree')
     expect(ts).toContain('export function getName(user)')
     // The tree parser sets fork.optional = true and strips ? from text.
-    // Once the parser JS is rebuilt, this will produce: (user ?? undefined)
+    // Once the parser JS is rebuilt, this will produce: (user ?? null)
     if (ts.includes('user?')) return // parser not yet rebuilt
-    expect(ts).toContain('user ?? undefined')
+    expect(ts).toContain('user ?? null')
   })
 })
 
 describe('tree/fuse macros', () => {
   it('expands tree template and generates correct TS', () => {
     const ts = compileFile('macro.tree')
-    expect(ts).toContain('export function doubleInt(n)')
+    expect(ts).toContain('export function doubleInt(n: number)')
     expect(ts).toContain('return (n * 2);')
   })
 })
@@ -117,34 +117,34 @@ describe('lists (make list)', () => {
 describe('wear (trait implementation)', () => {
   it('generates functions from wear blocks inside form', () => {
     const ts = compileFile('wear.tree')
-    expect(ts).toContain('export function addPoints(a, b)')
-    expect(ts).toContain('export function pointsEqual(a, b)')
+    expect(ts).toContain('export function addPoints(a: number, b: number)')
+    expect(ts).toContain('export function pointsEqual(a: number, b: number)')
   })
 })
 
 describe('multi-file with load', () => {
   it('loads nat.tree from math.tree and generates all functions', () => {
     const ts = compileWithLoader('math.tree')
-    expect(ts).toContain('export function fib(n)')
-    expect(ts).toContain('export function fibTail(n, a, b)')
-    expect(ts).toContain('export function double(n)')
+    expect(ts).toContain('export function fib(n: number)')
+    expect(ts).toContain('export function fibTail(n: number, a: number, b: number)')
+    expect(ts).toContain('export function double(n: number)')
     expect(ts).toContain('export const makeZero')
-    expect(ts).toContain('export function makeSucc(p)')
+    expect(ts).toContain('export function makeSucc(p: number)')
   })
 })
 
 describe('union types (like or)', () => {
   it('compiles form with union type link without error', () => {
     const ts = compileFile('union.tree')
-    expect(ts).toContain('export function readDock(val)')
+    expect(ts).toContain('export function readDock(val: Integer)')
   })
 })
 
 describe('risk unsafe markers', () => {
   it('compiles tasks with risk true normally', () => {
     const ts = compileFile('risk.tree')
-    expect(ts).toContain('export function safeAdd(a, b)')
-    expect(ts).toContain('export function uncheckedAdd(a, b)')
+    expect(ts).toContain('export function safeAdd(a: number, b: number)')
+    expect(ts).toContain('export function uncheckedAdd(a: number, b: number)')
   })
 })
 
