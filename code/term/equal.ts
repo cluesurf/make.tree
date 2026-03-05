@@ -151,9 +151,6 @@ function identical(input: {
     case 'num':
       return envPure(a.val === (b as typeof a).val)
 
-    case 'flt':
-      return envPure(a.val === (b as typeof a).val)
-
     case 'txt':
       return envPure(a.val === (b as typeof a).val)
 
@@ -292,9 +289,6 @@ function similar(input: {
       return envPure(a.name === (b as typeof a).name)
 
     case 'num':
-      return envPure(a.val === (b as typeof a).val)
-
-    case 'flt':
       return envPure(a.val === (b as typeof a).val)
 
     case 'txt':

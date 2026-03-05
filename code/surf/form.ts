@@ -99,7 +99,6 @@ export type SurfLink = SurfMixin & {
   form: 'link'
   name: string
   like?: SurfType
-  flex?: boolean
 }
 
 export type SurfCaseArm = SurfMixin & {
@@ -126,7 +125,6 @@ export type SurfSave = SurfMixin & {
   form: 'save'
   path: string[]
   sift?: Surf
-  flex?: boolean
 }
 
 export type SurfHost = SurfMixin & {
@@ -285,11 +283,6 @@ export type SurfSiftMark = SurfMixin & {
   val: number
 }
 
-export type SurfSiftComb = SurfMixin & {
-  form: 'sift-comb'
-  val: number
-}
-
 export type SurfSiftWave = SurfMixin & {
   form: 'sift-wave'
   val: boolean
@@ -314,14 +307,6 @@ export type SurfBook = SurfMixin & {
   form: 'book'
   name: string
   list: Surf[]
-}
-
-// -- Conditional implementations --
-
-export type SurfCoat = SurfMixin & {
-  form: 'coat'
-  head: SurfHead[]
-  suit: SurfSuit[]
 }
 
 /** Union of all surface AST nodes. */
@@ -370,11 +355,9 @@ export type Surf =
   | SurfSiftRead
   | SurfSiftText
   | SurfSiftMark
-  | SurfSiftComb
   | SurfSiftWave
   // Namespaces
   | SurfBook
-  | SurfCoat
   // Logging
   | SurfShow
   | SurfDive

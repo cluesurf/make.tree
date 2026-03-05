@@ -27,14 +27,6 @@ describe('cast/typescript', () => {
       expect(cast({ form: 'num', val: 42 })).toBe('42')
     })
 
-    it('casts Flt', () => {
-      expect(cast({ form: 'flt', val: 3.14 })).toBe('3.14')
-    })
-
-    it('casts Flt integer with .0', () => {
-      expect(cast({ form: 'flt', val: 5 })).toBe('5.0')
-    })
-
     it('casts Var', () => {
       expect(cast({ form: 'var', name: 'x', idx: 0 })).toBe('x')
     })
@@ -315,11 +307,11 @@ describe('cast/typescript', () => {
 
     it('sanitizes names with special chars', () => {
       const book: Book = new Map([
-        ['std/math/pi', { form: 'flt', val: 3.14 } as Term],
+        ['std/math/pi', { form: 'num', val: 314 } as Term],
       ])
 
       const result = castBook({ book })
-      expect(result).toContain('export const stdMathPi = 3.14;')
+      expect(result).toContain('export const stdMathPi = 314;')
     })
 
     it('uses numeric tags when ADTs are defined', () => {

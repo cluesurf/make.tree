@@ -361,9 +361,6 @@ export function infer(input: {
     case 'num':
       return envPure(ann({ val: term, typ: { form: 'u64' } }))
 
-    case 'flt':
-      return envPure(ann({ val: term, typ: { form: 'f64' } }))
-
     case 'txt':
       return envPure(
         ann({ val: term, typ: { form: 'ref', name: 'String' } }),

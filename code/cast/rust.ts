@@ -475,9 +475,6 @@ function collectReturnInfo(input: {
     case 'nat':
       literals.hasNum = true
       break
-    case 'flt':
-      literals.hasFlt = true
-      break
     case 'txt':
       literals.hasText = true
       break
@@ -1479,11 +1476,6 @@ function castExpr(input: {
       return term.name
     case 'num':
       return `${term.val}_u64`
-    case 'flt': {
-      const s = String(term.val)
-      if (s.includes('.')) return `${s}_f64`
-      return `${s}.0_f64`
-    }
     case 'txt':
       return `String::from(${JSON.stringify(term.val)})`
     case 'nat':

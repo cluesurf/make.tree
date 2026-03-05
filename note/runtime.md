@@ -2,7 +2,7 @@
 
 <h3 align='center'>flow.tree</h3>
 <p align='center'>
-  The TermTree Runtime
+  The Seed Runtime
 </p>
 
 <br/>

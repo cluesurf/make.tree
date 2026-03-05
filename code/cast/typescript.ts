@@ -302,7 +302,6 @@ function resolveType(input: { term: Term; heads: string[]; formNames: Set<string
     case 'num':
       return 'number'
     case 'f64':
-    case 'flt':
       return 'number'
     case 'set':
       return 'any'
@@ -986,11 +985,6 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
     case 'num':
       return String(term.val)
 
-    case 'flt': {
-      const s = String(term.val)
-      if (s.includes('.') || s.includes('e') || s.includes('E')) return s
-      return `${s}.0`
-    }
 
     case 'txt':
       return JSON.stringify(term.val)

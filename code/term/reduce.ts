@@ -133,12 +133,6 @@ export function reduce(input: {
           val: applyOp({ oper: term.oper, a: a.val, b: b.val }),
         }
       }
-      if (a.form === 'flt' && b.form === 'flt') {
-        return {
-          form: 'flt',
-          val: applyOpF({ oper: term.oper, a: a.val, b: b.val }),
-        }
-      }
       return { form: 'op2', oper: term.oper, a, b }
     }
 
@@ -358,41 +352,3 @@ function applyOp(input: { oper: Oper; a: number; b: number }): number {
   }
 }
 
-/** Apply an f64 binary operation. */
-function applyOpF(input: { oper: Oper; a: number; b: number }): number {
-  const { oper, a, b } = input
-  switch (oper) {
-    case 'add':
-      return a + b
-    case 'sub':
-      return a - b
-    case 'mul':
-      return a * b
-    case 'div':
-      return b === 0 ? 0 : a / b
-    case 'mod':
-      return b === 0 ? 0 : a % b
-    case 'eq':
-      return a === b ? 1 : 0
-    case 'ne':
-      return a !== b ? 1 : 0
-    case 'lt':
-      return a < b ? 1 : 0
-    case 'gt':
-      return a > b ? 1 : 0
-    case 'lte':
-      return a <= b ? 1 : 0
-    case 'gte':
-      return a >= b ? 1 : 0
-    case 'and':
-      return a & b
-    case 'or':
-      return a | b
-    case 'xor':
-      return a ^ b
-    case 'lsh':
-      return a << b
-    case 'rsh':
-      return a >> b
-  }
-}

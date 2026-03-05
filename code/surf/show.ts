@@ -197,8 +197,6 @@ function showNode(node: Surf, dep: number): string {
       return `${pad}text <${node.val}>`
     case 'sift-mark':
       return `${pad}mark ${node.val}`
-    case 'sift-comb':
-      return `${pad}comb ${node.val}`
     case 'sift-wave':
       return `${pad}wave ${node.val}`
 
@@ -241,8 +239,6 @@ function showSift(node: Surf | undefined): string {
       return `text <${node.val}>`
     case 'sift-mark':
       return `mark ${node.val}`
-    case 'sift-comb':
-      return `comb ${node.val}`
     case 'sift-wave':
       return `wave ${node.val}`
     case 'call': {

@@ -19,10 +19,6 @@ describe('term/show', () => {
     expect(showTerm({ form: 'num', val: 42 })).toBe('42')
   })
 
-  it('shows Flt value', () => {
-    expect(showTerm({ form: 'flt', val: 3.14 })).toBe('3.14')
-  })
-
   it('shows Txt value', () => {
     expect(showTerm({ form: 'txt', val: 'hello' })).toBe('"hello"')
   })

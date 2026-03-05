@@ -104,18 +104,6 @@ describe('term/reduce', () => {
     expect((red(ne) as any).val).toBe(0)
   })
 
-  it('reduces op2 on floats', () => {
-    const term: Term = {
-      form: 'op2',
-      oper: 'add',
-      a: { form: 'flt', val: 1.5 },
-      b: { form: 'flt', val: 2.5 },
-    }
-    const result = red(term)
-    expect(result.form).toBe('flt')
-    if (result.form === 'flt') expect(result.val).toBe(4.0)
-  })
-
   it('reduces ref lookup', () => {
     const myBook: Book = new Map([
       ['five', { form: 'num', val: 5 }],

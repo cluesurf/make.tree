@@ -61,8 +61,7 @@ describe('surf/show', () => {
   it('shows value expressions', () => {
     expect(showSurf({ form: 'sift-text', val: 'hi', site })).toContain('text <hi>')
     expect(showSurf({ form: 'sift-mark', val: 99, site })).toContain('mark 99')
-    expect(showSurf({ form: 'sift-comb', val: 3.14, site })).toContain('comb 3.14')
-    expect(showSurf({ form: 'sift-wave', val: true, site })).toContain('wave true')
+expect(showSurf({ form: 'sift-wave', val: true, site })).toContain('wave true')
     expect(showSurf({ form: 'sift-read', path: ['x'], site })).toContain('read x')
   })
 })

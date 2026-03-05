@@ -46,12 +46,6 @@ describe('term/desugar', () => {
       if (term.form === 'num') expect(term.val).toBe(42)
     })
 
-    it('desugars sift-comb to Flt', () => {
-      const term = siftToTerm({ form: 'sift-comb', val: 3.14, site })
-      expect(term.form).toBe('flt')
-      if (term.form === 'flt') expect(term.val).toBeCloseTo(3.14)
-    })
-
     it('desugars sift-wave true to Con True', () => {
       const term = siftToTerm({ form: 'sift-wave', val: true, site })
       expect(term.form).toBe('con')
@@ -175,13 +169,13 @@ describe('term/desugar', () => {
 
     it('desugars host then back to Let', () => {
       const term = flowToTerm([
-        { form: 'host', name: 'pi', sift: { form: 'sift-comb', val: 3.14, site }, site },
+        { form: 'host', name: 'pi', sift: { form: 'sift-mark', val: 314, site }, site },
         { form: 'back', sift: { form: 'sift-read', path: ['pi'], site }, site },
       ])
       expect(term.form).toBe('let')
       if (term.form === 'let') {
         expect(term.name).toBe('pi')
-        expect(term.val.form).toBe('flt')
+        expect(term.val.form).toBe('num')
       }
     })
 

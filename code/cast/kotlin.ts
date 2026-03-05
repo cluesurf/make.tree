@@ -800,11 +800,6 @@ function castExpr(input: {
       return term.name
     case 'num':
       return `${term.val}L`
-    case 'flt': {
-      const s = String(term.val)
-      if (s.includes('.')) return s
-      return `${s}.0`
-    }
     case 'txt':
       return JSON.stringify(term.val)
     case 'nat':

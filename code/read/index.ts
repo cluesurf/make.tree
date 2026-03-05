@@ -46,7 +46,6 @@ import type {
   SurfType,
   SurfTest,
   SurfBook,
-  SurfCoat,
   SurfBeam,
   SurfHalt,
 } from '@/surf/form'
@@ -227,8 +226,6 @@ function readTop(fork: PFork): Surf | null {
       return readTest(fork)
     case 'book':
       return readBook(fork)
-    case 'coat':
-      return readCoat(fork)
     default:
       return null
   }
@@ -1005,19 +1002,6 @@ function readBook(fork: PFork): SurfBook {
   return { form: 'book', name, list, site }
 }
 
-// -- coat --
-
-function readCoat(fork: PFork): SurfCoat {
-  const head: SurfHead[] = []
-  const suit: SurfSuit[] = []
-  for (const child of childForks(fork, 1)) {
-    const kw = headWord(child)
-    if (kw === 'head') head.push(readHead(child))
-    if (kw === 'suit') suit.push(readSuit(child))
-  }
-  return { form: 'coat', head, suit, site }
-}
-
 // -- beam --
 
 function readBeam(fork: PFork): SurfBeam {
@@ -1141,9 +1125,6 @@ function readSiftMark(fork: PFork): Surf {
   const node = childNode(fork, 1)
   if (node?.form === 'tree-size') {
     return { form: 'sift-mark', val: node.bond, site }
-  }
-  if (node?.form === 'tree-comb') {
-    return { form: 'sift-comb', val: node.bond, site }
   }
   // mark <word> → try parsing as number
   if (node?.form === 'tree-fork') {

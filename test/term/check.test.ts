@@ -60,17 +60,6 @@ describe('term/check', () => {
     }
   })
 
-  it('infers Flt : F64', () => {
-    const result = check({ term: { form: 'flt', val: 3.14 }, book: emptyBook() })
-    expect(result).not.toBeNull()
-    if (result) {
-      expect(result.value.form).toBe('ann')
-      if (result.value.form === 'ann') {
-        expect(result.value.typ.form).toBe('f64')
-      }
-    }
-  })
-
   it('infers Op2 add : U64 for u64 operands', () => {
     const term: Term = {
       form: 'op2', oper: 'add',
@@ -132,16 +121,6 @@ describe('term/check', () => {
     }
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
-  })
-
-  it('fails on type mismatch: (3.14 : U64)', () => {
-    const term: Term = {
-      form: 'ann', done: true,
-      val: { form: 'flt', val: 3.14 },
-      typ: { form: 'u64' },
-    }
-    const result = check({ term, book: emptyBook() })
-    expect(result).toBeNull()
   })
 
   it('checks lambda against pi type', () => {
@@ -232,39 +211,6 @@ describe('term/check', () => {
     const term: Term = { form: 'ins', val: { form: 'ref', name: 'mySlf' } }
     const result = check({ term, book })
     expect(result).not.toBeNull()
-  })
-
-  it('logs error info on type mismatch', () => {
-    const state = envInit({ book: emptyBook() })
-    // Try to check: 3.14 : U64 (should fail with error)
-    const result = envRun({
-      env: verify({ sus: false, src: null, term: { form: 'flt', val: 3.14 }, typx: { form: 'u64' }, dep: 0 }),
-      state,
-    })
-    expect(result).toBeNull()
-  })
-
-  it('infers Op2 add on F64 operands', () => {
-    const term: Term = {
-      form: 'op2', oper: 'add',
-      a: { form: 'flt', val: 1.5 },
-      b: { form: 'flt', val: 2.5 },
-    }
-    const result = check({ term, book: emptyBook() })
-    expect(result).not.toBeNull()
-    if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('f64')
-    }
-  })
-
-  it('fails Op2 with mismatched types', () => {
-    const term: Term = {
-      form: 'op2', oper: 'add',
-      a: { form: 'num', val: 1 },
-      b: { form: 'flt', val: 2.5 },
-    }
-    const result = check({ term, book: emptyBook() })
-    expect(result).toBeNull()
   })
 
   it('infers use binding', () => {

@@ -446,9 +446,6 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
     case 'sift-mark':
       return { form: 'num', val: sift.val }
 
-    case 'sift-comb':
-      return { form: 'flt', val: sift.val }
-
     case 'sift-wave':
       return sift.val
         ? { form: 'con', name: 'True', args: [] }

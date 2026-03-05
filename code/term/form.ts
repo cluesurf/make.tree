@@ -129,12 +129,6 @@ export type TermNum = {
   val: number
 }
 
-/** F64 value */
-export type TermFlt = {
-  form: 'flt'
-  val: number
-}
-
 /** Binary operation: (op a b) */
 export type TermOp2 = {
   form: 'op2'
@@ -233,7 +227,6 @@ export type Term =
   | TermU64
   | TermF64
   | TermNum
-  | TermFlt
   | TermOp2
   | TermSwi
   | TermTxt

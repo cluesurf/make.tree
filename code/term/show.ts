@@ -148,9 +148,6 @@ function showTermGo(input: {
       return 'F64'
     case 'num':
       return String(term.val)
-    case 'flt':
-      return String(term.val)
-
     case 'op2': {
       const op = showOper(term.oper)
       const a = showTermGo({ term: term.a, small, dep })

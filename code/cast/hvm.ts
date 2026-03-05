@@ -113,9 +113,6 @@ export function castTerm(input: { term: Term; dep: number }): string {
     case 'num':
       return String(term.val)
 
-    case 'flt':
-      return String(term.val)
-
     case 'txt':
       return castString(term.val)
 
