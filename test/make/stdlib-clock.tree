@@ -1,0 +1,25 @@
+
+form clock-mark
+  link start, like size
+
+task clock-measurement-start
+  take now, like size
+  send back
+    make clock-mark
+      bind start, read now
+
+task clock-measurement-read
+  take mark, like clock-mark
+  take now, like size
+  fork case, read mark
+    hook clock-mark, base start
+      send back
+        call subtract
+          bind a, read now
+          bind b, read start
+
+task clock-mark-start
+  take m, like clock-mark
+  fork case, read m
+    hook clock-mark, base start
+      send back, read start

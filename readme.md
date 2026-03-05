@@ -1,8 +1,8 @@
 
 
-<h3 align='center'>mesh.tree</h3>
+<h3 align='center'>make.tree</h3>
 <p align='center'>
-  The Seed Compiler and Runtime
+  The Seed Compiler
 </p>
 
 <br/>
@@ -16,17 +16,15 @@ reach but not native speed. Swift and Kotlin lock you into their
 ecosystems. You end up maintaining parallel codebases that drift apart
 over time.
 
-`mesh.tree` is the compiler and runtime for the Seed language. It
+`make.tree` is the compiler and runtime for the Seed language. It
 compiles `.tree` source to **Rust, TypeScript, Kotlin, Swift, and
 HVM**, producing idiomatic native code for each target. Not a
 lowest-common-denominator abstraction, but output that looks like it
 was written by hand for that platform.
 
-The name "mesh" comes from weaving. The compiler is the loom that
-weaves `.tree` source into native code across platforms. The runtime
-is the fabric that holds it together at execution time, managing
-definitions, hot-swapping changes, and bridging to HVM for pure
-parallel computation.
+The compiler weaves `.tree` source into native code across platforms.
+The runtime manages definitions, hot-swaps changes, and bridges to HVM
+for pure parallel computation.
 
 The key insight is splitting work by what each target does best.
 Platform-specific code (file I/O, networking, UI) compiles to Rust,
@@ -173,15 +171,16 @@ pnpm host
 
 ## Part of the Seed Ecosystem
 
-`mesh.tree` is one package in the Seed ecosystem:
+`make.tree` is one package in the Seed ecosystem:
 
 | Package   | Purpose                                   |
 | --------- | ----------------------------------------- |
-| seed.tree | Entrypoint                                |
-| mesh.tree | Compiler + runtime (this package)         |
+| seed      | Entrypoint and CLI                        |
+| make.tree | Compiler (this package)                   |
+| flow.tree | Language server                           |
 | deck.tree | Package manager                           |
-| case.tree | Environment types in tree code            |
-| base.tree | Stdlib (all tree code definitions)        |
+| bind.tree | Native bindings                           |
+| base.tree | Standard library                          |
 
 ## License
 

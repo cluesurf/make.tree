@@ -1,0 +1,68 @@
+
+form test-report
+  link passed, like size
+  link failed, like size
+  link skipped, like size
+  link duration, like size
+
+form test-failure
+  link name, like text
+  link message, like text
+
+form test-mock
+  link count, like size
+
+task test-report-make
+  take passed, like size
+  take failed, like size
+  take skipped, like size
+  take duration, like size
+  send back
+    make test-report
+      bind passed, read passed
+      bind failed, read failed
+      bind skipped, read skipped
+      bind duration, read duration
+
+task test-report-passed
+  take r, like test-report
+  fork case, read r
+    hook test-report, base passed, base failed, base skipped, base duration
+      send back, read passed
+
+task test-report-total
+  take r, like test-report
+  fork case, read r
+    hook test-report, base passed, base failed, base skipped, base duration
+      send back
+        call add
+          bind a
+            call add
+              bind a, read passed
+              bind b, read failed
+          bind b, read skipped
+
+task test-failure-make
+  take name, like text
+  take message, like text
+  send back
+    make test-failure
+      bind name, read name
+      bind message, read message
+
+task test-failure-name
+  take f, like test-failure
+  fork case, read f
+    hook test-failure, base name, base message
+      send back, read name
+
+task test-mock-make
+  send back
+    make test-mock
+      bind count, mark 0
+
+task test-mock-count
+  take m, like test-mock
+  fork case, read m
+    hook test-mock, base count
+      send back, read count

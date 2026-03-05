@@ -1,0 +1,69 @@
+
+form environment-info
+  link system, like text
+  link architecture, like text
+  link cores, like size
+  link memory, like size
+
+form locale-info
+  link language, like text
+  link region, like text
+  link tag, like text
+
+task environment-make-info
+  take system, like text
+  take architecture, like text
+  take cores, like size
+  take memory, like size
+  send back
+    make environment-info
+      bind system, read system
+      bind architecture, read architecture
+      bind cores, read cores
+      bind memory, read memory
+
+task environment-info-system
+  take info, like environment-info
+  fork case, read info
+    hook environment-info, base system, base architecture, base cores, base memory
+      send back, read system
+
+task environment-info-architecture
+  take info, like environment-info
+  fork case, read info
+    hook environment-info, base system, base architecture, base cores, base memory
+      send back, read architecture
+
+task environment-info-cores
+  take info, like environment-info
+  fork case, read info
+    hook environment-info, base system, base architecture, base cores, base memory
+      send back, read cores
+
+task environment-info-memory
+  take info, like environment-info
+  fork case, read info
+    hook environment-info, base system, base architecture, base cores, base memory
+      send back, read memory
+
+task locale-make
+  take language, like text
+  take region, like text
+  take tag, like text
+  send back
+    make locale-info
+      bind language, read language
+      bind region, read region
+      bind tag, read tag
+
+task locale-language
+  take info, like locale-info
+  fork case, read info
+    hook locale-info, base language, base region, base tag
+      send back, read language
+
+task locale-region
+  take info, like locale-info
+  fork case, read info
+    hook locale-info, base language, base region, base tag
+      send back, read region

@@ -1,0 +1,100 @@
+
+form result
+  case okay
+    link value
+  case error
+    link reason
+
+form kink
+  link code, like text
+  link note, like text
+  link hint, like hash
+
+task error-make
+  take code, like text
+  take note, like text
+  take hint, like hash
+  send back
+    make kink
+      bind code, read code
+      bind note, read note
+      bind hint, read hint
+
+task error-wrap
+  take value
+  send back
+    make okay
+      bind value, read value
+
+task error-fail
+  take code, like text
+  take note, like text
+  send back
+    make error
+      bind reason
+        call error-make
+          bind code, read code
+          bind note, read note
+          bind hint, make hash
+
+task error-code
+  take k, like kink
+  fork case, read k
+    hook kink, base code, base note, base hint
+      send back, read code
+
+task error-note
+  take k, like kink
+  fork case, read k
+    hook kink, base code, base note, base hint
+      send back, read note
+
+task error-match-test
+  take k, like kink
+  take code, like text
+  save k-code
+    call error-code
+      bind k, read k
+  call text-equal
+    bind a, read k-code
+    bind b, read code
+
+task result-map
+  take r, like result
+  take f
+  fork case, read r
+    hook okay, base value
+      send back
+        make okay
+          bind value
+            call f
+              bind x, read value
+    hook error, base reason
+      send back
+        make error
+          bind reason, read reason
+
+task result-unwrap
+  take r, like result
+  take fallback
+  fork case, read r
+    hook okay, base value
+      send back, read value
+    hook error, base reason
+      send back, read fallback
+
+task result-is-okay
+  take r, like result
+  fork case, read r
+    hook okay, base value
+      send back, wave true
+    hook error, base reason
+      send back, wave false
+
+task result-is-error
+  take r, like result
+  fork case, read r
+    hook okay, base value
+      send back, wave false
+    hook error, base reason
+      send back, wave true

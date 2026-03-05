@@ -1,6 +1,6 @@
 
-deck @cluesurf/mesh
-  head <The Seed Compiler Library>
+deck @cluesurf/make
+  head <The Seed Compiler>
   mark <0.0.1>
   link @cluesurf/base, mark <0.x.x>
   link @cluesurf/bind, mark <0.x.x>
