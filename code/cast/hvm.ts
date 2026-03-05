@@ -18,18 +18,29 @@
  */
 
 import type { Term, Book, Oper } from '@/term/form'
+import type { AsyncMeta } from '@/term/desugar'
 import { reduce } from '@/term/reduce'
+
+/** IO magic sentinel for distinguishing IO nodes from regular constructors. */
+const IO_MAGIC = '0xD0CA11'
 
 /**
  * Generate HVM source text for an entire Book.
  * Each definition becomes `@name = body`.
  */
-export function castBook(input: { book: Book }): string {
+export function castBook(input: { book: Book; asyncMeta?: AsyncMeta }): string {
   const { book } = input
+  const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
 
+  // Emit IO/bind helper if any async definitions exist
+  if (asyncMeta.size > 0) {
+    lines.push(`@IO_bind = λa λb match a { #IO_Done { magic expr }: (b expr); #IO_Call { magic func argm cont }: #IO_Call { magic: ${IO_MAGIC} func: func argm: argm cont: λx (@IO_bind (cont x) b) } }`)
+  }
+
   for (const [name, term] of book) {
-    const body = castDef({ name, term, book })
+    const isAsync = asyncMeta.get(name) === true
+    const body = castDef({ name, term, book, isAsync })
     if (body !== null) {
       lines.push(`@${sanitizeName(name)} = ${body}`)
     }
@@ -46,8 +57,9 @@ function castDef(input: {
   name: string
   term: Term
   book: Book
+  isAsync?: boolean
 }): string | null {
-  const { term, book } = input
+  const { term, book, isAsync } = input
 
   // Unwrap Ann to get the value (erase the type)
   const val = unwrapAnn(term)
@@ -55,15 +67,36 @@ function castDef(input: {
   // Pure type definitions are erased
   if (isTypeOnly(val)) return null
 
-  return castTerm({ term: val, dep: 0 })
+  const body = castTerm({ term: val, dep: 0, isAsync })
+
+  // Wrap async function results in IO/Done
+  if (isAsync && val.form === 'lam') {
+    return wrapAsyncBody({ term: val, dep: 0 })
+  }
+
+  return body
+}
+
+/** Wrap an async function body so the final value is IO/Done. */
+function wrapAsyncBody(input: { term: Term; dep: number }): string {
+  const { term, dep } = input
+  if (term.form !== 'lam') {
+    return `#IO_Done { magic: ${IO_MAGIC} expr: ${castTerm({ term, dep })} }`
+  }
+  const name = varName({ name: term.name, dep })
+  const body = wrapAsyncBody({
+    term: term.bod({ form: 'var', name, idx: dep }),
+    dep: dep + 1,
+  })
+  return `λ${name} ${body}`
 }
 
 /**
  * Convert a Core Term to HVM text at a given depth.
  * Depth is used for generating fresh variable names from HOAS.
  */
-export function castTerm(input: { term: Term; dep: number }): string {
-  const { term, dep } = input
+export function castTerm(input: { term: Term; dep: number; isAsync?: boolean }): string {
+  const { term, dep, isAsync } = input
 
   switch (term.form) {
     case 'lam': {
@@ -71,29 +104,46 @@ export function castTerm(input: { term: Term; dep: number }): string {
       const body = castTerm({
         term: term.bod({ form: 'var', name, idx: dep }),
         dep: dep + 1,
+        isAsync,
       })
       return `λ${name} ${body}`
     }
 
     case 'app': {
       const { func, args } = unwrapApp(term)
-      // .wait → transparent in HVM (parallel by default)
+      // .wait → IO/Call in async context, transparent otherwise
       if (func.form === 'ref' && func.name === '.wait' && args.length === 1) {
-        return castTerm({ term: args[0]!, dep })
+        if (isAsync) {
+          // In IO context, .wait wraps the inner call as IO/Call
+          const inner = args[0]!
+          if (inner.form === 'app') {
+            const { func: innerFunc, args: innerArgs } = unwrapApp(inner)
+            if (innerFunc.form === 'ref') {
+              const funcName = sanitizeName(innerFunc.name)
+              const argStr = innerArgs.length > 0
+                ? castTerm({ term: innerArgs[0]!, dep, isAsync })
+                : '*'
+              return `#IO_Call { magic: ${IO_MAGIC} func: "${funcName}" argm: ${argStr} cont: λresult result }`
+            }
+          }
+          return castTerm({ term: inner, dep, isAsync })
+        }
+        return castTerm({ term: args[0]!, dep, isAsync })
       }
-      const funcStr = castTerm({ term: func, dep })
+      const funcStr = castTerm({ term: func, dep, isAsync })
       const argsStr = args
-        .map(a => castTerm({ term: a, dep }))
+        .map(a => castTerm({ term: a, dep, isAsync }))
         .join(' ')
       return `(${funcStr} ${argsStr})`
     }
 
     case 'let': {
       const name = varName({ name: term.name, dep })
-      const val = castTerm({ term: term.val, dep })
+      const val = castTerm({ term: term.val, dep, isAsync })
       const body = castTerm({
         term: term.bod({ form: 'var', name, idx: dep }),
         dep: dep + 1,
+        isAsync,
       })
       return `let ${name} = ${val}; ${body}`
     }
@@ -102,6 +152,7 @@ export function castTerm(input: { term: Term; dep: number }): string {
       return castTerm({
         term: term.bod(term.val),
         dep,
+        isAsync,
       })
 
     case 'ref':
@@ -125,7 +176,7 @@ export function castTerm(input: { term: Term; dep: number }): string {
       }
       const fields = term.args
         .map(([field, t]) => {
-          const val = castTerm({ term: t, dep })
+          const val = castTerm({ term: t, dep, isAsync })
           return field ? `${field}: ${val}` : val
         })
         .join(' ')
@@ -135,7 +186,7 @@ export function castTerm(input: { term: Term; dep: number }): string {
     case 'mat': {
       const arms = term.arms
         .map(([name, bod]) => {
-          const bodStr = castTerm({ term: bod, dep })
+          const bodStr = castTerm({ term: bod, dep, isAsync })
           return `#${name}: ${bodStr}`
         })
         .join('; ')
@@ -143,21 +194,21 @@ export function castTerm(input: { term: Term; dep: number }): string {
     }
 
     case 'swi': {
-      const zero = castTerm({ term: term.zero, dep })
-      const succ = castTerm({ term: term.succ, dep })
+      const zero = castTerm({ term: term.zero, dep, isAsync })
+      const succ = castTerm({ term: term.succ, dep, isAsync })
       return `λx switch x { 0: ${zero}; _: ${succ} }`
     }
 
     case 'op2': {
       const op = castOper(term.oper)
-      const a = castTerm({ term: term.a, dep })
-      const b = castTerm({ term: term.b, dep })
+      const a = castTerm({ term: term.a, dep, isAsync })
+      const b = castTerm({ term: term.b, dep, isAsync })
       return `(${op} ${a} ${b})`
     }
 
     case 'lst': {
       if (term.list.length === 0) return '#Nil'
-      const items = term.list.map(t => castTerm({ term: t, dep }))
+      const items = term.list.map(t => castTerm({ term: t, dep, isAsync }))
       let result = '#Nil'
       for (let i = items.length - 1; i >= 0; i--) {
         result = `#Cons { head: ${items[i]} tail: ${result} }`
@@ -166,18 +217,18 @@ export function castTerm(input: { term: Term; dep: number }): string {
     }
 
     case 'log': {
-      const msg = castTerm({ term: term.msg, dep })
-      const val = castTerm({ term: term.val, dep })
+      const msg = castTerm({ term: term.msg, dep, isAsync })
+      const val = castTerm({ term: term.val, dep, isAsync })
       return `log(${msg}) ${val}`
     }
 
     case 'rst': {
-      const val = castTerm({ term: term.val, dep })
+      const val = castTerm({ term: term.val, dep, isAsync })
       return val
     }
 
     case 'hlt': {
-      const msg = castTerm({ term: term.msg, dep })
+      const msg = castTerm({ term: term.msg, dep, isAsync })
       return `log(${msg}) *`
     }
 
@@ -193,13 +244,13 @@ export function castTerm(input: { term: Term; dep: number }): string {
       return '*'
 
     case 'ann':
-      return castTerm({ term: term.val, dep })
+      return castTerm({ term: term.val, dep, isAsync })
 
     case 'ins':
-      return castTerm({ term: term.val, dep })
+      return castTerm({ term: term.val, dep, isAsync })
 
     case 'src':
-      return castTerm({ term: term.val, dep })
+      return castTerm({ term: term.val, dep, isAsync })
 
     case 'adt':
       return '*' // ADT type definition is erased

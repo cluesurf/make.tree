@@ -60,6 +60,21 @@ export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: As
     formImpls.set(impl.formName, list)
   }
 
+  // Phase 0: Error class (emitted if any function uses halt)
+  let needsError = false
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form !== 'adt' && !isTypeOnly(val)) {
+      if (hasHaltCall({ term: val, dep: 0 })) {
+        needsError = true
+        break
+      }
+    }
+  }
+  if (needsError) {
+    lines.push(`class SeedError(message: String) : Exception(message)`)
+  }
+
   // Phase 1: Sealed classes (with interface conformance + methods)
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -570,7 +585,7 @@ function castStmt(input: {
       return
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      lines.push(`${pad}throw RuntimeException(${msg}.toString())`)
+      lines.push(`${pad}throw SeedError(${msg}.toString())`)
       return
     }
     case 'rst': {
@@ -908,7 +923,7 @@ function castExpr(input: {
       return castExpr({ term: term.val, dep, ctx })
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      return `run { throw RuntimeException(${msg}.toString()) }`
+      return `run { throw SeedError(${msg}.toString()) }`
     }
     case 'rst': {
       const val = castExpr({ term: term.val, dep, ctx })
@@ -986,6 +1001,55 @@ function pascalCase(name: string): string {
   return name.replace(/(^|[/.\-])(.)/g, (_, __, c) => c.toUpperCase())
 }
 
+
+function hasHaltCall(input: { term: Term; dep: number }): boolean {
+  const { term, dep } = input
+  switch (term.form) {
+    case 'hlt':
+      return true
+    case 'app': {
+      const { func, args } = unwrapApp(term)
+      if (func.form === 'ref' && func.name === '.halt') return true
+      if (hasHaltCall({ term: func, dep })) return true
+      return args.some(a => hasHaltCall({ term: a, dep }))
+    }
+    case 'let':
+      return (
+        hasHaltCall({ term: term.val, dep }) ||
+        hasHaltCall({
+          term: term.bod({ form: 'var', name: term.name, idx: dep }),
+          dep: dep + 1,
+        })
+      )
+    case 'lam':
+      return hasHaltCall({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+      })
+    case 'ann':
+    case 'ins':
+    case 'src':
+      return hasHaltCall({ term: term.val, dep })
+    case 'use':
+      return hasHaltCall({ term: term.bod(term.val), dep })
+    case 'log':
+      return (
+        hasHaltCall({ term: term.msg, dep }) ||
+        hasHaltCall({ term: term.val, dep })
+      )
+    case 'rst':
+      return hasHaltCall({ term: term.val, dep })
+    case 'mat':
+      return term.arms.some(([, bod]) => hasHaltCall({ term: bod, dep }))
+    case 'swi':
+      return (
+        hasHaltCall({ term: term.zero, dep }) ||
+        hasHaltCall({ term: term.succ, dep })
+      )
+    default:
+      return false
+  }
+}
 
 function castOper(oper: Oper): string {
   const map: Record<Oper, string> = {

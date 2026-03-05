@@ -184,12 +184,12 @@ describe('halt variants', () => {
 
   it('Kotlin emits throw for halt', () => {
     const out = castKotlin({ book })
-    expect(out).toContain('throw RuntimeException')
+    expect(out).toContain('throw SeedError')
   })
 
-  it('Swift emits fatalError for halt', () => {
+  it('Swift emits throw for halt', () => {
     const out = castSwift({ book })
-    expect(out).toContain('fatalError')
+    expect(out).toContain('throw SeedError')
   })
 })
 
@@ -268,14 +268,14 @@ describe('halt-test.tree: all backends', () => {
     expect(out).toContain('division by zero')
   })
 
-  it('Kotlin emits throw RuntimeException', () => {
+  it('Kotlin emits throw SeedError', () => {
     const out = castKotlin({ book })
-    expect(out).toContain('throw RuntimeException')
+    expect(out).toContain('throw SeedError')
   })
 
-  it('Swift emits fatalError', () => {
+  it('Swift emits throw SeedError', () => {
     const out = castSwift({ book })
-    expect(out).toContain('fatalError')
+    expect(out).toContain('throw SeedError')
   })
 
   it('HVM emits halt as log', () => {

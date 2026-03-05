@@ -50,7 +50,22 @@ export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: As
     for (const m of impl.methods) implMethods.add(m)
   }
 
-  // Phase 1: Enums
+  // Phase 1: Error type (emitted if any function uses halt)
+  let needsError = false
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form !== 'adt' && !isTypeOnly(val)) {
+      if (hasHaltCall({ term: val, dep: 0 })) {
+        needsError = true
+        break
+      }
+    }
+  }
+  if (needsError) {
+    lines.push(`struct SeedError: Error {\n    let message: String\n}`)
+  }
+
+  // Phase 2: Enums
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
     if (val.form === 'adt') {
@@ -59,17 +74,17 @@ export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: As
     }
   }
 
-  // Phase 2: Protocols (from masks)
+  // Phase 3: Protocols (from masks)
   for (const mask of input.traits?.masks ?? []) {
     lines.push(castProtocol({ mask }))
   }
 
-  // Phase 3: Extensions (from impls)
+  // Phase 4: Extensions (from impls)
   for (const impl of input.traits?.impls ?? []) {
     lines.push(castExtension({ impl, ctx, masks: input.traits?.masks ?? [] }))
   }
 
-  // Phase 4: Standalone functions (skip impl methods)
+  // Phase 5: Standalone functions (skip impl methods)
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
 
@@ -114,6 +129,7 @@ function castFunction(input: {
 
   const { params, body } = unwrapLam({ term: valTerm, dep: headDep })
   const totalDep = headDep + params.length
+  const usesHalt = hasHaltCall({ term: body, dep: totalDep })
   const paramStr = params.map(p => `_ ${p.name}: Any`).join(', ')
   const paramNames = params.map(p => p.name)
   const isTailRec = hasSelfTailCall({
@@ -136,13 +152,14 @@ function castFunction(input: {
     tail,
   })
   const asyncSuffix = isAsync ? ' async' : ''
+  const throwsSuffix = usesHalt ? ' throws' : ''
   if (isTailRec) {
     const varParamStr = params
       .map(p => `_ ${p.name}: Any`)
       .join(', ')
-    return `func ${safeName}${genericStr}(${varParamStr})${asyncSuffix} -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`
+    return `func ${safeName}${genericStr}(${varParamStr})${asyncSuffix}${throwsSuffix} -> Any {\n    var ${paramNames.map(p => `${p} = ${p}`).join('; var ')};\n    while true {\n${bodyLines.join('\n')}\n    }\n}`
   }
-  return `func ${safeName}${genericStr}(${paramStr})${asyncSuffix} -> Any {\n${bodyLines.join('\n')}\n}`
+  return `func ${safeName}${genericStr}(${paramStr})${asyncSuffix}${throwsSuffix} -> Any {\n${bodyLines.join('\n')}\n}`
 }
 
 function capitalize(name: string): string {
@@ -548,7 +565,7 @@ function castStmt(input: {
       return
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      lines.push(`${pad}fatalError("\\(${msg})")`)
+      lines.push(`${pad}throw SeedError(message: "\\(${msg})")`)
       return
     }
     case 'rst': {
@@ -866,7 +883,7 @@ function castExpr(input: {
       return castExpr({ term: term.val, dep, ctx })
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      return `{ fatalError("\\(${msg})") }()`
+      return `{ throw SeedError(message: "\\(${msg})") }()`
     }
     case 'rst': {
       const val = castExpr({ term: term.val, dep, ctx })
@@ -965,6 +982,55 @@ const SWIFT_KEYWORDS = new Set([
 function swiftIdent(name: string): string {
   if (SWIFT_KEYWORDS.has(name)) return `\`${name}\``
   return name
+}
+
+function hasHaltCall(input: { term: Term; dep: number }): boolean {
+  const { term, dep } = input
+  switch (term.form) {
+    case 'hlt':
+      return true
+    case 'app': {
+      const { func, args } = unwrapApp(term)
+      if (func.form === 'ref' && func.name === '.halt') return true
+      if (hasHaltCall({ term: func, dep })) return true
+      return args.some(a => hasHaltCall({ term: a, dep }))
+    }
+    case 'let':
+      return (
+        hasHaltCall({ term: term.val, dep }) ||
+        hasHaltCall({
+          term: term.bod({ form: 'var', name: term.name, idx: dep }),
+          dep: dep + 1,
+        })
+      )
+    case 'lam':
+      return hasHaltCall({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+      })
+    case 'ann':
+    case 'ins':
+    case 'src':
+      return hasHaltCall({ term: term.val, dep })
+    case 'use':
+      return hasHaltCall({ term: term.bod(term.val), dep })
+    case 'log':
+      return (
+        hasHaltCall({ term: term.msg, dep }) ||
+        hasHaltCall({ term: term.val, dep })
+      )
+    case 'rst':
+      return hasHaltCall({ term: term.val, dep })
+    case 'mat':
+      return term.arms.some(([, bod]) => hasHaltCall({ term: bod, dep }))
+    case 'swi':
+      return (
+        hasHaltCall({ term: term.zero, dep }) ||
+        hasHaltCall({ term: term.succ, dep })
+      )
+    default:
+      return false
+  }
 }
 
 function castOper(oper: Oper): string {

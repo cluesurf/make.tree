@@ -365,6 +365,6 @@ function generate(input: { book: Book; target: Target; dock?: DockLoad[]; asyncM
     case 'swift':
       return castSwift({ book, asyncMeta })
     case 'hvm':
-      return castHVM({ book })
+      return castHVM({ book, asyncMeta })
   }
 }
