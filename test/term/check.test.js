@@ -1,0 +1,220 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { check, infer } from '@/term/check';
+import { envRun, envInit, envResetMeta } from '@/term/env';
+function emptyBook() {
+    return new Map();
+}
+function bookWith(defs) {
+    return new Map(Object.entries(defs));
+}
+describe('term/check', () => {
+    beforeEach(() => {
+        envResetMeta();
+    });
+    it('infers Set : Set', () => {
+        const result = check({ term: { form: 'set' }, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result) {
+            expect(result.value.form).toBe('ann');
+            if (result.value.form === 'ann') {
+                expect(result.value.typ.form).toBe('set');
+            }
+        }
+    });
+    it('infers U64 : Set', () => {
+        const result = check({ term: { form: 'u64' }, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result) {
+            expect(result.value.form).toBe('ann');
+            if (result.value.form === 'ann') {
+                expect(result.value.typ.form).toBe('set');
+            }
+        }
+    });
+    it('infers F64 : Set', () => {
+        const result = check({ term: { form: 'f64' }, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result) {
+            expect(result.value.form).toBe('ann');
+            if (result.value.form === 'ann') {
+                expect(result.value.typ.form).toBe('set');
+            }
+        }
+    });
+    it('infers Num : U64', () => {
+        const result = check({ term: { form: 'num', val: 42 }, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result) {
+            expect(result.value.form).toBe('ann');
+            if (result.value.form === 'ann') {
+                expect(result.value.typ.form).toBe('u64');
+            }
+        }
+    });
+    it('infers Op2 add : U64 for u64 operands', () => {
+        const term = {
+            form: 'op2', oper: 'add',
+            a: { form: 'num', val: 1 },
+            b: { form: 'num', val: 2 },
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('infers Op2 eq returns U64', () => {
+        const term = {
+            form: 'op2', oper: 'eq',
+            a: { form: 'num', val: 1 },
+            b: { form: 'num', val: 2 },
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('infers Let : type of body', () => {
+        const term = {
+            form: 'let', name: 'x',
+            val: { form: 'num', val: 10 },
+            bod: (x) => x,
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            // Body is x which has type U64
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('infers All : Set', () => {
+        const term = {
+            form: 'all', name: 'x',
+            inp: { form: 'u64' },
+            bod: (_x) => ({ form: 'u64' }),
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('set');
+        }
+    });
+    it('checks annotated term: (42 : U64)', () => {
+        const term = {
+            form: 'ann', done: true,
+            val: { form: 'num', val: 42 },
+            typ: { form: 'u64' },
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+    });
+    it('checks lambda against pi type', () => {
+        // (λx. x) : U64 → U64
+        const lamTerm = {
+            form: 'lam', name: 'x',
+            bod: (x) => x,
+        };
+        const piType = {
+            form: 'all', name: 'x',
+            inp: { form: 'u64' },
+            bod: (_x) => ({ form: 'u64' }),
+        };
+        const annotated = { form: 'ann', done: true, val: lamTerm, typ: piType };
+        const result = check({ term: annotated, book: emptyBook() });
+        expect(result).not.toBeNull();
+    });
+    it('infers application: (id 42) where id : U64 → U64', () => {
+        const id = {
+            form: 'ann', done: false,
+            val: { form: 'lam', name: 'x', bod: (x) => x },
+            typ: { form: 'all', name: 'x', inp: { form: 'u64' }, bod: () => ({ form: 'u64' }) },
+        };
+        const book = bookWith({ id });
+        const term = {
+            form: 'app',
+            func: { form: 'ref', name: 'id' },
+            argm: { form: 'num', val: 42 },
+        };
+        const result = check({ term, book });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('fails on undefined reference', () => {
+        const term = { form: 'ref', name: 'nonexistent' };
+        const result = check({ term, book: emptyBook() });
+        expect(result).toBeNull();
+    });
+    it('fails inferring unannotated lambda', () => {
+        const state = envInit({ book: emptyBook() });
+        const term = { form: 'lam', name: 'x', bod: (x) => x };
+        const result = envRun({
+            env: infer({ sus: false, src: null, term, dep: 0 }),
+            state,
+        });
+        expect(result).toBeNull();
+    });
+    it('infers reference type from book', () => {
+        const book = bookWith({
+            five: { form: 'ann', done: false, val: { form: 'num', val: 5 }, typ: { form: 'u64' } },
+        });
+        const result = check({ term: { form: 'ref', name: 'five' }, book });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('checks Slf : Set', () => {
+        const term = {
+            form: 'slf', name: 'self',
+            typ: { form: 'set' },
+            bod: (_x) => ({ form: 'set' }),
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('set');
+        }
+    });
+    it('infers Ins type through self-type', () => {
+        // Self-type: $(self: *) *
+        const slfType = {
+            form: 'slf', name: 'self',
+            typ: { form: 'set' },
+            bod: (_x) => ({ form: 'set' }),
+        };
+        const book = bookWith({
+            mySlf: { form: 'ann', done: false, val: { form: 'set' }, typ: slfType },
+        });
+        const term = { form: 'ins', val: { form: 'ref', name: 'mySlf' } };
+        const result = check({ term, book });
+        expect(result).not.toBeNull();
+    });
+    it('infers use binding', () => {
+        const term = {
+            form: 'use', name: 'x',
+            val: { form: 'num', val: 5 },
+            bod: (x) => x,
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+    it('infers log expression type from value', () => {
+        const term = {
+            form: 'log',
+            msg: { form: 'txt', val: 'debug' },
+            val: { form: 'num', val: 42 },
+        };
+        const result = check({ term, book: emptyBook() });
+        expect(result).not.toBeNull();
+        if (result && result.value.form === 'ann') {
+            expect(result.value.typ.form).toBe('u64');
+        }
+    });
+});
+//# sourceMappingURL=check.test.js.map

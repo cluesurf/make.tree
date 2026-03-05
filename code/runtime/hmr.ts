@@ -5,10 +5,9 @@
  * new definitions into the Runtime. Emits events for consumers
  * (dev servers, REPLs, editors).
  *
- * The Hmr class ties together the compiler pipeline and the Runtime
- * hot-swap mechanism. It does not own the Runtime. The caller creates
- * a Runtime, loads the initial compilation, then hands it to Hmr for
- * ongoing watch and reload.
+ * Signature firewall: when a file changes, only body changes that
+ * don't alter function signatures are local. If a signature changes,
+ * all transitive dependents are notified for rechecking.
  *
  * Usage:
  *   const rt = new Runtime()
@@ -30,7 +29,7 @@ import { Runtime } from '@/runtime'
 import type { CompileOutput } from '@/runtime/form'
 
 export type HmrEvent =
-  | { kind: 'swap'; file: string; changed: string[] }
+  | { kind: 'swap'; file: string; changed: string[]; dependents: string[] }
   | { kind: 'error'; file: string; errors: Array<{ message: string }> }
 
 export type CompileFileResult = {
@@ -44,6 +43,8 @@ export type HmrOptions = {
   root: string
   runtime: Runtime
   compile: (input: { file: string; text: string }) => CompileFileResult
+  /** Callback invoked when dependents need rechecking. */
+  onDependentsInvalidated?: (input: { file: string; dependents: string[] }) => void
 }
 
 export class Hmr {
@@ -51,6 +52,7 @@ export class Hmr {
   private options: HmrOptions
   private watcher: fs.FSWatcher | null = null
   private listeners: Array<(event: HmrEvent) => void> = []
+  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
   constructor(options: HmrOptions) {
     this.runtime = options.runtime
@@ -62,6 +64,12 @@ export class Hmr {
     this.listeners.push(listener)
   }
 
+  /** Remove an event listener. */
+  off(listener: (event: HmrEvent) => void): void {
+    const idx = this.listeners.indexOf(listener)
+    if (idx >= 0) this.listeners.splice(idx, 1)
+  }
+
   /** Start watching for .tree file changes. */
   start(): void {
     this.watcher = fs.watch(
@@ -69,9 +77,23 @@ export class Hmr {
       { recursive: true },
       (event, filename) => {
         if (filename && filename.endsWith('.tree')) {
-          this.handleChange({ file: filename })
+          this.debounceChange({ file: filename })
         }
       },
+    )
+  }
+
+  /** Debounce rapid file changes (e.g., save + format). */
+  private debounceChange(input: { file: string }): void {
+    const existing = this.debounceTimers.get(input.file)
+    if (existing) clearTimeout(existing)
+
+    this.debounceTimers.set(
+      input.file,
+      setTimeout(() => {
+        this.debounceTimers.delete(input.file)
+        this.handleChange({ file: input.file })
+      }, 50),
     )
   }
 
@@ -118,13 +140,26 @@ export class Hmr {
       kind: 'swap',
       file: input.file,
       changed: swapResult.changed,
+      dependents: swapResult.dependents,
     })
+
+    // Notify about dependent invalidation if signatures changed
+    if (swapResult.signatureChanged && swapResult.dependents.length > 0) {
+      this.options.onDependentsInvalidated?.({
+        file: input.file,
+        dependents: swapResult.dependents,
+      })
+    }
   }
 
   /** Stop watching. */
   stop(): void {
     this.watcher?.close()
     this.watcher = null
+    for (const timer of this.debounceTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.debounceTimers.clear()
   }
 
   private emit(event: HmrEvent): void {

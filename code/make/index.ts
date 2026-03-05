@@ -21,10 +21,11 @@ import { renderInfoList } from '@/kink/render'
 import { hashContent } from '@/cache/hash'
 import { createStore, type CacheStore } from '@/cache/store'
 import { createGraph, addEdge, getDirtySet, serializeGraph, deserializeGraph } from '@/cache/graph'
+import { cardSignatures } from '@/cache/signature'
 import type { Book, Info, Fill } from '@/term/form'
 import type { Kink } from '@/kink/form'
 import type { LoadEnv } from '@/load'
-import type { SurfCard, SurfLoad } from '@/surf/form'
+import type { Surf, SurfCard, SurfLoad } from '@/surf/form'
 import type { DockLoad } from '@/cast/typescript'
 
 export type Target = 'typescript' | 'rust' | 'kotlin' | 'swift' | 'hvm'
@@ -121,9 +122,18 @@ export function compileTextTolerant(input: {
 /**
  * Incremental compile: only re-parse files whose content has changed.
  *
- * Uses content hashing and a dependency graph to determine the minimal
- * set of files to recompile. Caches SurfCards (Phase 0+1) on disk.
- * Always re-desugars from SurfCards (fast enough to skip caching).
+ * Uses content hashing, a dependency graph, and signature diffing to
+ * determine the minimal set of files to recompile.
+ *
+ * Signature firewall: when a file changes, we compare old vs new
+ * definition signatures. If only bodies changed (signature unchanged),
+ * dependents are NOT re-desugared. This makes body-only edits fast
+ * (<50ms target).
+ *
+ * Cache layers:
+ *   - Per-file SurfCard cache (Phase 0+1: parse + fuse)
+ *   - Per-file signature cache (for firewall comparison)
+ *   - Dependency graph cache
  */
 export function compileIncremental(input: {
   file: string
@@ -144,14 +154,13 @@ export function compileIncremental(input: {
 
   const oldIndex = store.getIndex()
 
-  // Phase 1: discover all files by doing a full load pass to find file list.
-  // We use loadBook to discover files, then selectively re-parse.
+  // Phase 1: discover all files via load resolution.
   const discovery = loadBook({ file, env })
   const allFiles = discovery.files
 
   // Phase 2: hash each file and determine which changed.
   const newIndex: Record<string, string> = {}
-  const changed = new Set<string>()
+  const contentChanged = new Set<string>()
 
   for (const f of allFiles) {
     let text: string
@@ -163,23 +172,25 @@ export function compileIncremental(input: {
     const hash = hashContent({ content: text })
     newIndex[f] = hash
     if (oldIndex.files[f] !== hash) {
-      changed.add(f)
+      contentChanged.add(f)
     }
   }
 
-  // Phase 3: build dependency graph from SurfCards.
-  // Load the old graph if we have one.
+  // Phase 3: load old graph and old signatures.
   const graphRaw = store.readRaw({ name: 'graph.json' })
-  const graph = graphRaw ? deserializeGraph({ json: graphRaw }) : createGraph()
+  const oldGraph = graphRaw ? deserializeGraph({ json: graphRaw }) : createGraph()
+  const oldSigsRaw = store.readRaw({ name: 'signatures.json' })
+  const oldSigs: Record<string, Record<string, string>> = oldSigsRaw
+    ? JSON.parse(oldSigsRaw)
+    : {}
 
-  // Phase 4: compute dirty set (changed + transitive dependents).
-  const dirty = getDirtySet({ graph, changed })
-
-  // Phase 5: for each file, load cached SurfCard or re-parse.
-  const cards: SurfCard[] = []
+  // Phase 4: re-parse changed files, compare signatures.
+  const freshGraph = createGraph()
+  const cards = new Map<string, SurfCard>()
+  const newSigs: Record<string, Record<string, string>> = {}
   let cached = 0
   let recompiled = 0
-  const freshGraph = createGraph()
+  const signatureChanged = new Set<string>()
 
   for (const f of allFiles) {
     const hash = newIndex[f]
@@ -187,14 +198,12 @@ export function compileIncremental(input: {
 
     let card: SurfCard | null = null
 
-    if (!dirty.has(f) && store.has({ hash, phase: 'card' })) {
-      // Use cached SurfCard
+    if (!contentChanged.has(f) && store.has({ hash, phase: 'card' })) {
       card = store.read({ hash, phase: 'card' }) as SurfCard | null
       cached++
     }
 
     if (!card) {
-      // Re-parse this file
       let text: string
       try {
         text = env.readFile(f)
@@ -208,12 +217,13 @@ export function compileIncremental(input: {
       const rawCard = readCard({ tree: lead.tree, file: f })
       card = expandFuse({ card: rawCard })
 
-      // Cache the SurfCard
       store.write({ hash, phase: 'card', data: card })
       recompiled++
     }
 
-    // Update dependency graph from load/bear directives
+    cards.set(f, card)
+
+    // Update dependency graph
     for (const node of card.list) {
       if (node.form === 'load' || node.form === 'bear') {
         const loadPath = (node as SurfLoad).path.join('/')
@@ -226,24 +236,107 @@ export function compileIncremental(input: {
       }
     }
 
-    cards.push(card)
+    // Compute signatures for this file
+    const fileSigs = cardSignatures({ list: card.list })
+    const fileSigsObj: Record<string, string> = {}
+    for (const [name, sig] of fileSigs) {
+      fileSigsObj[name] = sig
+    }
+    newSigs[f] = fileSigsObj
+
+    // Compare with old signatures to detect signature-level changes
+    if (contentChanged.has(f)) {
+      const oldFileSigs = oldSigs[f]
+      if (!oldFileSigs) {
+        signatureChanged.add(f)
+      } else {
+        const oldKeys = new Set(Object.keys(oldFileSigs))
+        const newKeys = new Set(Object.keys(fileSigsObj))
+
+        // Check for added/removed definitions
+        for (const k of newKeys) {
+          if (!oldKeys.has(k)) { signatureChanged.add(f); break }
+        }
+        if (!signatureChanged.has(f)) {
+          for (const k of oldKeys) {
+            if (!newKeys.has(k)) { signatureChanged.add(f); break }
+          }
+        }
+        // Check for changed signatures
+        if (!signatureChanged.has(f)) {
+          for (const k of newKeys) {
+            if (fileSigsObj[k] !== oldFileSigs[k]) {
+              signatureChanged.add(f)
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Phase 5: compute dirty set using signature-aware propagation.
+  // Only files with signature changes propagate to dependents.
+  const dirty = getDirtySet({ graph: freshGraph.rdeps.size > 0 ? freshGraph : oldGraph, changed: signatureChanged })
+  // Also include all content-changed files (they need re-desugar regardless)
+  for (const f of contentChanged) {
+    dirty.add(f)
   }
 
   // Phase 6: desugar all cards into a single Book.
+  // Use cached desugared terms for non-dirty files.
   const book: Book = new Map()
   let asyncMeta: AsyncMeta | undefined
   const allDock: DockLoad[] = []
 
-  for (const card of cards) {
+  for (const [f, card] of cards) {
+    const hash = newIndex[f]
+    if (!hash) continue
+
     const dock = extractDockLoads({ card })
     allDock.push(...dock)
-    const result = desugarCard({ card })
+
+    // If file is not dirty and we have cached book entries, use them
+    if (!dirty.has(f) && store.has({ hash, phase: 'book' })) {
+      const cached = store.read({ hash, phase: 'book' }) as {
+        entries: [string, unknown][]
+        asyncMeta?: [string, boolean][]
+      } | null
+      if (cached) {
+        for (const [name, term] of cached.entries) {
+          book.set(name, term)
+        }
+        if (cached.asyncMeta) {
+          if (!asyncMeta) asyncMeta = new Map()
+          for (const [name, val] of cached.asyncMeta) {
+            asyncMeta.set(name, val)
+          }
+        }
+        continue
+      }
+    }
+
+    // Re-desugar this file
+    const result = desugarCardTolerant({ card })
     for (const [name, term] of result.book) {
       book.set(name, term)
     }
-    if (result.asyncMeta) {
-      asyncMeta = { ...asyncMeta, ...result.asyncMeta }
+    if (result.asyncMeta.size > 0) {
+      if (!asyncMeta) asyncMeta = new Map()
+      for (const [name, val] of result.asyncMeta) {
+        asyncMeta.set(name, val)
+      }
     }
+
+    // Cache the desugared book entries for this file
+    store.write({
+      hash,
+      phase: 'book',
+      data: {
+        entries: [...result.book.entries()],
+        asyncMeta: result.asyncMeta.size > 0 ? [...result.asyncMeta.entries()] : undefined,
+      },
+    })
   }
 
   // Phase 7: type-check and generate code.
@@ -253,6 +346,7 @@ export function compileIncremental(input: {
   // Phase 8: persist cache.
   store.setIndex({ index: { files: newIndex } })
   store.writeRaw({ name: 'graph.json', data: serializeGraph({ graph: freshGraph }) })
+  store.writeRaw({ name: 'signatures.json', data: JSON.stringify(newSigs) })
 
   return { code, errors, files: allFiles, book, cached, recompiled }
 }

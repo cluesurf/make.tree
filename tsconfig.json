@@ -23,6 +23,6 @@
       "@/*": ["./code/*"]
     }
   },
-  "include": ["code/**/*.ts", "test/**/*.ts"],
-  "exclude": ["node_modules", "host", "tmp"]
+  "include": ["code/**/*.ts"],
+  "exclude": ["node_modules", "host", "tmp", "test"]
 }
