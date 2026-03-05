@@ -257,6 +257,11 @@ function desugarDef(input: {
         name: `test/${surf.name}`,
         term: desugarFlow({ flow: surf.flow, ctx }),
       }
+    case 'time':
+      return {
+        name: `time/${surf.name}`,
+        term: desugarFlow({ flow: surf.flow, ctx }),
+      }
     case 'wear':
     case 'mask':
     case 'suit':

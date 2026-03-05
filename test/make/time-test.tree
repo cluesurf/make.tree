@@ -1,0 +1,19 @@
+
+task add
+  take a, like size
+  take b, like size
+  like size
+
+  save c, call sum a, b
+  back c
+
+time add-numbers
+  save x, call add
+    bind a, 10
+    bind b, 20
+
+time string-concat
+  head warm, 50
+
+  save a, term <hello>
+  save b, term <world>

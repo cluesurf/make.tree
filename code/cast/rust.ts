@@ -716,6 +716,97 @@ function teleToFieldTypes(input: {
   return fields
 }
 
+/** Count how many times a variable name appears in a term tree. */
+function countVarUses(input: { name: string; term: Term; dep: number }): number {
+  const { name, term, dep } = input
+  switch (term.form) {
+    case 'var':
+      return term.name === name ? 1 : 0
+    case 'ref':
+    case 'num':
+    case 'nat':
+    case 'txt':
+    case 'set':
+    case 'u64':
+    case 'f64':
+    case 'nxt':
+      return 0
+    case 'lam':
+      return countVarUses({
+        name,
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+      })
+    case 'app':
+      return (
+        countVarUses({ name, term: term.func, dep }) +
+        countVarUses({ name, term: term.argm, dep })
+      )
+    case 'let':
+      return (
+        countVarUses({ name, term: term.val, dep }) +
+        countVarUses({
+          name,
+          term: term.bod({ form: 'var', name: term.name, idx: dep }),
+          dep: dep + 1,
+        })
+      )
+    case 'op2':
+      return (
+        countVarUses({ name, term: term.lft, dep }) +
+        countVarUses({ name, term: term.rgt, dep })
+      )
+    case 'mat':
+      return (
+        countVarUses({ name, term: term.scrutinee, dep }) +
+        term.arms.reduce((sum, [, bod]) => {
+          let inner: Term = bod
+          let d = dep
+          while (inner.form === 'lam') {
+            inner = inner.bod({ form: 'var', name: inner.name, idx: d })
+            d++
+          }
+          return sum + countVarUses({ name, term: inner, dep: d })
+        }, 0)
+      )
+    case 'swi':
+      return (
+        countVarUses({ name, term: term.scrutinee, dep }) +
+        countVarUses({ name, term: term.zero, dep }) +
+        countVarUses({ name, term: term.succ, dep })
+      )
+    case 'con':
+      return term.args.reduce(
+        (sum, [, arg]) => sum + countVarUses({ name, term: arg, dep }),
+        0,
+      )
+    case 'ann':
+      return countVarUses({ name, term: term.val, dep })
+    case 'all':
+      return (
+        countVarUses({ name, term: term.inp, dep }) +
+        countVarUses({
+          name,
+          term: term.bod({ form: 'var', name: term.name, idx: dep }),
+          dep: dep + 1,
+        })
+      )
+    case 'log':
+      return (
+        countVarUses({ name, term: term.msg, dep }) +
+        countVarUses({ name, term: term.val, dep })
+      )
+    case 'rst':
+      return countVarUses({ name, term: term.val, dep })
+    case 'hlt':
+      return countVarUses({ name, term: term.msg, dep })
+    case 'adt':
+      return 0
+    default:
+      return 0
+  }
+}
+
 function countLamDepth(term: Term): number {
   let count = 0
   let cur = term
@@ -1076,7 +1167,10 @@ function castMatchStmt(input: {
   const firstFormName = arms.length > 0 ? ctx.ctrToEnum.get(arms[0]![0]) : undefined
   const isMaybeMatch = firstFormName !== undefined && isMaybe(firstFormName)
 
-  lines.push(`${pad}match ${scrExpr}.clone() {`)
+  // Clone variable scrutinees (may be used again later); skip for temporaries
+  const needsClone = scrutinee.form === 'var'
+  const scrStr = needsClone ? `${scrExpr}.clone()` : scrExpr
+  lines.push(`${pad}match ${scrStr} {`)
   for (const [name, bod] of arms) {
     const formName = ctx.ctrToEnum.get(name)
 

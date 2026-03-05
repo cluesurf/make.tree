@@ -96,6 +96,17 @@ function showNode(node: Surf, dep: number): string {
       return parts.join('\n')
     }
 
+    case 'time': {
+      const parts = [`${pad}time <${node.name}>`]
+      for (const h of node.head) {
+        parts.push(showNode(h, dep + 1))
+      }
+      for (const s of node.flow) {
+        parts.push(showNode(s, dep + 1))
+      }
+      return parts.join('\n')
+    }
+
     case 'call': {
       const args = node.bind.map(b => showSift(b.sift)).join(', ')
       return `${pad}call ${node.name}${args ? `, ${args}` : ''}`

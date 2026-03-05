@@ -45,6 +45,7 @@ import type {
   SurfMeet,
   SurfType,
   SurfTest,
+  SurfTime,
   SurfBook,
   SurfBeam,
   SurfHalt,
@@ -258,6 +259,8 @@ function readTop(fork: PFork): Surf | null {
       return readBear(fork)
     case 'test':
       return readTest(fork)
+    case 'time':
+      return readTime(fork)
     case 'book':
       return readBook(fork)
     default:
@@ -1022,6 +1025,25 @@ function readTest(fork: PFork): SurfTest {
     if (stmt) flow.push(stmt)
   }
   return { form: 'test', name, flow, site }
+}
+
+// -- time (benchmark) --
+
+function readTime(fork: PFork): SurfTime {
+  const name = childKnitText(fork, 1) ?? childWord(fork, 1) ?? ''
+  const head: SurfHead[] = []
+  const flow: Surf[] = []
+  for (const child of childForks(fork, 2)) {
+    const word = headWord(child)
+    if (word === 'head') {
+      const h = readHead(child)
+      if (h) head.push(h)
+    } else {
+      const stmt = readStatement(child)
+      if (stmt) flow.push(stmt)
+    }
+  }
+  return { form: 'time', name, head, flow, site }
 }
 
 // -- book --

@@ -713,7 +713,20 @@ function castMatchStmt(input: {
       lines.push(`${pad}    }`)
     }
   }
-  lines.push(`${pad}    else -> throw Error("no match")`)
+  // Only emit else clause if match is not exhaustive
+  const firstEnumType2 = arms.length > 0 ? (ctx.ctrToEnum.get(arms[0]![0]) ?? null) : null
+  if (firstEnumType2) {
+    // Count constructors in the enum
+    let totalCtrs = 0
+    for (const [, enumName] of ctx.ctrToEnum) {
+      if (enumName === firstEnumType2) totalCtrs++
+    }
+    if (arms.length < totalCtrs) {
+      lines.push(`${pad}    else -> throw Error("no match")`)
+    }
+  } else {
+    lines.push(`${pad}    else -> throw Error("no match")`)
+  }
   lines.push(`${pad}}`)
 }
 

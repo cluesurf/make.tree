@@ -71,6 +71,13 @@ export type SurfTest = SurfMixin & {
   flow: Surf[]
 }
 
+export type SurfTime = SurfMixin & {
+  form: 'time'
+  name: string
+  head: SurfHead[]
+  flow: Surf[]
+}
+
 // -- Type expressions --
 
 export type SurfType =
@@ -318,6 +325,7 @@ export type Surf =
   | SurfSuit
   | SurfWear
   | SurfTest
+  | SurfTime
   // Type annotations
   | SurfHead
   | SurfBase
