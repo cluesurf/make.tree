@@ -477,6 +477,24 @@ function castStmt(input: {
         })
         return
       }
+      // .test(Mat, condition) → if/else
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        castMatchStmt({
+          arms: args[0]!.arms,
+          scrutinee: args[1]!,
+          dep,
+          ctx,
+          lines,
+          indent,
+          tail,
+        })
+        return
+      }
       if (
         func.form === 'ref' &&
         func.name === '.for' &&
@@ -550,6 +568,20 @@ function castStmt(input: {
         tail,
       })
       return
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      lines.push(`${pad}throw RuntimeException(${msg}.toString())`)
+      return
+    }
+    case 'rst': {
+      lines.push(`${pad}// breakpoint`)
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      return
+    }
+    case 'nxt': {
+      lines.push(`${pad}continue`)
+      return
+    }
   }
 
   const expr = castExpr({ term, dep, ctx })
@@ -745,6 +777,24 @@ function castExpr(input: {
         })
         return `run {\n${bodyLines.join('\n')}\n}`
       }
+      // .test(Mat, condition) → inline if/else expression
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        const bodyLines: string[] = []
+        castMatchStmt({
+          arms: args[0]!.arms,
+          scrutinee: args[1]!,
+          dep,
+          ctx,
+          lines: bodyLines,
+          indent: 1,
+        })
+        return `run {\n${bodyLines.join('\n')}\n}`
+      }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
         // .wait → no special syntax in Kotlin (suspend functions are called normally)
@@ -856,6 +906,16 @@ function castExpr(input: {
       return castExpr({ term: term.val, dep, ctx })
     case 'src':
       return castExpr({ term: term.val, dep, ctx })
+    case 'hlt': {
+      const msg = castExpr({ term: term.msg, dep, ctx })
+      return `run { throw RuntimeException(${msg}.toString()) }`
+    }
+    case 'rst': {
+      const val = castExpr({ term: term.val, dep, ctx })
+      return `run { /* breakpoint */ ${val} }`
+    }
+    case 'nxt':
+      return 'Unit /* continue */'
     case 'hol':
       return `throw Error(${JSON.stringify(`hole: ${term.name}`)})`
     case 'met':

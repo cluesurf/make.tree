@@ -1,0 +1,11 @@
+
+task add-two
+  take a, like u64
+  take b, like u64
+  back call add
+    bind a, read a
+    bind b, read b
+
+task bad-call
+  back call add-two
+    bind a, mark 1

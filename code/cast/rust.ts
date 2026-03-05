@@ -936,6 +936,25 @@ function castStmt(input: {
         })
         return
       }
+      // .test(Mat, condition) → if/else
+      if (
+        func.form === 'ref' &&
+        func.name === '.test' &&
+        args.length === 2 &&
+        args[0]!.form === 'mat'
+      ) {
+        castMatchStmt({
+          arms: (args[0]! as any).arms,
+          scrutinee: args[1]!,
+          dep,
+          ctx,
+          lines,
+          indent,
+          tail,
+          okWrap,
+        })
+        return
+      }
       if (
         func.form === 'ref' &&
         func.name === '.for' &&
@@ -998,7 +1017,15 @@ function castStmt(input: {
     }
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      lines.push(`${pad}panic!("{}", ${msg});`)
+      if (term.term === 'fork') {
+        lines.push(`${pad}break;`)
+      } else {
+        lines.push(`${pad}panic!("{}", ${msg});`)
+      }
+      return
+    }
+    case 'nxt': {
+      lines.push(`${pad}continue;`)
       return
     }
     case 'ann':
@@ -1534,6 +1561,8 @@ function castExpr(input: {
       const msg = castExpr({ term: term.msg, dep, ctx })
       return `panic!("{}", ${msg})`
     }
+    case 'nxt':
+      return '() /* continue */'
     case 'all':
     case 'set':
     case 'u64':

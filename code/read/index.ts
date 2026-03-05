@@ -50,6 +50,8 @@ import type {
   SurfHalt,
 } from '@/surf/form'
 import { VOID_SITE } from '@/kink/site'
+import type { Kink } from '@/kink/form'
+import { makeKink } from '@/kink/form'
 
 // -- Parser output types (subset of @cluesurf/tree) --
 
@@ -129,6 +131,38 @@ export function readCard(input: { tree: PLine; file: string }): SurfCard {
     }
   }
   return { file: input.file, list }
+}
+
+/**
+ * Error-tolerant readCard: wraps each top-level node in try-catch.
+ * Returns partial card + collected errors. Never throws.
+ */
+export function readCardTolerant(input: { tree: PLine; file: string }): { card: SurfCard; errors: Kink[] } {
+  const list: Surf[] = []
+  const errors: Kink[] = []
+
+  for (const fork of input.tree.nest) {
+    try {
+      if (headWord(fork) === 'dock') {
+        list.push(...readDockLoads(fork))
+      } else {
+        const node = readTop(fork)
+        if (node) list.push(node)
+      }
+    } catch (e) {
+      errors.push(
+        makeKink({
+          form: 'read-bad',
+          rank: 'halt',
+          site: VOID_SITE,
+          text: `Failed to read node: ${headWord(fork) ?? 'unknown'}`,
+          rest: { node: headWord(fork) ?? 'unknown' },
+        }),
+      )
+    }
+  }
+
+  return { card: { file: input.file, list }, errors }
 }
 
 // -- Tree navigation helpers --

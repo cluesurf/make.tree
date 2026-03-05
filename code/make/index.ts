@@ -7,9 +7,9 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { readCard } from '@/read'
+import { readCard, readCardTolerant } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard, type AsyncMeta } from '@/term/desugar'
+import { desugarCard, desugarCardTolerant, type AsyncMeta } from '@/term/desugar'
 import { check } from '@/term/check'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castHVM } from '@/cast/hvm'
@@ -82,6 +82,40 @@ export function compileText(input: {
   const code = generate({ book, target, dock, asyncMeta })
 
   return { code, errors, files: [file], book }
+}
+
+/**
+ * Error-tolerant compile: collects parse/read/desugar errors without throwing.
+ * Always returns partial results. Used by the language server.
+ */
+export function compileTextTolerant(input: {
+  text: string
+  file: string
+  target: Target
+  parse: (input: { file: string; text: string }) => { tree: any } | null
+}): CompileResult {
+  const { text, file, target, parse } = input
+  const allErrors: Kink[] = []
+
+  const lead = parse({ file, text })
+  if (!lead || !lead.tree) {
+    return { code: '', errors: [], files: [file], book: new Map() }
+  }
+
+  const { card: rawCard, errors: readErrors } = readCardTolerant({ tree: lead.tree, file })
+  allErrors.push(...readErrors)
+
+  const card = expandFuse({ card: rawCard })
+  const dock = extractDockLoads({ card })
+  const { book, asyncMeta, errors: desugarErrors } = desugarCardTolerant({ card })
+  allErrors.push(...desugarErrors)
+
+  const checkErrors = checkBook({ book })
+  allErrors.push(...checkErrors)
+
+  const code = generate({ book, target, dock, asyncMeta })
+
+  return { code, errors: allErrors, files: [file], book }
 }
 
 /**

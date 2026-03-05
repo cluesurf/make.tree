@@ -627,6 +627,16 @@ function castStmt(input: {
         return
       }
 
+      // .test(Mat, condition) → inline if/else
+      if (func.form === 'ref' && func.name === '.test' && args.length === 2 && args[0]!.form === 'mat') {
+        castMatchStmt({
+          arms: (args[0]! as Term & { form: 'mat' }).arms,
+          scrutinee: args[1]!,
+          dep, ctx, lines, indent, tail,
+        })
+        return
+      }
+
       // Runtime primitive: .for in statement mode → for-of loop
       if (func.form === 'ref' && func.name === '.for' && args.length === 2 && args[1]!.form === 'lam') {
         castForStmt({ iter: args[0]!, lam: args[1]!, dep, ctx, lines, indent })
@@ -672,7 +682,16 @@ function castStmt(input: {
 
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      lines.push(`${pad}throw new Error(${msg});`)
+      if (term.term === 'fork') {
+        lines.push(`${pad}break;`)
+      } else {
+        lines.push(`${pad}throw new Error(${msg});`)
+      }
+      return
+    }
+
+    case 'nxt': {
+      lines.push(`${pad}continue;`)
       return
     }
 
@@ -1074,6 +1093,9 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       const msg = castExpr({ term: term.msg, dep, ctx })
       return `(() => { throw new Error(${msg}); })()`
     }
+
+    case 'nxt':
+      return 'undefined /* continue */'
 
     case 'all':
     case 'set':

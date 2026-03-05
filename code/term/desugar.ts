@@ -33,9 +33,14 @@ import type {
   SurfLink,
   SurfWear,
   SurfMeet,
+  SurfBook,
+  SurfBeam,
   SurfType,
 } from '@/surf/form'
 import type { Term, Book, Ctr, Tele, Oper } from '@/term/form'
+import type { Kink } from '@/kink/form'
+import { makeKink } from '@/kink/form'
+import { VOID_SITE } from '@/kink/site'
 
 /** Desugaring context: tracks variable scope and metavar counter. */
 type Ctx = {
@@ -107,9 +112,113 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
         desugarWearTasks({ wear: w, formName: node.name, book, meta, wearTaskCounts })
       }
     }
+
+    // Process book (namespace) blocks: prefix all children with book name
+    if (node.form === 'book') {
+      const bookNode = node as SurfBook
+      for (const child of bookNode.list) {
+        const childResult = desugarDef({ surf: child, ctx: { scope: new Map(), meta } })
+        if (childResult) {
+          book.set(`${bookNode.name}/${childResult.name}`, childResult.term)
+        }
+        if (child.form === 'task' && (child as SurfTask).wait) {
+          asyncMeta.set(`${bookNode.name}/${child.name}`, true)
+        }
+      }
+    }
   }
 
   return { book, asyncMeta }
+}
+
+/**
+ * Error-tolerant desugar: wraps each definition in try-catch.
+ * Failed definitions produce errors but don't prevent others from being desugared.
+ */
+export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; errors: Kink[] } {
+  const book: Book = new Map()
+  const meta = { next: 1000 }
+  const asyncMeta: AsyncMeta = new Map()
+  const errors: Kink[] = []
+
+  const wearTaskCounts = new Map<string, number>()
+  for (const node of input.card.list) {
+    const wears: SurfWear[] = []
+    if (node.form === 'form') wears.push(...(node as SurfForm).wear)
+    if (node.form === 'suit') wears.push(...(node as { wear: SurfWear[] }).wear)
+    for (const w of wears) {
+      for (const t of w.task) {
+        wearTaskCounts.set(t.name, (wearTaskCounts.get(t.name) ?? 0) + 1)
+      }
+    }
+  }
+
+  for (const node of input.card.list) {
+    try {
+      const result = desugarDef({ surf: node, ctx: { scope: new Map(), meta } })
+      if (result) book.set(result.name, result.term)
+
+      if (node.form === 'task' && (node as SurfTask).wait) {
+        asyncMeta.set(node.name, true)
+      }
+
+      if (node.form === 'form') {
+        for (const w of (node as SurfForm).wear) {
+          desugarWearTasks({ wear: w, formName: node.name, book, meta, wearTaskCounts })
+        }
+        for (const t of (node as SurfForm).task) {
+          const ctx: Ctx = { scope: new Map(), meta }
+          book.set(t.name, desugarTask({ task: t, ctx }))
+          if (t.wait) asyncMeta.set(t.name, true)
+        }
+      }
+
+      if (node.form === 'wear') {
+        desugarWearTasks({ wear: node as SurfWear, book, meta, wearTaskCounts })
+      }
+
+      if (node.form === 'suit') {
+        for (const w of (node as { wear: SurfWear[] }).wear) {
+          desugarWearTasks({ wear: w, formName: node.name, book, meta, wearTaskCounts })
+        }
+      }
+
+      if (node.form === 'book') {
+        const bookNode = node as SurfBook
+        for (const child of bookNode.list) {
+          try {
+            const childResult = desugarDef({ surf: child, ctx: { scope: new Map(), meta } })
+            if (childResult) book.set(`${bookNode.name}/${childResult.name}`, childResult.term)
+            if (child.form === 'task' && (child as SurfTask).wait) {
+              asyncMeta.set(`${bookNode.name}/${child.name}`, true)
+            }
+          } catch (e) {
+            errors.push(
+              makeKink({
+                form: 'desugar-bad',
+                rank: 'halt',
+                site: VOID_SITE,
+                text: `Failed to desugar ${child.form} "${child.name}" in book "${bookNode.name}": ${e instanceof Error ? e.message : String(e)}`,
+                rest: { surf: child.form },
+              }),
+            )
+          }
+        }
+      }
+    } catch (e) {
+      errors.push(
+        makeKink({
+          form: 'desugar-bad',
+          rank: 'halt',
+          site: VOID_SITE,
+          text: `Failed to desugar ${node.form} "${node.name}": ${e instanceof Error ? e.message : String(e)}`,
+          rest: { surf: node.form },
+        }),
+      )
+    }
+  }
+
+  return { book, asyncMeta, errors }
 }
 
 /** Desugar all tasks inside a wear block into the book.
@@ -156,6 +265,12 @@ function desugarDef(input: {
     case 'bear':
     case 'load':
       // Handled by the loader
+      return null
+    case 'book':
+    case 'slot':
+    case 'beam':
+      // book: handled in desugarCard loop
+      // slot/beam: template constructs expanded by fuse phase
       return null
     default:
       return null
@@ -416,7 +531,26 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
       const msg = first.sift
         ? desugarSift({ sift: first.sift, ctx })
         : ({ form: 'txt', val: 'halt' } as Term)
-      return { form: 'hlt', msg }
+      const term = first.term as 'kink' | 'flow' | 'fork' | undefined
+      return { form: 'hlt', msg, term }
+    }
+
+    // Continue/skip in loops
+    case 'next': {
+      return { form: 'nxt' }
+    }
+
+    // Beam (template emit): should be expanded by fuse, treat as no-op
+    case 'beam': {
+      const beamNode = first as SurfBeam
+      const val = desugarFlow({ flow: beamNode.flow, ctx })
+      if (rest.length === 0) return val
+      return {
+        form: 'let',
+        name: '_',
+        val,
+        bod: () => desugarFlow({ flow: rest, ctx }),
+      }
     }
 
     default: {
@@ -636,6 +770,20 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
     }
   }
 
+  // fork roll → chained if/else-if (each hook is a condition+body pair)
+  // Desugars to nested .test applications
+  if (fork.mode === 'roll') {
+    return desugarRoll({ hooks: fork.hook, idx: 0, ctx })
+  }
+
+  // fork tree → scoped branching (execute hooks sequentially in a scope)
+  if (fork.mode === 'tree') {
+    return desugarFlow({
+      flow: fork.hook.flatMap(h => h.flow),
+      ctx,
+    })
+  }
+
   // fork case → App(Mat, scrutinee) for pattern match
   if (fork.sift) {
     const scrutinee = desugarSift({ sift: fork.sift, ctx })
@@ -728,6 +876,60 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
     }
   }
 
+  // walk size → range loop: App(App(Ref ".range") count) (Lam "i" body)
+  if (walk.mode === 'size') {
+    const count = walk.sift
+      ? desugarSift({ sift: walk.sift, ctx })
+      : freshMeta(ctx)
+    const hook = walk.hook[0]
+    if (!hook) return { form: 'con', name: 'Unit', args: [] }
+    const paramName = hook.base[0]?.name ?? 'i'
+    const handler: Term = {
+      form: 'lam',
+      name: paramName,
+      bod: x => {
+        const newScope = new Map(ctx.scope)
+        newScope.set(paramName, x)
+        return desugarFlow({
+          flow: hook.flow,
+          ctx: { ...ctx, scope: newScope },
+        })
+      },
+    }
+    return {
+      form: 'app',
+      func: { form: 'app', func: { form: 'ref', name: '.range' }, argm: count },
+      argm: handler,
+    }
+  }
+
+  // walk site → iterator loop: App(App(Ref ".iter") iterator) (Lam "item" body)
+  if (walk.mode === 'site') {
+    const iter = walk.sift
+      ? desugarSift({ sift: walk.sift, ctx })
+      : freshMeta(ctx)
+    const hook = walk.hook[0]
+    if (!hook) return { form: 'con', name: 'Unit', args: [] }
+    const paramName = hook.base[0]?.name ?? 'item'
+    const handler: Term = {
+      form: 'lam',
+      name: paramName,
+      bod: x => {
+        const newScope = new Map(ctx.scope)
+        newScope.set(paramName, x)
+        return desugarFlow({
+          flow: hook.flow,
+          ctx: { ...ctx, scope: newScope },
+        })
+      },
+    }
+    return {
+      form: 'app',
+      func: { form: 'app', func: { form: 'ref', name: '.iter' }, argm: iter },
+      argm: handler,
+    }
+  }
+
   // Default: pattern-matching walk (existing behavior)
   const arms: [string, Term][] = walk.hook.map(hook => [
     hook.name,
@@ -767,6 +969,54 @@ function desugarArm(input: { hook: SurfHook; ctx: Ctx }): Term {
     ctx,
     cont: innerCtx => desugarFlow({ flow: hook.flow, ctx: innerCtx }),
   })
+}
+
+/**
+ * Desugar a fork roll (if/else-if chain).
+ *
+ * Each hook has a condition (first flow item as a call) and a body.
+ * The last hook without a condition is the else branch.
+ * Desugars to nested .test applications.
+ */
+function desugarRoll(input: { hooks: SurfHook[]; idx: number; ctx: Ctx }): Term {
+  const { hooks, idx, ctx } = input
+
+  if (idx >= hooks.length) {
+    return { form: 'con', name: 'Unit', args: [] }
+  }
+
+  const hook = hooks[idx]!
+  const isLast = idx === hooks.length - 1
+
+  // Last hook with no explicit condition is the else branch
+  if (isLast || hook.base.length === 0 && hook.flow.length > 0) {
+    // If this is the only remaining hook, just emit the body
+    if (isLast) {
+      return desugarFlow({ flow: hook.flow, ctx })
+    }
+  }
+
+  // Hook has a condition: first base entry names the condition
+  // The hook's flow is the then-branch body
+  const thenBranch = desugarFlow({ flow: hook.flow, ctx })
+  const elseBranch = desugarRoll({ hooks, idx: idx + 1, ctx })
+
+  // Build a condition from the hook name (treated as a call result)
+  const condition: Term = { form: 'ref', name: hook.name }
+
+  const mat: Term = {
+    form: 'mat',
+    arms: [
+      ['True', thenBranch],
+      ['False', elseBranch],
+    ],
+  }
+
+  return {
+    form: 'app',
+    func: { form: 'app', func: { form: 'ref', name: '.test' }, argm: mat },
+    argm: condition,
+  }
 }
 
 // ---- Helpers ----

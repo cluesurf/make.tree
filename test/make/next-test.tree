@@ -1,0 +1,15 @@
+
+task skip-odds
+  take items
+  walk list, read items
+    hook tick, base item
+      fork test
+        call eq
+          bind a, call mod
+            bind a, read item
+            bind b, mark 2
+          bind b, mark 0
+        hook true
+          show read item
+        hook false
+          next

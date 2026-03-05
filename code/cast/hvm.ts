@@ -171,6 +171,19 @@ export function castTerm(input: { term: Term; dep: number }): string {
       return `log(${msg}) ${val}`
     }
 
+    case 'rst': {
+      const val = castTerm({ term: term.val, dep })
+      return val
+    }
+
+    case 'hlt': {
+      const msg = castTerm({ term: term.msg, dep })
+      return `log(${msg}) *`
+    }
+
+    case 'nxt':
+      return '*'
+
     // Type-level terms are erased in HVM
     case 'all':
     case 'set':

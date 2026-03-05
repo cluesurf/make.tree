@@ -1,0 +1,18 @@
+
+task sum-to
+  take n, like u64
+  save total, mark 0
+  walk size, read n
+    hook step, base i
+      save total, call add
+        bind a, read total
+        bind b, read i
+  back read total
+
+task double-list
+  take items
+  walk list, read items
+    hook tick, base item
+      show call mul
+        bind a, read item
+        bind b, mark 2

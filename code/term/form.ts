@@ -207,6 +207,12 @@ export type TermRst = {
 export type TermHlt = {
   form: 'hlt'
   msg: Term
+  term?: 'kink' | 'flow' | 'fork'
+}
+
+/** Next (continue/skip in loops) */
+export type TermNxt = {
+  form: 'nxt'
 }
 
 /** Union of all core term variants. */
@@ -239,6 +245,7 @@ export type Term =
   | TermLog
   | TermRst
   | TermHlt
+  | TermNxt
 
 /** Constructor in an ADT. */
 export type Ctr = {

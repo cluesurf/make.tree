@@ -65,6 +65,12 @@ export type KinkLoadCircle = KinkBase & {
   path: string[]
 }
 
+// Phase 1.5: Reader errors (readCard)
+export type KinkReadBad = KinkBase & {
+  form: 'read-bad'
+  node: string
+}
+
 // Phase 3: Desugar errors
 export type KinkDesugarBad = KinkBase & {
   form: 'desugar-bad'
@@ -107,6 +113,7 @@ export type KinkEmitBad = KinkBase & {
 export type Kink =
   | KinkTreeBadIndent
   | KinkTreeBadChar
+  | KinkReadBad
   | KinkMillBadKeyword
   | KinkMillMissField
   | KinkMillBadSift

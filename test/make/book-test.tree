@@ -1,0 +1,20 @@
+
+book math
+  task square
+    take x, like u64
+    back call mul
+      bind a, read x
+      bind b, read x
+
+  task cube
+    take x, like u64
+    back call mul
+      bind a, read x
+      bind b, call mul
+        bind a, read x
+        bind b, read x
+
+book string
+  task greet
+    take name, like text
+    back text <hello>

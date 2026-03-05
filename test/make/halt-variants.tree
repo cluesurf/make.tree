@@ -1,0 +1,24 @@
+
+task must-be-positive
+  take n, like u64
+  fork test
+    call lt
+      bind a, read n
+      bind b, mark 0
+    hook true
+      halt kink, text <value must be positive>
+    hook false
+      back read n
+
+task find-first
+  take items
+  walk list, read items
+    hook tick, base item
+      fork test
+        call gt
+          bind a, read item
+          bind b, mark 10
+        hook true
+          halt fork
+        hook false
+          next

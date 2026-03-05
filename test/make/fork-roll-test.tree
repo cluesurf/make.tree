@@ -1,0 +1,16 @@
+
+task classify
+  take n, like u64
+  fork roll
+    hook is-negative
+      call lt
+        bind a, read n
+        bind b, mark 0
+      back text <negative>
+    hook is-zero
+      call eq
+        bind a, read n
+        bind b, mark 0
+      back text <zero>
+    hook is-positive
+      back text <positive>
