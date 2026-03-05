@@ -284,39 +284,16 @@ export function compileIncremental(input: {
   }
 
   // Phase 6: desugar all cards into a single Book.
-  // Use cached desugared terms for non-dirty files.
+  // Core Terms use HOAS (functions) so they can't be JSON-cached.
+  // We always re-desugar from cached SurfCards, which is fast enough.
   const book: Book = new Map()
   let asyncMeta: AsyncMeta | undefined
   const allDock: DockLoad[] = []
 
   for (const [f, card] of cards) {
-    const hash = newIndex[f]
-    if (!hash) continue
-
     const dock = extractDockLoads({ card })
     allDock.push(...dock)
 
-    // If file is not dirty and we have cached book entries, use them
-    if (!dirty.has(f) && store.has({ hash, phase: 'book' })) {
-      const cached = store.read({ hash, phase: 'book' }) as {
-        entries: [string, unknown][]
-        asyncMeta?: [string, boolean][]
-      } | null
-      if (cached) {
-        for (const [name, term] of cached.entries) {
-          book.set(name, term)
-        }
-        if (cached.asyncMeta) {
-          if (!asyncMeta) asyncMeta = new Map()
-          for (const [name, val] of cached.asyncMeta) {
-            asyncMeta.set(name, val)
-          }
-        }
-        continue
-      }
-    }
-
-    // Re-desugar this file
     const result = desugarCardTolerant({ card })
     for (const [name, term] of result.book) {
       book.set(name, term)
@@ -327,16 +304,6 @@ export function compileIncremental(input: {
         asyncMeta.set(name, val)
       }
     }
-
-    // Cache the desugared book entries for this file
-    store.write({
-      hash,
-      phase: 'book',
-      data: {
-        entries: [...result.book.entries()],
-        asyncMeta: result.asyncMeta.size > 0 ? [...result.asyncMeta.entries()] : undefined,
-      },
-    })
   }
 
   // Phase 7: type-check and generate code.
