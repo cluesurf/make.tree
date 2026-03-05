@@ -13,6 +13,9 @@ import { desugarCard, type AsyncMeta } from '@/term/desugar'
 import { check } from '@/term/check'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castHVM } from '@/cast/hvm'
+import { castBook as castRust } from '@/cast/rust'
+import { castBook as castKotlin } from '@/cast/kotlin'
+import { castBook as castSwift } from '@/cast/swift'
 import { loadBook } from '@/load'
 import { renderInfoList } from '@/kink/render'
 import { hashContent } from '@/cache/hash'
@@ -23,6 +26,8 @@ import type { Kink } from '@/kink/form'
 import type { LoadEnv } from '@/load'
 import type { SurfCard, SurfLoad } from '@/surf/form'
 import type { DockLoad } from '@/cast/typescript'
+
+export type Target = 'typescript' | 'rust' | 'kotlin' | 'swift' | 'hvm'
 
 export type CompileResult = {
   code: string
@@ -38,7 +43,7 @@ export type CompileResult = {
 export function compile(input: {
   file: string
   env: LoadEnv
-  target: 'typescript' | 'hvm'
+  target: Target
 }): CompileResult {
   const { file, env, target } = input
 
@@ -58,7 +63,7 @@ export function compile(input: {
 export function compileText(input: {
   text: string
   file: string
-  target: 'typescript' | 'hvm'
+  target: Target
   parse: (input: { file: string; text: string }) => { tree: any } | null
 }): CompileResult {
   const { text, file, target, parse } = input
@@ -89,7 +94,7 @@ export function compileText(input: {
 export function compileIncremental(input: {
   file: string
   env: LoadEnv
-  target: 'typescript' | 'hvm'
+  target: Target
   root: string
   version?: string
 }): CompileResult & { cached: number; recompiled: number } {
@@ -253,11 +258,17 @@ function extractDockLoads(input: { card: { list: Array<{ form: string }> } }): D
 }
 
 /** Generate code for the given target. */
-function generate(input: { book: Book; target: 'typescript' | 'hvm'; dock?: DockLoad[]; asyncMeta?: AsyncMeta }): string {
+function generate(input: { book: Book; target: Target; dock?: DockLoad[]; asyncMeta?: AsyncMeta }): string {
   const { book, target, dock, asyncMeta } = input
   switch (target) {
     case 'typescript':
       return castTS({ book, dock, asyncMeta })
+    case 'rust':
+      return castRust({ book, asyncMeta })
+    case 'kotlin':
+      return castKotlin({ book, asyncMeta })
+    case 'swift':
+      return castSwift({ book, asyncMeta })
     case 'hvm':
       return castHVM({ book })
   }

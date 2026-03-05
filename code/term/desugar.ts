@@ -907,8 +907,8 @@ function resolveTypeName(name: string): Term {
     // Floats
     case 'f32': case 'f64':
       return { form: 'f64' }
-    // Text
-    case 'text':
+    // Text / string
+    case 'text': case 'string':
       return { form: 'ref', name: 'String' }
     // Boolean
     case 'boolean': case 'wave': case 'bool':
@@ -916,6 +916,26 @@ function resolveTypeName(name: string): Term {
     // Void
     case 'void':
       return { form: 'ref', name: 'Void' }
+    // Size (unsigned integer alias)
+    case 'size': case 'mark':
+      return { form: 'u64' }
+    // Stdlib ADT types (resolved as refs to their form names)
+    case 'maybe':
+      return { form: 'ref', name: 'maybe' }
+    case 'result':
+      return { form: 'ref', name: 'result' }
+    case 'list':
+      return { form: 'ref', name: 'list' }
+    case 'line':
+      return { form: 'ref', name: 'line' }
+    case 'hash':
+      return { form: 'ref', name: 'hash' }
+    case 'pair':
+      return { form: 'ref', name: 'pair' }
+    case 'walk':
+      return { form: 'ref', name: 'walk' }
+    case 'kink':
+      return { form: 'ref', name: 'kink' }
     default:
       return { form: 'ref', name }
   }

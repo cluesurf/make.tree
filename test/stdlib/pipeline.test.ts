@@ -13,6 +13,8 @@ import { expandFuse } from '@/fuse'
 import { desugarCard } from '@/term/desugar'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castRust } from '@/cast/rust'
+import { castBook as castKotlin } from '@/cast/kotlin'
+import { castBook as castSwift } from '@/cast/swift'
 import { castBook as castHVM } from '@/cast/hvm'
 import { loadBook } from '@/load'
 import {
@@ -822,5 +824,746 @@ task noop
 `)
     const ts = castTS({ book })
     expect(ts).toContain('function noop')
+  })
+})
+
+describe('expanded type resolution', () => {
+  it('resolves size as numeric type', () => {
+    const book = compileText(`
+task count
+  take n, like size
+  like size
+  back read n
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('number')
+  })
+
+  it('resolves mark as numeric type', () => {
+    const book = compileText(`
+task get-mark
+  take n, like mark
+  like mark
+  back read n
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('number')
+  })
+
+  it('resolves string as text alias', () => {
+    const book = compileText(`
+task greet
+  take name, like string
+  like string
+  back read name
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('string')
+  })
+
+  it('resolves maybe as stdlib ref', () => {
+    const book = compileText(`
+task wrap
+  take x, like maybe
+  back read x
+`)
+    expect(book.has('wrap')).toBe(true)
+    const ts = castTS({ book })
+    expect(ts).toContain('wrap')
+  })
+
+  it('resolves result as stdlib ref', () => {
+    const book = compileText(`
+task check
+  take r, like result
+  back read r
+`)
+    expect(book.has('check')).toBe(true)
+  })
+
+  it('resolves list as stdlib ref', () => {
+    const book = compileText(`
+task count
+  take items, like list
+  back read items
+`)
+    expect(book.has('count')).toBe(true)
+  })
+
+  it('resolves hash as stdlib ref', () => {
+    const book = compileText(`
+task lookup
+  take m, like hash
+  back read m
+`)
+    expect(book.has('lookup')).toBe(true)
+  })
+
+  it('resolves kink as stdlib ref', () => {
+    const book = compileText(`
+task handle-error
+  take e, like kink
+  back read e
+`)
+    expect(book.has('handle-error')).toBe(true)
+  })
+
+  it('resolves pair as stdlib ref', () => {
+    const book = compileText(`
+task get-pair
+  take p, like pair
+  back read p
+`)
+    expect(book.has('get-pair')).toBe(true)
+  })
+
+  it('resolves walk as stdlib ref', () => {
+    const book = compileText(`
+task iterate
+  take w, like walk
+  back read w
+`)
+    expect(book.has('iterate')).toBe(true)
+  })
+
+  it('resolves line as stdlib ref', () => {
+    const book = compileText(`
+task get-line
+  take arr, like line
+  back read arr
+`)
+    expect(book.has('get-line')).toBe(true)
+  })
+})
+
+describe('all 5 backends: boolean', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(out).toContain('export type Boolean')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(out).toContain('enum Boolean')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: maybe', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+  const book = desugar(card)
+
+  it('TypeScript (skips type, maps to native)', () => {
+    const out = castTS({ book })
+    expect(out).not.toContain('export type Maybe')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: result', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/result')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(out).toContain('export type Result')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: kink', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/kink')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(out).toContain('export type Kink')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: pair', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/pair')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(out).toContain('export type Pair')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: list', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/list')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: hash', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/hash')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: walk', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/walk')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: line', () => {
+  const card = loadStdlib('@cluesurf/base/code/base/form/line')
+  const book = desugar(card)
+
+  it('TypeScript', () => {
+    const out = castTS({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Rust', () => {
+    const out = castRust({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Kotlin', () => {
+    const out = castKotlin({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('Swift', () => {
+    const out = castSwift({ book })
+    expect(typeof out).toBe('string')
+  })
+
+  it('HVM', () => {
+    const out = castHVM({ book })
+    expect(typeof out).toBe('string')
+  })
+})
+
+describe('all 5 backends: stdlib-bool fixture', () => {
+  function compileFixture(): Book {
+    const file = path.resolve(__dirname, '../make/stdlib-bool.tree')
+    const text = fs.readFileSync(file, 'utf8')
+    const lead = parse({ file: 'stdlib-bool.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'stdlib-bool.tree' })
+    const card = expandFuse({ card: rawCard })
+    return desugarCard({ card }).book
+  }
+
+  const book = compileFixture()
+
+  it('TypeScript emits bool functions', () => {
+    const out = castTS({ book })
+    expect(out).toContain('boolNot')
+    expect(out).toContain('boolAnd')
+    expect(out).toContain('boolOr')
+  })
+
+  it('Rust emits bool functions', () => {
+    const out = castRust({ book })
+    expect(out).toContain('fn bool_not')
+    expect(out).toContain('fn bool_and')
+    expect(out).toContain('fn bool_or')
+  })
+
+  it('Kotlin emits bool functions', () => {
+    const out = castKotlin({ book })
+    expect(out).toContain('boolNot')
+    expect(out).toContain('boolAnd')
+  })
+
+  it('Swift emits bool functions', () => {
+    const out = castSwift({ book })
+    expect(out).toContain('boolNot')
+    expect(out).toContain('boolAnd')
+  })
+
+  it('HVM emits bool definitions', () => {
+    const out = castHVM({ book })
+    expect(out).toContain('@bool_not')
+    expect(out).toContain('@bool_and')
+  })
+})
+
+describe('all 5 backends: stdlib-maybe fixture', () => {
+  function compileFixture(): Book {
+    const file = path.resolve(__dirname, '../make/stdlib-maybe.tree')
+    const text = fs.readFileSync(file, 'utf8')
+    const lead = parse({ file: 'stdlib-maybe.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'stdlib-maybe.tree' })
+    const card = expandFuse({ card: rawCard })
+    return desugarCard({ card }).book
+  }
+
+  const book = compileFixture()
+
+  it('TypeScript emits maybe functions', () => {
+    const out = castTS({ book })
+    expect(out).toContain('maybeMap')
+    expect(out).toContain('maybeUnwrap')
+  })
+
+  it('Rust emits maybe functions', () => {
+    const out = castRust({ book })
+    expect(out).toContain('fn maybe_map')
+    expect(out).toContain('fn maybe_unwrap')
+  })
+
+  it('Kotlin emits maybe functions', () => {
+    const out = castKotlin({ book })
+    expect(out).toContain('maybeMap')
+  })
+
+  it('Swift emits maybe functions', () => {
+    const out = castSwift({ book })
+    expect(out).toContain('maybeMap')
+  })
+
+  it('HVM emits maybe definitions', () => {
+    const out = castHVM({ book })
+    expect(out).toContain('@maybe_map')
+  })
+})
+
+describe('all 5 backends: stdlib-either fixture', () => {
+  function compileFixture(): Book {
+    const file = path.resolve(__dirname, '../make/stdlib-either.tree')
+    const text = fs.readFileSync(file, 'utf8')
+    const lead = parse({ file: 'stdlib-either.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'stdlib-either.tree' })
+    const card = expandFuse({ card: rawCard })
+    return desugarCard({ card }).book
+  }
+
+  const book = compileFixture()
+
+  it('TypeScript emits either functions', () => {
+    const out = castTS({ book })
+    expect(out).toContain('eitherMapRight')
+    expect(out).toContain('eitherIsLeft')
+  })
+
+  it('Rust emits either functions', () => {
+    const out = castRust({ book })
+    expect(out).toContain('fn either_map_right')
+    expect(out).toContain('fn either_is_left')
+  })
+
+  it('Kotlin emits either functions', () => {
+    const out = castKotlin({ book })
+    expect(out).toContain('eitherMapRight')
+  })
+
+  it('Swift emits either functions', () => {
+    const out = castSwift({ book })
+    expect(out).toContain('eitherMapRight')
+  })
+
+  it('HVM emits either definitions', () => {
+    const out = castHVM({ book })
+    expect(out).toContain('@either_map_right')
+  })
+})
+
+describe('all 5 backends: stdlib-pair fixture', () => {
+  function compileFixture(): Book {
+    const file = path.resolve(__dirname, '../make/stdlib-pair.tree')
+    const text = fs.readFileSync(file, 'utf8')
+    const lead = parse({ file: 'stdlib-pair.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'stdlib-pair.tree' })
+    const card = expandFuse({ card: rawCard })
+    return desugarCard({ card }).book
+  }
+
+  const book = compileFixture()
+
+  it('TypeScript emits pair functions', () => {
+    const out = castTS({ book })
+    expect(out).toContain('makePair')
+    expect(out).toContain('pairFst')
+    expect(out).toContain('pairSwap')
+  })
+
+  it('Rust emits pair functions', () => {
+    const out = castRust({ book })
+    expect(out).toContain('fn make_pair')
+    expect(out).toContain('fn pair_fst')
+  })
+
+  it('Kotlin emits pair functions', () => {
+    const out = castKotlin({ book })
+    expect(out).toContain('makePair')
+  })
+
+  it('Swift emits pair functions', () => {
+    const out = castSwift({ book })
+    expect(out).toContain('makePair')
+  })
+
+  it('HVM emits pair definitions', () => {
+    const out = castHVM({ book })
+    expect(out).toContain('@make_pair')
+  })
+})
+
+describe('all 5 backends: stdlib-order fixture', () => {
+  function compileFixture(): Book {
+    const file = path.resolve(__dirname, '../make/stdlib-order.tree')
+    const text = fs.readFileSync(file, 'utf8')
+    const lead = parse({ file: 'stdlib-order.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'stdlib-order.tree' })
+    const card = expandFuse({ card: rawCard })
+    return desugarCard({ card }).book
+  }
+
+  const book = compileFixture()
+
+  it('TypeScript emits order functions', () => {
+    const out = castTS({ book })
+    expect(out).toContain('orderReverse')
+    expect(out).toContain('compareU64')
+  })
+
+  it('Rust emits order functions', () => {
+    const out = castRust({ book })
+    expect(out).toContain('fn order_reverse')
+    expect(out).toContain('fn compare_u64')
+  })
+
+  it('Kotlin emits order functions', () => {
+    const out = castKotlin({ book })
+    expect(out).toContain('orderReverse')
+  })
+
+  it('Swift emits order functions', () => {
+    const out = castSwift({ book })
+    expect(out).toContain('orderReverse')
+  })
+
+  it('HVM emits order definitions', () => {
+    const out = castHVM({ book })
+    expect(out).toContain('@order_reverse')
+  })
+})
+
+describe('compileText API with all targets', () => {
+  it('compiles to rust via castBook', () => {
+    const book = compileText(`
+task add
+  take a, like u64
+  take b, like u64
+  back call add, read a, read b
+`)
+    const out = castRust({ book })
+    expect(out).toContain('fn add')
+  })
+
+  it('compiles to kotlin via castBook', () => {
+    const book = compileText(`
+task greet
+  take name, like text
+  like text
+  back read name
+`)
+    const out = castKotlin({ book })
+    expect(out).toContain('fun greet')
+  })
+
+  it('compiles to swift via castBook', () => {
+    const book = compileText(`
+task double
+  take n, like u64
+  like u64
+  back call mul, read n, mark 2
+`)
+    const out = castSwift({ book })
+    expect(out).toContain('func double')
+  })
+})
+
+describe('method codegen (task inside form)', () => {
+  it('form with wear tasks generates methods in TypeScript', () => {
+    const book = compileText(`
+form color
+  case red
+  case green
+  case blue
+
+  wear display
+    task to-text
+      take self, like color
+      like text
+      back text <color>
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('toText')
+  })
+
+  it('form with wear tasks generates methods in Rust', () => {
+    const book = compileText(`
+form color
+  case red
+  case green
+  case blue
+
+  wear display
+    task to-text
+      take self, like color
+      like text
+      back text <color>
+`)
+    const rs = castRust({ book })
+    expect(rs).toContain('to_text')
+  })
+
+  it('form with direct tasks compiles', () => {
+    const book = compileText(`
+form counter
+  case counter
+    link value, like u64
+
+  task get-value
+    take self, like counter
+    like u64
+    back mark 0
+`)
+    const ts = castTS({ book })
+    expect(ts).toContain('getValue')
+  })
+})
+
+describe('multiple stdlib imports via loadBook', () => {
+  it('loads boolean and result in one file', () => {
+    const testFile = path.resolve(__dirname, '_tmp_multi_import.tree')
+    const testText = `
+load @cluesurf/base/code/base/form/boolean
+load @cluesurf/base/code/base/form/result
+
+task validate
+  take flag, like boolean
+  like boolean
+  back read flag
+`
+    fs.writeFileSync(testFile, testText)
+
+    try {
+      const result = loadBook({
+        file: testFile,
+        env: {
+          readFile: p => fs.readFileSync(p, 'utf8'),
+          resolvePath: (fromFile, loadPath) => {
+            const dir = path.dirname(fromFile)
+            const direct = path.resolve(dir, loadPath + '.tree')
+            if (fs.existsSync(direct)) return direct
+            return null
+          },
+          parse,
+        },
+      })
+
+      expect(result.book.has('boolean')).toBe(true)
+      expect(result.book.has('result')).toBe(true)
+      expect(result.book.has('validate')).toBe(true)
+
+      const ts = castTS({ book: result.book })
+      expect(ts).toContain('validate')
+      expect(ts).toContain('Boolean')
+      expect(ts).toContain('Result')
+    } finally {
+      fs.unlinkSync(testFile)
+    }
+  })
+})
+
+describe('dock keyword (platform dispatch)', () => {
+  it('dock load is extracted from SurfCard', () => {
+    const text = `
+dock
+  load @cluesurf/base/code/case/node/file
+
+task read-file
+  take path, like text
+  like text
+  back read path
+`
+    const lead = parse({ file: 'test.tree', text })
+    if (!lead || !lead.tree) throw new Error('Parse failed')
+    const rawCard = readCard({ tree: lead.tree, file: 'test.tree' })
+    const card = expandFuse({ card: rawCard })
+
+    const dockLoads = card.list
+      .filter(n => n.form === 'load' && (n as any).dock === true)
+    expect(dockLoads.length).toBe(1)
   })
 })

@@ -1040,7 +1040,13 @@ function readHaltNode(fork: PFork): SurfHalt {
 function readDockLoads(fork: PFork): SurfLoad[] {
   const loads: SurfLoad[] = []
 
-  for (const child of childForks(fork, 2)) {
+  // dock can appear as "dock load\n  load ..." (old syntax, second word on same line)
+  // or "dock\n  load ..." (new syntax, load is a direct child)
+  // Distinguish by checking if nest[1] is a bare word (1 child) vs a full load directive (2+ children)
+  const secondFork = childFork(fork, 1)
+  const isOldSyntax = secondFork && headWord(secondFork) === 'load' && secondFork.nest.length === 1
+  const startIdx = isOldSyntax ? 2 : 1
+  for (const child of childForks(fork, startIdx)) {
     const kw = headWord(child)
     if (kw === 'load') {
       const pathNode = childNode(child, 1)

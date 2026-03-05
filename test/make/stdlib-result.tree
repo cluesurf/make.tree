@@ -1,0 +1,43 @@
+
+form result
+  case okay
+    link value
+  case error
+    link reason
+
+task result-map
+  take r, like result
+  take f
+  fork case, read r
+    hook okay, base value
+      back make okay
+        bind value, call f
+          bind x, read value
+    hook error, base reason
+      back make error
+        bind reason, read reason
+
+task result-unwrap
+  take r, like result
+  take fallback
+  fork case, read r
+    hook okay, base value
+      back read value
+    hook error, base reason
+      back read fallback
+
+task result-is-okay
+  take r, like result
+  fork case, read r
+    hook okay, base value
+      back wave true
+    hook error, base reason
+      back wave false
+
+task result-is-error
+  take r, like result
+  fork case, read r
+    hook okay, base value
+      back wave false
+    hook error, base reason
+      back wave true
