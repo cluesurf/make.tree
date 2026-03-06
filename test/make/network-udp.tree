@@ -1,0 +1,82 @@
+
+form socket
+  link dock, hide true
+  link host, like text
+  link port, like size
+
+form datagram
+  link data, like text
+  link host, like text
+  link port, like size
+
+task open
+  wait true
+  take port, like size, need false
+  take host, like text, fall text <0.0.0.0>
+  like socket
+
+  save raw
+    call dgram-create-socket
+      text <udp4>
+
+  fork test
+    hook test
+      call is-some, read port
+    hook hold
+      call raw/bind
+        wait true
+        read port
+        read host
+
+  send back
+    make socket
+      bind dock, read raw
+      bind host, read host
+      bind port
+        fork test
+          hook test
+            call is-some, read port
+          hook hold
+            read port
+          hook miss
+            mark 0
+
+task send-datagram
+  wait true
+  take socket, like socket
+  take data, like text
+  take host, like text
+  take port, like size
+
+  save raw, read socket/dock
+
+  call raw/send
+    wait true
+    read data
+    read port
+    read host
+
+task receive-datagram
+  wait true
+  take socket, like socket
+  like datagram
+
+  save raw, read socket/dock
+
+  save result
+    call raw/receive
+      wait true
+
+  send back
+    make datagram
+      bind data, read result/data
+      bind host, read result/address
+      bind port, read result/port
+
+task close-socket
+  wait true
+  take socket, like socket
+
+  save raw, read socket/dock
+  call raw/close
+    wait true

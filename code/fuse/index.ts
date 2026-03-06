@@ -38,11 +38,20 @@ import type {
 
 type SubstMap = Map<string, string>
 
-export function expandFuse(input: { card: SurfCard }): SurfCard {
-  const { card } = input
+export function expandFuse(input: {
+  card: SurfCard
+  externalTrees?: Map<string, SurfTree>
+}): SurfCard {
+  const { card, externalTrees } = input
 
-  // Collect tree templates
+  // Collect tree templates from this card
   const trees = new Map<string, SurfTree>()
+  // External trees (from other files) go first, local ones override
+  if (externalTrees) {
+    for (const [name, tree] of externalTrees) {
+      trees.set(name, tree)
+    }
+  }
   for (const node of card.list) {
     if (node.form === 'tree') {
       trees.set(node.name, node)
@@ -273,6 +282,39 @@ function substSurfType(typ: SurfType, subst: SubstMap): SurfType {
     }
   }
   return { form: 'type-name', name: substString(typ.name, subst) }
+}
+
+/**
+ * Predict the names a fuse would produce without full expansion.
+ * Used by the resolver to know what names templates will generate.
+ */
+export function predictFuseNames(input: {
+  fuse: SurfFuse
+  trees: Map<string, SurfTree>
+}): string[] {
+  const { fuse, trees } = input
+  const tree = trees.get(fuse.name)
+  if (!tree) return []
+
+  const subst: SubstMap = new Map()
+  for (const bind of fuse.bind) {
+    const val = bindToString(bind)
+    subst.set(bind.name, val)
+  }
+
+  const names: string[] = []
+  for (const hook of tree.hook) {
+    if (hook.name !== 'fuse') continue
+    for (const item of hook.list) {
+      if (item.form === 'task') {
+        names.push(substString((item as SurfTask).name, subst))
+      } else if (item.form === 'form') {
+        names.push(substString((item as SurfForm).name, subst))
+      }
+    }
+  }
+
+  return names
 }
 
 /** Extract a string value from a bind node. */

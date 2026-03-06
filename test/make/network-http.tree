@@ -1,0 +1,70 @@
+
+form response
+  link status, like size
+  link headers, like hash
+  link ok, like bool
+  link url, like text
+  link dock, hide true
+
+task send
+  wait true
+  take url, like text
+  take method, like text, fall text <GET>
+  take headers, like hash, need false
+  take body, like text, need false
+  take timeout, like size, need false
+  take redirect, like text, fall text <follow>
+  like response
+
+  save options
+    make find
+      save method, read method
+      save redirect, read redirect
+
+  fork test
+    hook test
+      call is-some, read headers
+    hook hold
+      call options/set
+        text <headers>
+        read headers
+
+  fork test
+    hook test
+      call is-some, read body
+    hook hold
+      call options/set
+        text <body>
+        read body
+
+  save raw
+    call fetch
+      wait true
+      read url
+      read options
+
+  send back
+    make response
+      bind status, call raw/get-status
+      bind headers, call raw/get-headers
+      bind ok, call raw/get-ok
+      bind url, call raw/get-url
+
+task read-response
+  wait true
+  take response, like response
+  take format, like text, fall text <text>
+
+  fork case, read format
+    case text
+      send back
+        call response/dock/text
+          wait true
+    case bytes
+      send back
+        call response/dock/array-buffer
+          wait true
+    case json
+      send back
+        call response/dock/json
+          wait true

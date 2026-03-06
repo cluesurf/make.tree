@@ -1,0 +1,23 @@
+
+task http-get
+  wait true
+  take url, like text
+
+  save response
+    call fetch
+      bind url, read url
+      wait true
+
+  save status
+    read response/status
+
+  save body
+    call response/text
+      wait true
+
+  save result
+    make find
+      save status, read status
+      save body, read body
+
+  send back, read result

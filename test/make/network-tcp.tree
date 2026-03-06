@@ -1,0 +1,104 @@
+
+form connection
+  link dock, hide true
+  link host, like text
+  link port, like size
+  link local-host, like text
+  link local-port, like size
+  link secure, like bool
+
+form listener
+  link dock, hide true
+  link host, like text
+  link port, like size
+
+task connect
+  wait true
+  take host, like text
+  take port, like size
+  take secure, like bool, fall wave false
+  like connection
+
+  fork test
+    hook test
+      read secure
+    hook hold
+      save raw
+        call tls-connect
+          wait true
+          read port
+          read host
+      send back
+        make connection
+          bind dock, read raw
+          bind host, read host
+          bind port, read port
+          bind local-host, text <0.0.0.0>
+          bind local-port, mark 0
+          bind secure, wave true
+    hook miss
+      save raw
+        call tcp-connect
+          wait true
+          read port
+          read host
+      send back
+        make connection
+          bind dock, read raw
+          bind host, read host
+          bind port, read port
+          bind local-host, text <0.0.0.0>
+          bind local-port, mark 0
+          bind secure, wave false
+
+task read-connection
+  wait true
+  take connection, like connection
+  take size, like size, need false
+
+  save raw, read connection/dock
+
+  save result
+    call raw/read
+      wait true
+
+  send back, read result
+
+task write-connection
+  wait true
+  take connection, like connection
+  take data, like text
+
+  save raw, read connection/dock
+
+  call raw/write
+    wait true
+    read data
+
+task close-connection
+  wait true
+  take connection, like connection
+
+  save raw, read connection/dock
+  call raw/end
+    wait true
+
+task accept-listener
+  wait true
+  take listener, like listener
+  like connection
+
+  save raw, read listener/dock
+
+  save socket
+    call raw/accept
+      wait true
+
+  send back
+    make connection
+      bind dock, read socket
+      bind host, call socket/remote-address
+      bind port, call socket/remote-port
+      bind local-host, call socket/local-address
+      bind local-port, call socket/local-port
+      bind secure, wave false

@@ -17,7 +17,8 @@ import { castBook as castHVM } from '@/cast/hvm'
 import { castBook as castRust } from '@/cast/rust'
 import { castBook as castKotlin } from '@/cast/kotlin'
 import { castBook as castSwift } from '@/cast/swift'
-import { loadBook } from '@/load'
+import { loadBook, loadPackage } from '@/load'
+import { discoverDeckEnv, createDeckLoadEnv } from '@/deck'
 import { renderInfoList } from '@/kink/render'
 import { makeKink } from '@/kink/form'
 import { VOID_SITE } from '@/kink/site'
@@ -84,6 +85,49 @@ export function compileToFiles(input: {
   const codeFiles = castTSFiles({ book, fileMap })
 
   return { codeFiles, errors, files, book }
+}
+
+/**
+ * Compile a multi-file package using skeleton-first resolution.
+ * Handles circular references between files within the package,
+ * including template-generated names.
+ */
+export function compilePackage(input: {
+  file: string
+  env: LoadEnv
+  target: Target
+}): CompileResult & { resolveErrors: import('@/resolve').ResolveError[] } {
+  const { file, env, target } = input
+
+  const result = loadPackage({ file, env })
+  const { book, files, firmSet, resolveErrors } = result
+
+  const errors = checkBook({ book, firmSet })
+  const code = generate({ book, target })
+
+  return { code, errors, files, book, resolveErrors }
+}
+
+/**
+ * Compile a deck (package) by its root directory.
+ * Uses the deck.tree package manager to resolve package imports.
+ *
+ * This is the primary entry point for compiling a full project.
+ * It reads deck.tree, discovers workspaces, resolves package paths
+ * through the link/ directory, and compiles everything.
+ */
+export function compileDeck(input: {
+  root: string
+  file: string
+  target: Target
+  parse: (input: { file: string; text: string }) => { tree: any } | null
+}): CompileResult & { resolveErrors: import('@/resolve').ResolveError[] } {
+  const { root, file, target, parse } = input
+
+  const deckEnv = discoverDeckEnv({ root })
+  const loadEnv = createDeckLoadEnv({ env: deckEnv, parse })
+
+  return compilePackage({ file, env: loadEnv, target })
 }
 
 /**

@@ -1,0 +1,54 @@
+
+form socket
+  link dock, hide true
+  link url, like text
+  link protocol, like text
+  link ready, like bool
+
+form message
+  link kind, like text
+  link data, like text
+
+task connect
+  wait true
+  take url, like text
+  take headers, like hash, need false
+  take protocols, like list, need false
+  like socket
+
+  save raw
+    call make-websocket
+      wait true
+      read url
+      read protocols
+
+  send back
+    make socket
+      bind dock, read raw
+      bind url, read url
+      bind protocol, call raw/get-protocol
+      bind ready, wave true
+
+task send-message
+  wait true
+  take socket, like socket
+  take data, like text
+
+  save raw, read socket/dock
+
+  call raw/send
+    wait true
+    read data
+
+task close-socket
+  wait true
+  take socket, like socket
+  take code, like size, fall 1000
+  take reason, like text, need false
+
+  save raw, read socket/dock
+
+  call raw/close
+    wait true
+    read code
+    read reason
