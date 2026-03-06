@@ -1,0 +1,30 @@
+
+form nat
+  case zero
+  case succ
+    link pred
+
+task fib
+  take n, like nat
+  save a, mark 0
+  save b, mark 1
+  call fib-loop
+    bind n, read n
+    bind a, read a
+    bind b, read b
+
+task fib-loop
+  take n, like nat
+  take a, like u64
+  take b, like u64
+  fork case, read n
+    hook zero
+      back read a
+    hook succ, base pred
+      call fib-loop
+        bind n, read pred
+        bind a, read b
+        bind b
+          call add
+            bind a, read a
+            bind b, read b

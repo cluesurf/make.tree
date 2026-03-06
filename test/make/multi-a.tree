@@ -1,0 +1,7 @@
+load ./multi-b
+  find greet
+
+task hello
+  take name, like text
+  back call greet
+    bind name, read name

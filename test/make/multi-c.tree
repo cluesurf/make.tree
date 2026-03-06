@@ -1,0 +1,11 @@
+form color
+  case red
+  case blue
+
+task color-name
+  take c, like color
+  fork case, read c
+    hook red
+      back text <red>
+    hook blue
+      back text <blue>

@@ -22,6 +22,7 @@ export type LoadEnv = {
 export type LoadResult = {
   book: Book
   files: string[]
+  fileMap: Map<string, string[]>
 }
 
 export function loadBook(input: {
@@ -31,6 +32,7 @@ export function loadBook(input: {
   const visited = new Set<string>()
   const book: Book = new Map()
   const files: string[] = []
+  const fileMap = new Map<string, string[]>()
 
   loadFile({
     file: input.file,
@@ -38,9 +40,10 @@ export function loadBook(input: {
     visited,
     book,
     files,
+    fileMap,
   })
 
-  return { book, files }
+  return { book, files, fileMap }
 }
 
 function loadFile(input: {
@@ -49,8 +52,9 @@ function loadFile(input: {
   visited: Set<string>
   book: Book
   files: string[]
+  fileMap: Map<string, string[]>
 }): void {
-  const { file, env, visited, book, files } = input
+  const { file, env, visited, book, files, fileMap } = input
 
   if (visited.has(file)) return
   visited.add(file)
@@ -109,7 +113,7 @@ function loadFile(input: {
 
       const resolved = env.resolvePath(file, loadPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files })
+        loadFile({ file: resolved, env, visited, book, files, fileMap })
       }
     }
 
@@ -117,14 +121,17 @@ function loadFile(input: {
       const bearPath = node.path.join('/')
       const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files })
+        loadFile({ file: resolved, env, visited, book, files, fileMap })
       }
     }
   }
 
   // Desugar this file and merge into the shared book
   const fileResult = desugarCard({ card })
+  const fileNames: string[] = []
   for (const [name, term] of fileResult.book) {
     book.set(name, term)
+    fileNames.push(name)
   }
+  fileMap.set(file, fileNames)
 }

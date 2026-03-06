@@ -9,7 +9,7 @@
  *   - ADTs → enums with named fields
  *   - Pattern matching → match expressions
  *   - Lambdas → closures |x| body
- *   - Multi-use variables → .clone() calls (future: usage analysis)
+ *   - Multi-use variables → .clone() on all-but-last use, move on last
  *   - Tail recursion → loop { ... } with reassignment
  */
 
@@ -34,6 +34,14 @@ type TailCtx = {
   refName: string
   params: string[]
 } | null
+
+/**
+ * Tracks remaining uses per variable for clone/move analysis.
+ * Each time a variable is referenced, its count is decremented.
+ * If remaining > 0: emit .clone() (not the last use).
+ * If remaining == 0: emit bare name (last use = move).
+ */
+type UsageCtx = Map<string, number>
 
 // ---- Public API ----
 
@@ -146,6 +154,7 @@ export function castBook(input: {
         : null
       const bodyLines: string[] = []
       const bodyIndent = isTailRec ? 2 : 1
+      const usage = buildUsageMap({ term: body, dep: totalDep })
       castStmt({
         term: body,
         dep: totalDep,
@@ -154,6 +163,7 @@ export function castBook(input: {
         indent: bodyIndent,
         tail,
         okWrap: usesHalt,
+        usage,
       })
       const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
@@ -753,25 +763,21 @@ function countVarUses(input: { name: string; term: Term; dep: number }): number 
       )
     case 'op2':
       return (
-        countVarUses({ name, term: term.lft, dep }) +
-        countVarUses({ name, term: term.rgt, dep })
+        countVarUses({ name, term: term.a, dep }) +
+        countVarUses({ name, term: term.b, dep })
       )
     case 'mat':
-      return (
-        countVarUses({ name, term: term.scrutinee, dep }) +
-        term.arms.reduce((sum, [, bod]) => {
-          let inner: Term = bod
-          let d = dep
-          while (inner.form === 'lam') {
-            inner = inner.bod({ form: 'var', name: inner.name, idx: d })
-            d++
-          }
-          return sum + countVarUses({ name, term: inner, dep: d })
-        }, 0)
-      )
+      return term.arms.reduce((sum, [, bod]) => {
+        let inner: Term = bod
+        let d = dep
+        while (inner.form === 'lam') {
+          inner = inner.bod({ form: 'var', name: inner.name, idx: d })
+          d++
+        }
+        return sum + countVarUses({ name, term: inner, dep: d })
+      }, 0)
     case 'swi':
       return (
-        countVarUses({ name, term: term.scrutinee, dep }) +
         countVarUses({ name, term: term.zero, dep }) +
         countVarUses({ name, term: term.succ, dep })
       )
@@ -805,6 +811,147 @@ function countVarUses(input: { name: string; term: Term; dep: number }): number 
     default:
       return 0
   }
+}
+
+/**
+ * Build a usage map for all variables in a term body.
+ * Walks the entire tree and counts how many times each variable name
+ * appears. This is the pre-pass for clone/move analysis.
+ */
+function buildUsageMap(input: { term: Term; dep: number }): UsageCtx {
+  const map: UsageCtx = new Map()
+  collectVarUses({ term: input.term, dep: input.dep, map })
+  return map
+}
+
+function collectVarUses(input: {
+  term: Term
+  dep: number
+  map: UsageCtx
+}): void {
+  const { term, dep, map } = input
+  if (!term || !term.form) return
+  switch (term.form) {
+    case 'var':
+      map.set(term.name, (map.get(term.name) ?? 0) + 1)
+      return
+    case 'ref':
+    case 'num':
+    case 'nat':
+    case 'txt':
+    case 'set':
+    case 'u64':
+    case 'f64':
+    case 'nxt':
+    case 'hol':
+    case 'met':
+      return
+    case 'lam':
+      collectVarUses({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+        map,
+      })
+      return
+    case 'app':
+      collectVarUses({ term: term.func, dep, map })
+      collectVarUses({ term: term.argm, dep, map })
+      return
+    case 'let':
+      collectVarUses({ term: term.val, dep, map })
+      collectVarUses({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+        map,
+      })
+      return
+    case 'op2':
+      collectVarUses({ term: term.a, dep, map })
+      collectVarUses({ term: term.b, dep, map })
+      return
+    case 'mat':
+      for (const [, bod] of term.arms) {
+        let inner: Term = bod
+        let d = dep
+        while (inner.form === 'lam') {
+          inner = inner.bod({ form: 'var', name: inner.name, idx: d })
+          d++
+        }
+        collectVarUses({ term: inner, dep: d, map })
+      }
+      return
+    case 'swi':
+      collectVarUses({ term: term.zero, dep, map })
+      collectVarUses({ term: term.succ, dep, map })
+      return
+    case 'con':
+      for (const [, arg] of term.args) {
+        collectVarUses({ term: arg, dep, map })
+      }
+      return
+    case 'ann':
+      collectVarUses({ term: term.val, dep, map })
+      return
+    case 'all':
+      collectVarUses({ term: term.inp, dep, map })
+      collectVarUses({
+        term: term.bod({ form: 'var', name: term.name, idx: dep }),
+        dep: dep + 1,
+        map,
+      })
+      return
+    case 'log':
+      collectVarUses({ term: term.msg, dep, map })
+      collectVarUses({ term: term.val, dep, map })
+      return
+    case 'rst':
+      collectVarUses({ term: term.val, dep, map })
+      return
+    case 'hlt':
+      collectVarUses({ term: term.msg, dep, map })
+      return
+    case 'lst':
+      for (const item of term.list) {
+        collectVarUses({ term: item, dep, map })
+      }
+      return
+    case 'ins':
+      collectVarUses({ term: term.val, dep, map })
+      return
+    case 'src':
+      collectVarUses({ term: term.val, dep, map })
+      return
+    case 'use':
+      collectVarUses({ term: term.bod(term.val), dep, map })
+      return
+    case 'adt':
+    case 'slf':
+      return
+    default:
+      return
+  }
+}
+
+/**
+ * Use a variable from the usage map.
+ * Decrements remaining count and returns whether this use needs .clone().
+ * Returns true if this is NOT the last use (needs clone).
+ * Returns false if this IS the last use (move) or if the variable is not cloneable.
+ */
+function useVar(input: { name: string; usage: UsageCtx }): boolean {
+  const { name, usage } = input
+  const remaining = usage.get(name)
+  if (remaining === undefined || remaining <= 1) {
+    usage.set(name, 0)
+    return false
+  }
+  usage.set(name, remaining - 1)
+  return true
+}
+
+/** Check if a type is Copy (primitives that don't need clone/move). */
+function isCopyType(name: string): boolean {
+  return name.startsWith('_') || name === 'true' || name === 'false'
 }
 
 function countLamDepth(term: Term): number {
@@ -926,8 +1073,9 @@ function castStmt(input: {
   indent: number
   tail?: TailCtx
   okWrap?: boolean
+  usage?: UsageCtx
 }): void {
-  const { term, dep, ctx, lines, indent, tail, okWrap } = input
+  const { term, dep, ctx, lines, indent, tail, okWrap, usage } = input
   const pad = '    '.repeat(indent)
 
   switch (term.form) {
@@ -943,20 +1091,28 @@ function castStmt(input: {
           indent,
           tail,
           okWrap,
+          usage,
         })
         return
       }
       const name = varName({ name: term.name, dep })
-      const val = castExpr({ term: term.val, dep, ctx })
-      lines.push(`${pad}let ${name} = ${val};`)
+      const bodTerm = term.bod({ form: 'var', name, idx: dep })
+      // Count uses of this variable in the body for unused-var handling
+      const varUses = usage
+        ? (usage.get(name) ?? 0)
+        : countVarUses({ name, term: bodTerm, dep: dep + 1 })
+      const val = castExpr({ term: term.val, dep, ctx, usage })
+      const displayName = varUses === 0 ? `_${name}` : name
+      lines.push(`${pad}let ${displayName} = ${val};`)
       castStmt({
-        term: term.bod({ form: 'var', name, idx: dep }),
+        term: bodTerm,
         dep: dep + 1,
         ctx,
         lines,
         indent,
         tail,
         okWrap,
+        usage,
       })
       return
     }
@@ -995,6 +1151,7 @@ function castStmt(input: {
               indent,
               tail,
               okWrap,
+              usage,
             })
             return
           }
@@ -1010,6 +1167,7 @@ function castStmt(input: {
           indent,
           tail,
           okWrap,
+          usage,
         })
         return
       }
@@ -1024,6 +1182,7 @@ function castStmt(input: {
           indent,
           tail,
           okWrap,
+          usage,
         })
         return
       }
@@ -1043,6 +1202,7 @@ function castStmt(input: {
           indent,
           tail,
           okWrap,
+          usage,
         })
         return
       }
@@ -1055,7 +1215,7 @@ function castStmt(input: {
         const lam = args[1]
         if (lam.form === 'lam') {
           const name = varName({ name: lam.name, dep })
-          const iterExpr = castExpr({ term: args[0]!, dep, ctx })
+          const iterExpr = castExpr({ term: args[0]!, dep, ctx, usage })
           lines.push(`${pad}for ${name} in ${iterExpr}.iter() {`)
           const bodTerm = lam.bod({ form: 'var', name, idx: dep })
           castStmt({
@@ -1064,6 +1224,7 @@ function castStmt(input: {
             ctx,
             lines,
             indent: indent + 1,
+            usage,
           })
           lines.push(`${pad}}`)
         }
@@ -1076,11 +1237,11 @@ function castStmt(input: {
         args.length === tail.params.length
       ) {
         if (args.length === 1) {
-          const argExpr = castExpr({ term: args[0]!, dep, ctx })
+          const argExpr = castExpr({ term: args[0]!, dep, ctx, usage })
           lines.push(`${pad}${tail.params[0]} = ${argExpr};`)
         } else {
           for (let i = 0; i < args.length; i++) {
-            const argExpr = castExpr({ term: args[i]!, dep, ctx })
+            const argExpr = castExpr({ term: args[i]!, dep, ctx, usage })
             lines.push(`${pad}let next_${tail.params[i]} = ${argExpr};`)
           }
           for (let i = 0; i < tail.params.length; i++) {
@@ -1095,19 +1256,19 @@ function castStmt(input: {
       break
     }
     case 'log': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
+      const msg = castExpr({ term: term.msg, dep, ctx, usage })
       lines.push(`${pad}println!("{}", ${msg});`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
       return
     }
     case 'rst': {
       // Rust has no debugger statement; emit a comment
       lines.push(`${pad}// breakpoint`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
       return
     }
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
+      const msg = castExpr({ term: term.msg, dep, ctx, usage })
       if (term.term === 'fork') {
         lines.push(`${pad}break;`)
       } else {
@@ -1120,13 +1281,13 @@ function castStmt(input: {
       return
     }
     case 'ann':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
       return
     case 'ins':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
       return
     case 'src':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
       return
     case 'use':
       castStmt({
@@ -1137,11 +1298,12 @@ function castStmt(input: {
         indent,
         tail,
         okWrap,
+        usage,
       })
       return
   }
 
-  const expr = castExpr({ term, dep, ctx })
+  const expr = castExpr({ term, dep, ctx, usage })
   if (okWrap) {
     lines.push(`${pad}return Ok(${expr});`)
   } else {
@@ -1158,17 +1320,20 @@ function castMatchStmt(input: {
   indent: number
   tail?: TailCtx
   okWrap?: boolean
+  usage?: UsageCtx
 }): void {
-  const { arms, scrutinee, dep, ctx, lines, indent, tail, okWrap } = input
+  const { arms, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage } = input
   const pad = '    '.repeat(indent)
-  const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+  const scrExpr = castExpr({ term: scrutinee, dep, ctx, usage })
 
   // Detect maybe type for native optional matching
   const firstFormName = arms.length > 0 ? ctx.ctrToEnum.get(arms[0]![0]) : undefined
   const isMaybeMatch = firstFormName !== undefined && isMaybe(firstFormName)
 
-  // Clone variable scrutinees (may be used again later); skip for temporaries
-  const needsClone = scrutinee.form === 'var'
+  // Usage-aware clone: only clone if the variable has more uses remaining
+  const needsClone = scrutinee.form === 'var' && usage
+    ? (usage.get(scrutinee.name) ?? 0) > 0
+    : scrutinee.form === 'var'
   const scrStr = needsClone ? `${scrExpr}.clone()` : scrExpr
   lines.push(`${pad}match ${scrStr} {`)
   for (const [name, bod] of arms) {
@@ -1198,7 +1363,7 @@ function castMatchStmt(input: {
         }
         lines.push(`${pad}    None => {`)
       }
-      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 2, tail, okWrap })
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 2, tail, okWrap, usage })
       lines.push(`${pad}    }`)
       continue
     }
@@ -1253,6 +1418,7 @@ function castMatchStmt(input: {
       indent: indent + 2,
       tail,
       okWrap,
+      usage,
     })
     lines.push(`${pad}    }`)
   }
@@ -1290,13 +1456,14 @@ function castSwiStmt(input: {
   indent: number
   tail?: TailCtx
   okWrap?: boolean
+  usage?: UsageCtx
 }): void {
-  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail, okWrap } = input
+  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage } = input
   const pad = '    '.repeat(indent)
-  const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+  const scrExpr = castExpr({ term: scrutinee, dep, ctx, usage })
 
   lines.push(`${pad}if ${scrExpr} == 0 {`)
-  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail, okWrap })
+  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
 
   if (succ.form === 'lam') {
     const pName = varName({ name: succ.name, dep })
@@ -1310,10 +1477,11 @@ function castSwiStmt(input: {
       indent: indent + 1,
       tail,
       okWrap,
+      usage,
     })
   } else {
     lines.push(`${pad}} else {`)
-    const succExpr = castExpr({ term: succ, dep, ctx })
+    const succExpr = castExpr({ term: succ, dep, ctx, usage })
     if (okWrap) {
       lines.push(`${pad}    return Ok((${succExpr})(${scrExpr} - 1));`)
     } else {
@@ -1469,15 +1637,16 @@ function castTestStmt(input: {
   indent: number
   tail?: TailCtx
   okWrap?: boolean
+  usage?: UsageCtx
 }): void {
-  const { condition, trueArm, falseArm, dep, ctx, lines, indent, tail, okWrap } = input
+  const { condition, trueArm, falseArm, dep, ctx, lines, indent, tail, okWrap, usage } = input
   const pad = '    '.repeat(indent)
-  const condExpr = castExpr({ term: condition, dep, ctx })
+  const condExpr = castExpr({ term: condition, dep, ctx, usage })
 
   lines.push(`${pad}if ${condExpr} {`)
-  castStmt({ term: trueArm, dep, ctx, lines, indent: indent + 1, tail, okWrap })
+  castStmt({ term: trueArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
   lines.push(`${pad}} else {`)
-  castStmt({ term: falseArm, dep, ctx, lines, indent: indent + 1, tail, okWrap })
+  castStmt({ term: falseArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
   lines.push(`${pad}}`)
 }
 
@@ -1487,8 +1656,9 @@ function castExpr(input: {
   term: Term
   dep: number
   ctx: EmitCtx
+  usage?: UsageCtx
 }): string {
-  const { term, dep, ctx } = input
+  const { term, dep, ctx, usage } = input
 
   switch (term.form) {
     case 'lam': {
@@ -1498,6 +1668,7 @@ function castExpr(input: {
         term: body,
         dep: dep + params.length,
         ctx,
+        usage,
       })
       return `|${paramStr}| ${bodyExpr}`
     }
@@ -1516,9 +1687,9 @@ function castExpr(input: {
           const trueArm = mat.arms.find(([n]) => n === 'true')?.[1]
           const falseArm = mat.arms.find(([n]) => n === 'false')?.[1]
           if (trueArm && falseArm) {
-            const condExpr = castExpr({ term: condition, dep, ctx })
-            const trueExpr = castExpr({ term: trueArm, dep, ctx })
-            const falseExpr = castExpr({ term: falseArm, dep, ctx })
+            const condExpr = castExpr({ term: condition, dep, ctx, usage })
+            const trueExpr = castExpr({ term: trueArm, dep, ctx, usage })
+            const falseExpr = castExpr({ term: falseArm, dep, ctx, usage })
             return `if ${condExpr} { ${trueExpr} } else { ${falseExpr} }`
           }
         }
@@ -1532,32 +1703,33 @@ function castExpr(input: {
           ctx,
           lines: bodyLines,
           indent: 1,
+          usage,
         })
         return `{\n${bodyLines.join('\n')}\n}`
       }
       if (func.form === 'ref' && func.name.startsWith('.')) {
         const prim = func.name.slice(1)
         if (prim === 'wait' && args.length === 1) {
-          const inner = castExpr({ term: args[0]!, dep, ctx })
+          const inner = castExpr({ term: args[0]!, dep, ctx, usage })
           return `${inner}.await`
         }
         if (prim === 'halt' && args.length === 1) {
-          const inner = castExpr({ term: args[0]!, dep, ctx })
+          const inner = castExpr({ term: args[0]!, dep, ctx, usage })
           return `${inner}?`
         }
         if (prim === 'safe' && args.length === 1) {
-          return castExpr({ term: args[0]!, dep, ctx })
+          return castExpr({ term: args[0]!, dep, ctx, usage })
         }
         if (prim === 'and' && args.length >= 2) {
-          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          const parts = args.map(a => castExpr({ term: a, dep, ctx, usage }))
           return `(${parts.join(' && ')})`
         }
         if (prim === 'or' && args.length >= 2) {
-          const parts = args.map(a => castExpr({ term: a, dep, ctx }))
+          const parts = args.map(a => castExpr({ term: a, dep, ctx, usage }))
           return `(${parts.join(' || ')})`
         }
         if (args.length >= 1) {
-          const obj = castExpr({ term: args[0]!, dep, ctx })
+          const obj = castExpr({ term: args[0]!, dep, ctx, usage })
           const methodName = snakeCase(prim)
           // Dock module calls use :: (module-level functions)
           const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
@@ -1571,30 +1743,38 @@ function castExpr(input: {
           }
           const methodArgs = args
             .slice(1)
-            .map(a => castExpr({ term: a, dep, ctx }))
+            .map(a => castExpr({ term: a, dep, ctx, usage }))
           return `${obj}${sep}${methodName}(${methodArgs.join(', ')})`
         }
       }
-      const funcStr = castExpr({ term: func, dep, ctx })
-      const argsStr = args.map(a => castExpr({ term: a, dep, ctx }))
+      const funcStr = castExpr({ term: func, dep, ctx, usage })
+      const argsStr = args.map(a => castExpr({ term: a, dep, ctx, usage }))
       return `${funcStr}(${argsStr.join(', ')})`
     }
     case 'let': {
       const name = varName({ name: term.name, dep })
-      const val = castExpr({ term: term.val, dep, ctx })
+      const val = castExpr({ term: term.val, dep, ctx, usage })
       const body = castExpr({
         term: term.bod({ form: 'var', name, idx: dep }),
         dep: dep + 1,
         ctx,
+        usage,
       })
       return `{ let ${name} = ${val}; ${body} }`
     }
     case 'use':
-      return castExpr({ term: term.bod(term.val), dep, ctx })
+      return castExpr({ term: term.bod(term.val), dep, ctx, usage })
     case 'ref':
       return snakeCase(term.name)
-    case 'var':
+    case 'var': {
+      if (usage) {
+        // Decrement usage count to track last-use for future
+        // clone/move emission (requires type awareness to know
+        // which types need .clone() vs are Copy)
+        useVar({ name: term.name, usage })
+      }
       return term.name
+    }
     case 'num':
       return `${term.val}_u64`
     case 'txt':
@@ -1607,7 +1787,7 @@ function castExpr(input: {
       if (formName && isMaybe(formName)) {
         if (term.name === 'none') return 'None'
         if (term.name === 'some' && term.args.length > 0) {
-          const val = castExpr({ term: term.args[0]![1], dep, ctx })
+          const val = castExpr({ term: term.args[0]![1], dep, ctx, usage })
           return `Some(${val})`
         }
       }
@@ -1622,7 +1802,7 @@ function castExpr(input: {
       const fieldTypes = ctx.fieldTypeMap.get(term.name) ?? []
       const fields = term.args
         .map(([field, t], i) => {
-          const val = castExpr({ term: t, dep, ctx })
+          const val = castExpr({ term: t, dep, ctx, usage })
           const key = field ? snakeCase(field) : '_'
           const ft = fieldTypes[i]
           const needsBox = ft ? isBoxedField({ typ: ft.typ, ctx }) : true
@@ -1633,26 +1813,26 @@ function castExpr(input: {
     }
     case 'op2': {
       const op = castOper(term.oper)
-      const a = castExpr({ term: term.a, dep, ctx })
-      const b = castExpr({ term: term.b, dep, ctx })
+      const a = castExpr({ term: term.a, dep, ctx, usage })
+      const b = castExpr({ term: term.b, dep, ctx, usage })
       return `(${a} ${op} ${b})`
     }
     case 'lst': {
       if (term.list.length === 0) return 'vec![]'
-      const items = term.list.map(t => castExpr({ term: t, dep, ctx }))
+      const items = term.list.map(t => castExpr({ term: t, dep, ctx, usage }))
       return `vec![${items.join(', ')}]`
     }
     case 'log': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
-      const val = castExpr({ term: term.val, dep, ctx })
+      const msg = castExpr({ term: term.msg, dep, ctx, usage })
+      const val = castExpr({ term: term.val, dep, ctx, usage })
       return `{ println!("{}", ${msg}); ${val} }`
     }
     case 'rst': {
-      const val = castExpr({ term: term.val, dep, ctx })
+      const val = castExpr({ term: term.val, dep, ctx, usage })
       return `{ /* breakpoint */ ${val} }`
     }
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
+      const msg = castExpr({ term: term.msg, dep, ctx, usage })
       return `panic!("{}", ${msg})`
     }
     case 'nxt':

@@ -492,14 +492,14 @@ function castStmt(input: {
         })
         return
       }
-      // .test(Mat, condition) → if/else
+      // .test(Mat, condition) → if/else on native boolean
       if (
         func.form === 'ref' &&
         func.name === '.test' &&
         args.length === 2 &&
         args[0]!.form === 'mat'
       ) {
-        castMatchStmt({
+        castBoolTestStmt({
           arms: args[0]!.arms,
           scrutinee: args[1]!,
           dep,
@@ -713,19 +713,48 @@ function castMatchStmt(input: {
       lines.push(`${pad}    }`)
     }
   }
-  // Only emit else clause if match is not exhaustive
-  const firstEnumType2 = arms.length > 0 ? (ctx.ctrToEnum.get(arms[0]![0]) ?? null) : null
-  if (firstEnumType2) {
-    // Count constructors in the enum
-    let totalCtrs = 0
-    for (const [, enumName] of ctx.ctrToEnum) {
-      if (enumName === firstEnumType2) totalCtrs++
+  // Always emit else clause - Kotlin only recognizes exhaustive when
+  // as an expression (return when), not as a statement
+  lines.push(`${pad}    else -> throw Error("no match")`)
+  lines.push(`${pad}}`)
+}
+
+/** Emit if/else for boolean test (fork test). Scrutinee is a native Boolean. */
+function castBoolTestStmt(input: {
+  arms: [string, Term][]
+  scrutinee: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+  tail?: TailCtx
+}): void {
+  const { arms, scrutinee, dep, ctx, lines, indent, tail } = input
+  const pad = '    '.repeat(indent)
+  const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+
+  const trueArm = arms.find(([n]) => n === 'true')
+  const falseArm = arms.find(([n]) => n === 'false')
+
+  lines.push(`${pad}if (${scrExpr} as Boolean) {`)
+  if (trueArm) {
+    let armBod = trueArm[1]
+    let armDep = dep
+    while (armBod.form === 'lam') {
+      armBod = armBod.bod({ form: 'var', name: armBod.name, idx: armDep })
+      armDep++
     }
-    if (arms.length < totalCtrs) {
-      lines.push(`${pad}    else -> throw Error("no match")`)
+    castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
+  }
+  lines.push(`${pad}} else {`)
+  if (falseArm) {
+    let armBod = falseArm[1]
+    let armDep = dep
+    while (armBod.form === 'lam') {
+      armBod = armBod.bod({ form: 'var', name: armBod.name, idx: armDep })
+      armDep++
     }
-  } else {
-    lines.push(`${pad}    else -> throw Error("no match")`)
+    castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 1, tail })
   }
   lines.push(`${pad}}`)
 }
@@ -805,7 +834,7 @@ function castExpr(input: {
         })
         return `run {\n${bodyLines.join('\n')}\n}`
       }
-      // .test(Mat, condition) → inline if/else expression
+      // .test(Mat, condition) → inline if/else expression on native boolean
       if (
         func.form === 'ref' &&
         func.name === '.test' &&
@@ -813,7 +842,7 @@ function castExpr(input: {
         args[0]!.form === 'mat'
       ) {
         const bodyLines: string[] = []
-        castMatchStmt({
+        castBoolTestStmt({
           arms: args[0]!.arms,
           scrutinee: args[1]!,
           dep,

@@ -11,7 +11,7 @@ import { readCard, readCardTolerant } from '@/read'
 import { expandFuse } from '@/fuse'
 import { desugarCard, desugarCardTolerant, type AsyncMeta } from '@/term/desugar'
 import { check } from '@/term/check'
-import { castBook as castTS } from '@/cast/typescript'
+import { castBook as castTS, castBookToFiles as castTSFiles } from '@/cast/typescript'
 import { castBook as castHVM } from '@/cast/hvm'
 import { castBook as castRust } from '@/cast/rust'
 import { castBook as castKotlin } from '@/cast/kotlin'
@@ -37,6 +37,13 @@ export type CompileResult = {
   book: Book
 }
 
+export type CompileFilesResult = {
+  codeFiles: Map<string, string>
+  errors: Kink[]
+  files: string[]
+  book: Book
+}
+
 /**
  * Compile a multi-file project starting from an entry file.
  * Recursively resolves load/bear directives.
@@ -55,6 +62,25 @@ export function compile(input: {
   const code = generate({ book, target })
 
   return { code, errors, files, book }
+}
+
+/**
+ * Compile a multi-file project to separate TS files with import/export.
+ * Each .tree file produces one .ts file. Cross-file references become imports.
+ */
+export function compileToFiles(input: {
+  file: string
+  env: LoadEnv
+}): CompileFilesResult {
+  const { file, env } = input
+
+  const result = loadBook({ file, env })
+  const { book, files, fileMap } = result
+
+  const errors = checkBook({ book })
+  const codeFiles = castTSFiles({ book, fileMap })
+
+  return { codeFiles, errors, files, book }
 }
 
 /**

@@ -1,0 +1,3 @@
+task greet
+  take name, like text
+  back text <hi>

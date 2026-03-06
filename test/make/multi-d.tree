@@ -1,0 +1,7 @@
+load ./multi-c
+  find color-name
+
+task describe-color
+  take c
+  back call color-name
+    bind c, read c

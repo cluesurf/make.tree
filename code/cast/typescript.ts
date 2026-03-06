@@ -142,16 +142,43 @@ export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: Asy
  * Takes a mapping of file paths to definition names so each file gets
  * only its own definitions. Shared analysis (tag maps, type info) is
  * computed once across all definitions.
+ *
+ * Emits import statements for cross-file references. Uses `import type`
+ * for type-only references (ADTs used only in type position).
  */
 export function castBookToFiles(input: {
   book: Book
   fileMap: Map<string, string[]>
   dock?: DockLoad[]
   asyncMeta?: AsyncMeta
+  stripTypes?: boolean
 }): Map<string, string> {
   const ctx = analyze({ book: input.book })
   const asyncMeta = input.asyncMeta ?? new Map()
+  const emitTypes = !input.stripTypes
   const result = new Map<string, string>()
+
+  // Build reverse map: definition name → file path
+  const nameToFile = new Map<string, string>()
+  for (const [file, defNames] of input.fileMap) {
+    for (const name of defNames) {
+      nameToFile.set(name, file)
+    }
+  }
+
+  // Collect form names for type resolution
+  const formNames = new Set<string>()
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') formNames.add(name)
+  }
+
+  // Collect which names are type-only (ADTs)
+  const typeOnlyNames = new Set<string>()
+  for (const [name, term] of input.book) {
+    const val = unwrapAnn(term)
+    if (val.form === 'adt') typeOnlyNames.add(name)
+  }
 
   for (const [file, defNames] of input.fileMap) {
     const fileBook: Book = new Map()
@@ -172,6 +199,69 @@ export function castBookToFiles(input: {
       }
     }
 
+    // Collect all refs used by definitions in this file
+    const localNames = new Set(defNames)
+    const neededRefs = new Map<string, Set<string>>() // other file → set of names needed
+
+    const addNeeded = (ref: string) => {
+      if (localNames.has(ref)) return
+      const ownerFile = nameToFile.get(ref)
+      if (!ownerFile || ownerFile === file) return
+      let set = neededRefs.get(ownerFile)
+      if (!set) {
+        set = new Set()
+        neededRefs.set(ownerFile, set)
+      }
+      set.add(ref)
+    }
+
+    for (const [, term] of fileBook) {
+      const refs = collectRefs({ term, dep: 0 })
+      for (const ref of refs) {
+        // Constructor refs: import the parent ADT type instead
+        const enumType = ctx.ctrToEnum.get(ref)
+        if (enumType && enumType !== ref) {
+          addNeeded(enumType)
+          continue
+        }
+        addNeeded(ref)
+      }
+    }
+
+    // Emit import statements
+    for (const [otherFile, names] of neededRefs) {
+      const valueImports: string[] = []
+      const typeImports: string[] = []
+      for (const name of names) {
+        const safeName = sanitizeName(name)
+        const tsName = typeOnlyNames.has(name) ? capitalize(safeName) : safeName
+        if (typeOnlyNames.has(name)) {
+          typeImports.push(tsName)
+        } else {
+          valueImports.push(tsName)
+        }
+      }
+      const relPath = makeRelativePath({ from: file, to: otherFile })
+      if (typeImports.length > 0) {
+        fileLines.push(`import type { ${typeImports.sort().join(', ')} } from '${relPath}'`)
+      }
+      if (valueImports.length > 0) {
+        fileLines.push(`import { ${valueImports.sort().join(', ')} } from '${relPath}'`)
+      }
+    }
+
+    // Emit ADT type declarations
+    if (emitTypes) {
+      for (const [name, term] of fileBook) {
+        const val = unwrapAnn(term)
+        if (val.form === 'adt') {
+          if (isMaybe(name)) continue
+          fileLines.push(castAdtType({ name, term: val as Term & { form: 'adt' }, ctx, formNames }))
+        }
+      }
+    }
+
+    // Emit functions and constants
     for (const [name, term] of fileBook) {
       const val = unwrapAnn(term)
       if (isTypeOnly(val)) continue
@@ -196,11 +286,12 @@ export function castBookToFiles(input: {
         const totalDep = headDep + params.length
         const funcType = ctx.typeInfo.get(name)
         const paramStr = params.map((p, i) => {
+          if (!emitTypes) return p.name
           const typeAnn = funcType?.params[i]?.type
           if (typeAnn && typeAnn !== 'any') return `${p.name}: ${typeAnn}`
           return p.name
         }).join(', ')
-        const retAnn = funcType?.ret && funcType.ret !== 'any' ? `: ${funcType.ret}` : ''
+        const retAnn = emitTypes && funcType?.ret && funcType.ret !== 'any' ? `: ${funcType.ret}` : ''
         const paramNames = params.map(p => p.name)
         const isTailRec = hasSelfTailCall({
           term: body, refName: name, arity: totalDep, dep: totalDep,
@@ -225,6 +316,116 @@ export function castBookToFiles(input: {
   }
 
   return result
+}
+
+/** Compute a relative import path from one file to another (no extension). */
+function makeRelativePath(input: { from: string; to: string }): string {
+  const fromParts = input.from.split('/')
+  const toParts = input.to.split('/')
+  fromParts.pop() // remove filename
+
+  // Find common prefix
+  let common = 0
+  while (common < fromParts.length && common < toParts.length && fromParts[common] === toParts[common]) {
+    common++
+  }
+
+  const ups = fromParts.length - common
+  const downs = toParts.slice(common)
+
+  // Remove .tree extension from last segment
+  const last = downs[downs.length - 1]
+  if (last) {
+    downs[downs.length - 1] = last.replace(/\.tree$/, '')
+  }
+
+  const prefix = ups > 0 ? '../'.repeat(ups) : './'
+  return prefix + downs.join('/')
+}
+
+/** Collect all Ref names referenced in a term tree. */
+function collectRefs(input: { term: Term; dep: number }): Set<string> {
+  const refs = new Set<string>()
+  walkRefs({ term: input.term, dep: input.dep, refs })
+  return refs
+}
+
+function walkRefs(input: { term: Term; dep: number; refs: Set<string> }): void {
+  const { term, dep, refs } = input
+  switch (term.form) {
+    case 'ref':
+      if (!term.name.startsWith('.')) refs.add(term.name)
+      return
+    case 'lam':
+      walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
+      return
+    case 'app':
+      walkRefs({ term: term.func, dep, refs })
+      walkRefs({ term: term.argm, dep, refs })
+      return
+    case 'let':
+      walkRefs({ term: term.val, dep, refs })
+      walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
+      return
+    case 'ann':
+    case 'ins':
+    case 'src':
+      walkRefs({ term: term.val, dep, refs })
+      return
+    case 'use':
+      walkRefs({ term: term.bod(term.val), dep, refs })
+      return
+    case 'mat':
+      for (const [, bod] of term.arms) {
+        walkRefs({ term: bod, dep, refs })
+      }
+      return
+    case 'swi':
+      walkRefs({ term: term.zero, dep, refs })
+      walkRefs({ term: term.succ, dep, refs })
+      return
+    case 'con':
+      refs.add(term.name)
+      for (const [, t] of term.args) {
+        walkRefs({ term: t, dep, refs })
+      }
+      return
+    case 'op2':
+      walkRefs({ term: term.a, dep, refs })
+      walkRefs({ term: term.b, dep, refs })
+      return
+    case 'lst':
+      for (const t of term.list) {
+        walkRefs({ term: t, dep, refs })
+      }
+      return
+    case 'log':
+      walkRefs({ term: term.msg, dep, refs })
+      walkRefs({ term: term.val, dep, refs })
+      return
+    case 'hlt':
+      walkRefs({ term: term.msg, dep, refs })
+      return
+    case 'rst':
+      walkRefs({ term: term.val, dep, refs })
+      return
+    case 'all':
+      walkRefs({ term: term.inp, dep, refs })
+      walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
+      return
+    case 'slf':
+      walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
+      return
+    case 'adt':
+      for (const ctr of term.ctrs) {
+        let tele = ctr.tele
+        while (tele.form === 'ext') {
+          walkRefs({ term: tele.typ, dep, refs })
+          tele = tele.bod({ form: 'var', name: tele.name, idx: dep })
+        }
+      }
+      return
+  }
 }
 
 export function castTerm(input: { term: Term; dep: number }): string {
