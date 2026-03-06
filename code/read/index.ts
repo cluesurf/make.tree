@@ -348,6 +348,7 @@ function readTask(fork: PFork): SurfTask {
   let wait: boolean | undefined
   let hide: boolean | undefined
   let firm: boolean | undefined
+  let alias: string | undefined
 
   for (const child of childForks(fork, 2)) {
     const kw = headWord(child)
@@ -377,6 +378,9 @@ function readTask(fork: PFork): SurfTask {
       case 'firm':
         firm = childWord(child, 1) === 'true'
         break
+      case 'name':
+        alias = childKnitText(child, 1) ?? childWord(child, 1)
+        break
       default: {
         const stmt = readStatement(child)
         if (stmt) flow.push(stmt)
@@ -391,6 +395,7 @@ function readTask(fork: PFork): SurfTask {
   if (wait) result.wait = wait
   if (hide) result.hide = hide
   if (firm) result.firm = firm
+  if (alias) result.alias = alias
   return result
 }
 
@@ -692,6 +697,10 @@ function readSave(fork: PFork): SurfSave {
       sift = readCall(first, children.slice(1))
     } else if (kw === 'make') {
       sift = readMake(first, children.slice(1))
+    } else if (kw === 'fork') {
+      sift = readForkNode(first)
+    } else if (kw === 'walk') {
+      sift = readWalkNode(first)
     } else {
       sift = readSiftExpr(first)
     }

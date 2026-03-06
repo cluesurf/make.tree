@@ -33,6 +33,7 @@ type EmitCtx = {
   typeInfo: Map<string, FuncType>
   riskSet: Set<string>
   book: Book
+  nativeNames: Map<string, string>
 }
 
 /** Check if a form name is the maybe/optional type. */
@@ -50,8 +51,8 @@ type TailCtx = {
 
 export type DockLoad = { path: string; name?: string }
 
-export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; stripTypes?: boolean }): string {
-  const ctx = analyze({ book: input.book })
+export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; stripTypes?: boolean; nativeNames?: Map<string, string> }): string {
+  const ctx = analyze({ book: input.book, nativeNames: input.nativeNames })
   const asyncMeta = input.asyncMeta ?? new Map()
   const emitTypes = !input.stripTypes
   const lines: string[] = []
@@ -152,8 +153,9 @@ export function castBookToFiles(input: {
   dock?: DockLoad[]
   asyncMeta?: AsyncMeta
   stripTypes?: boolean
+  nativeNames?: Map<string, string>
 }): Map<string, string> {
-  const ctx = analyze({ book: input.book })
+  const ctx = analyze({ book: input.book, nativeNames: input.nativeNames })
   const asyncMeta = input.asyncMeta ?? new Map()
   const emitTypes = !input.stripTypes
   const result = new Map<string, string>()
@@ -354,7 +356,7 @@ function walkRefs(input: { term: Term; dep: number; refs: Set<string> }): void {
   const { term, dep, refs } = input
   switch (term.form) {
     case 'ref':
-      if (!term.name.startsWith('.')) refs.add(term.name)
+      if (!term.name.startsWith('.') && !term.name.startsWith('!')) refs.add(term.name)
       return
     case 'lam':
       walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
@@ -444,7 +446,7 @@ export function castTerm(input: { term: Term; dep: number }): string {
 
 // ---- Phase A: Analyze ----
 
-function analyze(input: { book: Book }): EmitCtx {
+function analyze(input: { book: Book; nativeNames?: Map<string, string> }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
@@ -491,7 +493,8 @@ function analyze(input: { book: Book }): EmitCtx {
     }
   }
 
-  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, typeInfo, riskSet, book: input.book }
+  const nativeNames = input.nativeNames ?? new Map<string, string>()
+  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, typeInfo, riskSet, book: input.book, nativeNames }
 }
 
 /** Resolve a Core Term type to a TypeScript type string. */
@@ -799,6 +802,32 @@ function castStmt(input: {
   switch (term.form) {
     case 'let': {
       const name = varName({ name: term.name, dep })
+      // Check if value is a pattern that should be emitted as statement
+      // (e.g., fork test → .test(Mat, condition) → if/else)
+      if (term.val.form === 'app') {
+        const { func, args } = unwrapApp(term.val)
+        if (func.form === 'ref' && func.name === '.test' && args.length === 2 && args[0]!.form === 'mat') {
+          // Emit the fork as an inline if/else statement, then continue
+          castMatchStmt({
+            arms: (args[0]! as Term & { form: 'mat' }).arms,
+            scrutinee: args[1]!,
+            dep, ctx, lines, indent, tail: null,
+          })
+          const bodTerm = term.bod({ form: 'var', name, idx: dep })
+          castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent, tail })
+          return
+        }
+        if (func.form === 'mat' && args.length === 1) {
+          castMatchStmt({
+            arms: func.arms,
+            scrutinee: args[0]!,
+            dep, ctx, lines, indent, tail: null,
+          })
+          const bodTerm = term.bod({ form: 'var', name, idx: dep })
+          castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent, tail })
+          return
+        }
+      }
       const val = castExpr({ term: term.val, dep, ctx })
       lines.push(`${pad}const ${name} = ${val};`)
       const bodTerm = term.bod({ form: 'var', name, idx: dep })
@@ -982,7 +1011,19 @@ function castMatchStmt(input: {
   const useTag = ctx.tagMap.size > 0
   const tagField = useTag ? '$' : 'tag'
 
-  if (arms.length === 2) {
+  // Boolean fork test: arms are ["true"/"True", ...] and ["false"/"False", ...]
+  const armNames = new Set(arms.map(([n]) => n.toLowerCase()))
+  const isBooleanFork = arms.length === 2 && armNames.has('true') && armNames.has('false')
+
+  if (isBooleanFork) {
+    const trueArm = arms.find(([n]) => n.toLowerCase() === 'true')!
+    const falseArm = arms.find(([n]) => n.toLowerCase() === 'false')!
+    lines.push(`${pad}if (${scrVar}) {`)
+    castStmt({ term: trueArm[1], dep, ctx, lines, indent: indent + 1, tail })
+    lines.push(`${pad}} else {`)
+    castStmt({ term: falseArm[1], dep, ctx, lines, indent: indent + 1, tail })
+    lines.push(`${pad}}`)
+  } else if (arms.length === 2) {
     // if/else for 2 arms
     const [arm0, arm1] = [arms[0]!, arms[1]!]
     const tag0 = useTag ? ctx.tagMap.get(arm0[0]) : undefined
@@ -1172,6 +1213,18 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
           const obj = castExpr({ term: args[0]!, dep, ctx })
           const methodName = mapMethodName(prim)
           if (args.length === 1) return `${obj}.${methodName}`
+          const methodArgs = args.slice(1).map(a => castExpr({ term: a, dep, ctx }))
+          return `${obj}.${methodName}(${methodArgs.join(', ')})`
+        }
+      }
+
+      // Method call dispatch: "!" prefix from call x/y (always a function call)
+      if (func.form === 'ref' && func.name.startsWith('!')) {
+        const prim = func.name.slice(1)
+        const methodName = resolveMethodName({ name: prim, ctx })
+        if (args.length >= 1) {
+          const obj = castExpr({ term: args[0]!, dep, ctx })
+          if (args.length === 1) return `${obj}.${methodName}()`
           const methodArgs = args.slice(1).map(a => castExpr({ term: a, dep, ctx }))
           return `${obj}.${methodName}(${methodArgs.join(', ')})`
         }
@@ -1411,7 +1464,7 @@ function capitalize(name: string): string {
   return name[0]!.toUpperCase() + name.slice(1)
 }
 
-/** Map tree-lang method names to JS equivalents. */
+/** Map tree-lang method names to JS equivalents (for property access). */
 function mapMethodName(name: string): string {
   const map: Record<string, string> = {
     save: 'set',
@@ -1420,6 +1473,13 @@ function mapMethodName(name: string): string {
     halt: 'end',
   }
   return map[name] ?? sanitizeName(name)
+}
+
+/** Resolve a method name using bind.tree native names, then fallback to camelCase. */
+function resolveMethodName(input: { name: string; ctx: EmitCtx }): string {
+  const native = input.ctx.nativeNames.get(input.name)
+  if (native) return native
+  return sanitizeName(input.name)
 }
 
 function castOper(oper: Oper): string {

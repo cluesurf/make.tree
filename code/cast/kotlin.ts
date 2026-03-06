@@ -852,7 +852,7 @@ function castExpr(input: {
         })
         return `run {\n${bodyLines.join('\n')}\n}`
       }
-      if (func.form === 'ref' && func.name.startsWith('.')) {
+      if (func.form === 'ref' && (func.name.startsWith('.') || func.name.startsWith('!'))) {
         const prim = func.name.slice(1)
         // .wait → no special syntax in Kotlin (suspend functions are called normally)
         if (prim === 'wait' && args.length === 1) {

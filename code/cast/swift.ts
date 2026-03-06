@@ -815,7 +815,7 @@ function castExpr(input: {
         })
         return `{\n${bodyLines.join('\n')}\n}()`
       }
-      if (func.form === 'ref' && func.name.startsWith('.')) {
+      if (func.form === 'ref' && (func.name.startsWith('.') || func.name.startsWith('!'))) {
         const prim = func.name.slice(1)
         // .wait → await expr
         if (prim === 'wait' && args.length === 1) {

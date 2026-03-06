@@ -78,7 +78,7 @@ export function castBook(input: {
 
   // Phase 1: Dock imports
   for (const load of input.dock ?? []) {
-    const path = load.path.replace(/:/g, '::')
+    const path = load.path.replace(/(?<!:):(?!:)/g, '::')
     lines.push(`use ${path};`)
   }
 
@@ -1707,8 +1707,9 @@ function castExpr(input: {
         })
         return `{\n${bodyLines.join('\n')}\n}`
       }
-      if (func.form === 'ref' && func.name.startsWith('.')) {
+      if (func.form === 'ref' && (func.name.startsWith('.') || func.name.startsWith('!'))) {
         const prim = func.name.slice(1)
+        const isCall = func.name.startsWith('!')
         if (prim === 'wait' && args.length === 1) {
           const inner = castExpr({ term: args[0]!, dep, ctx, usage })
           return `${inner}.await`
@@ -1735,8 +1736,8 @@ function castExpr(input: {
           const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
           const sep = isDockModule ? '::' : '.'
           if (args.length === 1) {
-            // Check if this is a struct field access (no parens needed)
-            if (isStructFieldAccess({ fieldName: prim, ctx })) {
+            // ! prefix = always a function call, . prefix = check if field access
+            if (!isCall && isStructFieldAccess({ fieldName: prim, ctx })) {
               return `${obj}${sep}${methodName}`
             }
             return `${obj}${sep}${methodName}()`

@@ -30,6 +30,7 @@ export type SurfTask = SurfMixin & {
   wait?: boolean
   hide?: boolean
   firm?: boolean
+  alias?: string
 }
 
 export type SurfForm = SurfMixin & {

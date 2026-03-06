@@ -603,6 +603,12 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
     case 'meet':
       return desugarMeet({ meet: sift as SurfMeet, ctx })
 
+    case 'fork':
+      return desugarFork({ fork: sift as SurfFork, ctx })
+
+    case 'walk':
+      return desugarWalk({ walk: sift as SurfWalk, ctx })
+
     default:
       return { form: 'hol', name: `unsupported:${sift.form}`, ctx: [] }
   }
@@ -627,6 +633,10 @@ const BUILTIN_BINARY_OPS: Record<string, Oper> = {
   gt: 'gt', lte: 'lte', gte: 'gte',
   and: 'and', or: 'or', xor: 'xor',
   lsh: 'lsh', rsh: 'rsh',
+  'is-equal': 'eq', 'is-not-equal': 'ne',
+  'is-above': 'gt', 'is-below': 'lt',
+  'is-minimum': 'gte', 'is-maximum': 'lte',
+  'bit-and': 'and', 'bit-or': 'or', 'bit-xor': 'xor',
 }
 
 function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
@@ -645,14 +655,14 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
     return { form: 'op2', oper, a, b }
   }
 
-  // Method/property access: name contains "/" (e.g. "x/save", "x/size")
+  // Method call: name contains "/" (e.g. "x/save", "x/read-file")
+  // Uses "!" prefix to distinguish calls from property access ("." prefix)
   const slashIdx = name.indexOf('/')
   if (slashIdx !== -1) {
     const objName = name.slice(0, slashIdx)
     const methodName = name.slice(slashIdx + 1)
     const obj = lookupPath({ path: [objName], ctx })
-    // Encode as App(Ref ".name") applied to obj then args
-    let result: Term = { form: 'app', func: { form: 'ref', name: `.${methodName}` }, argm: obj }
+    let result: Term = { form: 'app', func: { form: 'ref', name: `!${methodName}` }, argm: obj }
     for (const bind of call.bind) {
       const arg = bind.sift ? desugarSift({ sift: bind.sift, ctx }) : freshMeta(ctx)
       result = { form: 'app', func: result, argm: arg }
@@ -993,21 +1003,24 @@ function desugarRoll(input: { hooks: SurfHook[]; idx: number; ctx: Ctx }): Term 
   const hook = hooks[idx]!
   const isLast = idx === hooks.length - 1
 
-  // Last hook with no explicit condition is the else branch
-  if (isLast || hook.base.length === 0 && hook.flow.length > 0) {
-    // If this is the only remaining hook, just emit the body
-    if (isLast) {
-      return desugarFlow({ flow: hook.flow, ctx })
-    }
+  // "hook fall" is the else branch (entire flow is body, no condition)
+  if (hook.name === 'fall' || (isLast && hook.name !== 'test')) {
+    return desugarFlow({ flow: hook.flow, ctx })
   }
 
-  // Hook has a condition: first base entry names the condition
-  // The hook's flow is the then-branch body
-  const thenBranch = desugarFlow({ flow: hook.flow, ctx })
+  // Each hook's first flow item is the condition, rest is the body.
+  // For "hook test": flow[0] is the condition (call is-equal, ...),
+  // flow[1..] is the then-branch body (send back, ...).
+  // For "hook fall": no condition, entire flow is the else branch.
+  const condFlow = hook.flow[0]
+  const bodyFlow = hook.flow.slice(1)
+  const thenBranch = desugarFlow({ flow: bodyFlow, ctx })
   const elseBranch = desugarRoll({ hooks, idx: idx + 1, ctx })
 
-  // Build a condition from the hook name (treated as a call result)
-  const condition: Term = { form: 'ref', name: hook.name }
+  // Build the condition from the first flow item
+  const condition: Term = condFlow
+    ? desugarFlow({ flow: [condFlow], ctx })
+    : { form: 'ref', name: hook.name }
 
   const mat: Term = {
     form: 'mat',
