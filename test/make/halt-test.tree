@@ -9,6 +9,6 @@ task safe-div
     hook true
       halt text <division by zero>
     hook false
-      back call div
+      send back, call div
         bind a, read a
         bind b, read b

@@ -35,6 +35,7 @@ import {
   envGetFill,
   envSusp,
   envTakeSusp,
+  envFreshMeta,
 } from '@/term/env'
 import { reduce } from '@/term/reduce'
 import { equal } from '@/term/equal'
@@ -556,31 +557,31 @@ export function infer(input: {
         fn: () => envFail<Term>(),
       })
 
-    case 'hol':
+    case 'hol': {
+      // Create a fresh metavariable for the hole's type
       return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'hole' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+        env: envFreshMeta(term.ctx),
+        fn: typeMet =>
+          envBind({
+            env: envLog({
+              form: 'found',
+              name: term.name,
+              term: typeMet,
+              ctx: term.ctx,
+              dep,
+            }),
+            fn: () => envPure(ann({ val: term, typ: typeMet })),
+          }),
       })
+    }
 
-    case 'met':
+    case 'met': {
+      // Create a fresh metavariable for the meta's type
       return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'meta' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+        env: envFreshMeta(term.ctx),
+        fn: typeMet => envPure(ann({ val: term, typ: typeMet })),
       })
+    }
 
     case 'var':
       return envBind({

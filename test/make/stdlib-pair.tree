@@ -7,7 +7,7 @@ form pair
 task make-pair
   take a
   take b
-  back make pair
+  send back, make pair
     bind fst, read a
     bind snd, read b
 
@@ -15,19 +15,19 @@ task pair-fst
   take p, like pair
   fork case, read p
     hook pair, base fst, base snd
-      back read fst
+      send back, read fst
 
 task pair-snd
   take p, like pair
   fork case, read p
     hook pair, base fst, base snd
-      back read snd
+      send back, read snd
 
 task pair-swap
   take p, like pair
   fork case, read p
     hook pair, base fst, base snd
-      back make pair
+      send back, make pair
         bind fst, read snd
         bind snd, read fst
 
@@ -36,7 +36,7 @@ task pair-map-fst
   take f
   fork case, read p
     hook pair, base fst, base snd
-      back make pair
+      send back, make pair
         bind fst, call f
           bind x, read fst
         bind snd, read snd
@@ -46,7 +46,7 @@ task pair-map-snd
   take f
   fork case, read p
     hook pair, base fst, base snd
-      back make pair
+      send back, make pair
         bind fst, read fst
         bind snd, call f
           bind x, read snd

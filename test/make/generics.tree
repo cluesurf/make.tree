@@ -1,7 +1,7 @@
 task identity
   head t
   take x
-  back read x
+  send back, read x
 
 task apply
   head a
@@ -10,5 +10,5 @@ task apply
     take x
     back like head/b
   take x
-  back call f
+  send back, call f
     bind x, read x

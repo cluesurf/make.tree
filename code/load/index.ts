@@ -8,7 +8,7 @@
 
 import { readCard } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard } from '@/term/desugar'
+import { desugarCard, type FirmSet } from '@/term/desugar'
 import { resolveStdlib } from '@/stdlib'
 import type { Book } from '@/term/form'
 import type { SurfCard, SurfLoad } from '@/surf/form'
@@ -23,6 +23,7 @@ export type LoadResult = {
   book: Book
   files: string[]
   fileMap: Map<string, string[]>
+  firmSet: FirmSet
 }
 
 export function loadBook(input: {
@@ -33,6 +34,7 @@ export function loadBook(input: {
   const book: Book = new Map()
   const files: string[] = []
   const fileMap = new Map<string, string[]>()
+  const firmSet: FirmSet = new Set()
 
   loadFile({
     file: input.file,
@@ -41,9 +43,10 @@ export function loadBook(input: {
     book,
     files,
     fileMap,
+    firmSet,
   })
 
-  return { book, files, fileMap }
+  return { book, files, fileMap, firmSet }
 }
 
 function loadFile(input: {
@@ -53,8 +56,9 @@ function loadFile(input: {
   book: Book
   files: string[]
   fileMap: Map<string, string[]>
+  firmSet: FirmSet
 }): void {
-  const { file, env, visited, book, files, fileMap } = input
+  const { file, env, visited, book, files, fileMap, firmSet } = input
 
   if (visited.has(file)) return
   visited.add(file)
@@ -113,7 +117,7 @@ function loadFile(input: {
 
       const resolved = env.resolvePath(file, loadPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet })
       }
     }
 
@@ -121,7 +125,7 @@ function loadFile(input: {
       const bearPath = node.path.join('/')
       const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet })
       }
     }
   }
@@ -132,6 +136,9 @@ function loadFile(input: {
   for (const [name, term] of fileResult.book) {
     book.set(name, term)
     fileNames.push(name)
+  }
+  for (const name of fileResult.firmSet) {
+    firmSet.add(name)
   }
   fileMap.set(file, fileNames)
 }

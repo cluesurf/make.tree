@@ -19,7 +19,7 @@ task fib-loop
   take b, like u64
   fork case, read n
     hook zero
-      back read a
+      send back, read a
     hook succ, base pred
       call fib-loop
         bind n, read pred

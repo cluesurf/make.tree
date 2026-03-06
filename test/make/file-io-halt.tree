@@ -9,11 +9,11 @@ task write-file
     bind path, read path
     bind content, read content
     halt kink
-  back text <done>
+  send back, text <done>
 
 task read-file
   take path, like text
-  back
+  send back
     call fs/read-to-string
       bind path, read path
       halt kink

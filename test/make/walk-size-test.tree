@@ -7,7 +7,7 @@ task sum-to
       save total, call add
         bind a, read total
         bind b, read i
-  back read total
+  send back, read total
 
 task double-list
   take items

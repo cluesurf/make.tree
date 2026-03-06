@@ -3,5 +3,5 @@ load ./multi-c
 
 task describe-color
   take c
-  back call color-name
+  send back, call color-name
     bind c, read c

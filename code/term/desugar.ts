@@ -51,11 +51,15 @@ type Ctx = {
 /** Async metadata: maps task names to whether they are async. */
 export type AsyncMeta = Map<string, boolean>
 
+/** Set of definition names marked with `firm true` (totality checked). */
+export type FirmSet = Set<string>
+
 /** Desugar a surface-level file (card) to a Book of Core Term definitions. */
-export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta } {
+export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
+  const firmSet: FirmSet = new Set()
 
   // First pass: detect wear task name collisions so we can prefix
   const wearTaskCounts = new Map<string, number>()
@@ -88,6 +92,14 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
       asyncMeta.set(node.name, true)
     }
 
+    // Collect firm metadata from task and form definitions
+    if (node.form === 'task' && (node as SurfTask).firm) {
+      firmSet.add(node.name)
+    }
+    if (node.form === 'form' && (node as SurfForm).firm) {
+      firmSet.add(node.name)
+    }
+
     // Process wear blocks inside forms
     if (node.form === 'form') {
       for (const w of (node as SurfForm).wear) {
@@ -98,6 +110,7 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
         const ctx: Ctx = { scope: new Map(), meta }
         book.set(t.name, desugarTask({ task: t, ctx }))
         if (t.wait) asyncMeta.set(t.name, true)
+        if (t.firm) firmSet.add(t.name)
       }
     }
 
@@ -124,21 +137,25 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
         if (child.form === 'task' && (child as SurfTask).wait) {
           asyncMeta.set(`${bookNode.name}/${child.name}`, true)
         }
+        if (child.form === 'task' && (child as SurfTask).firm) {
+          firmSet.add(`${bookNode.name}/${child.name}`)
+        }
       }
     }
   }
 
-  return { book, asyncMeta }
+  return { book, asyncMeta, firmSet }
 }
 
 /**
  * Error-tolerant desugar: wraps each definition in try-catch.
  * Failed definitions produce errors but don't prevent others from being desugared.
  */
-export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; errors: Kink[] } {
+export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; errors: Kink[] } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
+  const firmSet: FirmSet = new Set()
   const errors: Kink[] = []
 
   const wearTaskCounts = new Map<string, number>()
@@ -161,6 +178,12 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
       if (node.form === 'task' && (node as SurfTask).wait) {
         asyncMeta.set(node.name, true)
       }
+      if (node.form === 'task' && (node as SurfTask).firm) {
+        firmSet.add(node.name)
+      }
+      if (node.form === 'form' && (node as SurfForm).firm) {
+        firmSet.add(node.name)
+      }
 
       if (node.form === 'form') {
         for (const w of (node as SurfForm).wear) {
@@ -170,6 +193,7 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
           const ctx: Ctx = { scope: new Map(), meta }
           book.set(t.name, desugarTask({ task: t, ctx }))
           if (t.wait) asyncMeta.set(t.name, true)
+          if (t.firm) firmSet.add(t.name)
         }
       }
 
@@ -191,6 +215,9 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
             if (childResult) book.set(`${bookNode.name}/${childResult.name}`, childResult.term)
             if (child.form === 'task' && (child as SurfTask).wait) {
               asyncMeta.set(`${bookNode.name}/${child.name}`, true)
+            }
+            if (child.form === 'task' && (child as SurfTask).firm) {
+              firmSet.add(`${bookNode.name}/${child.name}`)
             }
           } catch (e) {
             errors.push(
@@ -218,7 +245,7 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
     }
   }
 
-  return { book, asyncMeta, errors }
+  return { book, asyncMeta, firmSet, errors }
 }
 
 /** Desugar all tasks inside a wear block into the book.
@@ -586,9 +613,7 @@ export function desugarSift(input: { sift: Surf; ctx: Ctx }): Term {
       return { form: 'num', val: sift.val }
 
     case 'sift-wave':
-      return sift.val
-        ? { form: 'con', name: 'True', args: [] }
-        : { form: 'con', name: 'False', args: [] }
+      return { form: 'ref', name: sift.val ? '.true' : '.false' }
 
     case 'sift-link':
     case 'sift-read':
@@ -667,12 +692,14 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
       const arg = bind.sift ? desugarSift({ sift: bind.sift, ctx }) : freshMeta(ctx)
       result = { form: 'app', func: result, argm: arg }
     }
+    result = applyCallbackHook({ result, hook: call.hook, ctx })
     if (call.halt) {
       result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
     }
     if (call.wait) {
       result = { form: 'app', func: { form: 'ref', name: '.wait' }, argm: result }
     }
+    result = applyChain({ result, chain: call.chain, ctx })
     return result
   }
 
@@ -685,6 +712,8 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
     result = { form: 'app', func: result, argm: arg }
   }
 
+  result = applyCallbackHook({ result, hook: call.hook, ctx })
+
   if (call.halt) {
     result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
   }
@@ -693,6 +722,76 @@ function desugarCall(input: { call: SurfCall; ctx: Ctx }): Term {
     result = { form: 'app', func: { form: 'ref', name: '.wait' }, argm: result }
   }
 
+  result = applyChain({ result, chain: call.chain, ctx })
+  return result
+}
+
+/**
+ * Apply callback hooks to a call result.
+ * When a call has `take` params inside it (like `call promise/make`),
+ * the params define a callback that gets passed as an argument.
+ *
+ *   call promise/make
+ *     take resolve, like task
+ *     call child/dock/on ...
+ *   → App(App(Ref "!make", Ref "promise"), Lam("resolve", body))
+ */
+function applyCallbackHook(input: {
+  result: Term
+  hook: Record<string, SurfHook>
+  ctx: Ctx
+}): Term {
+  let { result } = input
+  const { hook, ctx } = input
+  const body = hook['body']
+  if (!body) return result
+  // Build a nested lambda from the callback params
+  let callback: Term = desugarFlow({ flow: body.flow, ctx: { ...ctx, scope: new Map(ctx.scope) } })
+  // Wrap in lambdas for each param (in reverse order)
+  for (let i = body.base.length - 1; i >= 0; i--) {
+    const param = body.base[i]!
+    const paramName = param.name
+    const inner = callback
+    callback = {
+      form: 'lam',
+      name: paramName,
+      bod: x => {
+        const newScope = new Map(ctx.scope)
+        newScope.set(paramName, x)
+        // Re-desugar the flow with the param in scope
+        return desugarFlow({ flow: body.flow, ctx: { ...ctx, scope: newScope } })
+      },
+    }
+  }
+  result = { form: 'app', func: result, argm: callback }
+  return result
+}
+
+/**
+ * Apply chained method calls to a result term.
+ * Each chain entry is a method call on the previous result:
+ *   call env/args → call collect → call to-string
+ *   becomes: env.args().collect().to_string()
+ */
+function applyChain(input: { result: Term; chain?: SurfCall[]; ctx: Ctx }): Term {
+  let { result } = input
+  const { chain, ctx } = input
+  if (!chain) return result
+  for (const c of chain) {
+    result = { form: 'app', func: { form: 'ref', name: `!${c.name}` }, argm: result }
+    for (const bind of c.bind) {
+      const arg = bind.sift ? desugarSift({ sift: bind.sift, ctx }) : freshMeta(ctx)
+      result = { form: 'app', func: result, argm: arg }
+    }
+    if (c.halt) {
+      result = { form: 'app', func: { form: 'ref', name: '.halt' }, argm: result }
+    }
+    if (c.wait) {
+      result = { form: 'app', func: { form: 'ref', name: '.wait' }, argm: result }
+    }
+    // Recursively apply nested chains
+    result = applyChain({ result, chain: c.chain, ctx })
+  }
   return result
 }
 
@@ -775,13 +874,23 @@ function desugarFork(input: { fork: SurfFork; ctx: Ctx }): Term {
 
   const mat: Term = { form: 'mat', arms }
 
-  // fork test → .test(mat, condition) for if/else codegen
+  // fork test (old style) → .test(mat, condition) for if/else codegen
+  // Condition is in fork.sift, arms are hook true/hook false
   if (fork.mode === 'test' && fork.sift) {
     const condition = desugarSift({ sift: fork.sift, ctx })
     return {
       form: 'app',
       func: { form: 'app', func: { form: 'ref', name: '.test' }, argm: mat },
       argm: condition,
+    }
+  }
+
+  // fork test (new style) → hook test/hold/miss pairs
+  // Condition is in hook test flow, then-branch in hook hold, else in hook miss
+  if (fork.mode === 'test' && !fork.sift) {
+    const hookNames = new Set(fork.hook.map(h => h.name))
+    if (hookNames.has('test') || hookNames.has('hold') || hookNames.has('miss')) {
+      return desugarTestHoldMiss({ hooks: fork.hook, idx: 0, ctx })
     }
   }
 
@@ -870,7 +979,7 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
     }
   }
 
-  // walk test → while loop: App(App(Ref ".while") condition) (Lam "_" body)
+  // walk test (old style) → while loop: condition in sift, body in hook[0]
   if (walk.mode === 'test' && walk.sift) {
     const condition = desugarSift({ sift: walk.sift, ctx })
     const hook = walk.hook[0]
@@ -888,6 +997,29 @@ function desugarWalk(input: { walk: SurfWalk; ctx: Ctx }): Term {
         argm: condition,
       },
       argm: body,
+    }
+  }
+
+  // walk test (new style) → hook test has condition, hook hold has body
+  if (walk.mode === 'test' && !walk.sift) {
+    const testHook = walk.hook.find(h => h.name === 'test')
+    const holdHook = walk.hook.find(h => h.name === 'hold')
+    if (testHook && holdHook) {
+      const condition = desugarFlow({ flow: testHook.flow, ctx })
+      const body: Term = {
+        form: 'lam',
+        name: '_',
+        bod: () => desugarWhileBody({ flow: holdHook.flow, ctx }),
+      }
+      return {
+        form: 'app',
+        func: {
+          form: 'app',
+          func: { form: 'ref', name: '.while' },
+          argm: condition,
+        },
+        argm: body,
+      }
     }
   }
 
@@ -1025,8 +1157,8 @@ function desugarRoll(input: { hooks: SurfHook[]; idx: number; ctx: Ctx }): Term 
   const mat: Term = {
     form: 'mat',
     arms: [
-      ['True', thenBranch],
-      ['False', elseBranch],
+      ['true', thenBranch],
+      ['false', elseBranch],
     ],
   }
 
@@ -1035,6 +1167,57 @@ function desugarRoll(input: { hooks: SurfHook[]; idx: number; ctx: Ctx }): Term 
     func: { form: 'app', func: { form: 'ref', name: '.test' }, argm: mat },
     argm: condition,
   }
+}
+
+/**
+ * Desugar new-style fork test with hook test/hold/miss pairs.
+ *
+ * hook test → condition (flow is the condition expression)
+ * hook hold → then-branch (flow is the body)
+ * hook miss → else-branch (flow is the body)
+ *
+ * Multiple test/hold pairs form an if/else-if chain.
+ */
+function desugarTestHoldMiss(input: { hooks: SurfHook[]; idx: number; ctx: Ctx }): Term {
+  const { hooks, idx, ctx } = input
+
+  if (idx >= hooks.length) {
+    return { form: 'con', name: 'Unit', args: [] }
+  }
+
+  const hook = hooks[idx]!
+
+  // hook miss → else branch
+  if (hook.name === 'miss') {
+    return desugarFlow({ flow: hook.flow, ctx })
+  }
+
+  // hook test → condition, followed by hook hold → body
+  if (hook.name === 'test') {
+    const condition = desugarFlow({ flow: hook.flow, ctx })
+    const holdHook = hooks[idx + 1]
+    const thenBranch = holdHook && holdHook.name === 'hold'
+      ? desugarFlow({ flow: holdHook.flow, ctx })
+      : ({ form: 'con', name: 'Unit', args: [] } as Term)
+    const elseBranch = desugarTestHoldMiss({ hooks, idx: idx + 2, ctx })
+
+    const mat: Term = {
+      form: 'mat',
+      arms: [
+        ['true', thenBranch],
+        ['false', elseBranch],
+      ],
+    }
+
+    return {
+      form: 'app',
+      func: { form: 'app', func: { form: 'ref', name: '.test' }, argm: mat },
+      argm: condition,
+    }
+  }
+
+  // Fallback: treat as else
+  return desugarFlow({ flow: hook.flow, ctx })
 }
 
 // ---- Helpers ----

@@ -1,7 +1,7 @@
 task safe-add
   take a, like u64
   take b, like u64
-  back call add
+  send back, call add
     bind a, read a
     bind b, read b
 
@@ -9,6 +9,6 @@ task unchecked-add
   risk true
   take a, like u64
   take b, like u64
-  back call add
+  send back, call add
     bind a, read a
     bind b, read b

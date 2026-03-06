@@ -9,8 +9,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { readCard, readCardTolerant } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard, desugarCardTolerant, type AsyncMeta } from '@/term/desugar'
+import { desugarCard, desugarCardTolerant, type AsyncMeta, type FirmSet } from '@/term/desugar'
 import { check } from '@/term/check'
+import { checkTotal } from '@/term/total'
 import { castBook as castTS, castBookToFiles as castTSFiles } from '@/cast/typescript'
 import { castBook as castHVM } from '@/cast/hvm'
 import { castBook as castRust } from '@/cast/rust'
@@ -18,6 +19,8 @@ import { castBook as castKotlin } from '@/cast/kotlin'
 import { castBook as castSwift } from '@/cast/swift'
 import { loadBook } from '@/load'
 import { renderInfoList } from '@/kink/render'
+import { makeKink } from '@/kink/form'
+import { VOID_SITE } from '@/kink/site'
 import { hashContent } from '@/cache/hash'
 import { createStore, type CacheStore } from '@/cache/store'
 import { createGraph, addEdge, getDirtySet, serializeGraph, deserializeGraph } from '@/cache/graph'
@@ -56,9 +59,9 @@ export function compile(input: {
   const { file, env, target } = input
 
   const result = loadBook({ file, env })
-  const { book, files } = result
+  const { book, files, firmSet } = result
 
-  const errors = checkBook({ book })
+  const errors = checkBook({ book, firmSet })
   const code = generate({ book, target })
 
   return { code, errors, files, book }
@@ -75,9 +78,9 @@ export function compileToFiles(input: {
   const { file, env } = input
 
   const result = loadBook({ file, env })
-  const { book, files, fileMap } = result
+  const { book, files, fileMap, firmSet } = result
 
-  const errors = checkBook({ book })
+  const errors = checkBook({ book, firmSet })
   const codeFiles = castTSFiles({ book, fileMap })
 
   return { codeFiles, errors, files, book }
@@ -103,9 +106,9 @@ export function compileText(input: {
   const rawCard = readCard({ tree: lead.tree, file })
   const card = expandFuse({ card: rawCard })
   const dock = extractDockLoads({ card })
-  const { book, asyncMeta } = desugarCard({ card })
+  const { book, asyncMeta, firmSet } = desugarCard({ card })
 
-  const errors = checkBook({ book })
+  const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, dock, asyncMeta })
 
   return { code, errors, files: [file], book }
@@ -134,10 +137,10 @@ export function compileTextTolerant(input: {
 
   const card = expandFuse({ card: rawCard })
   const dock = extractDockLoads({ card })
-  const { book, asyncMeta, errors: desugarErrors } = desugarCardTolerant({ card })
+  const { book, asyncMeta, firmSet, errors: desugarErrors } = desugarCardTolerant({ card })
   allErrors.push(...desugarErrors)
 
-  const checkErrors = checkBook({ book })
+  const checkErrors = checkBook({ book, firmSet })
   allErrors.push(...checkErrors)
 
   const code = generate({ book, target, dock, asyncMeta })
@@ -314,6 +317,7 @@ export function compileIncremental(input: {
   // We always re-desugar from cached SurfCards, which is fast enough.
   const book: Book = new Map()
   let asyncMeta: AsyncMeta | undefined
+  const firmSet: FirmSet = new Set()
   const allDock: DockLoad[] = []
 
   for (const [f, card] of cards) {
@@ -330,10 +334,13 @@ export function compileIncremental(input: {
         asyncMeta.set(name, val)
       }
     }
+    for (const name of result.firmSet) {
+      firmSet.add(name)
+    }
   }
 
   // Phase 7: type-check and generate code.
-  const errors = checkBook({ book })
+  const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, dock: allDock, asyncMeta })
 
   // Phase 8: persist cache.
@@ -346,10 +353,11 @@ export function compileIncremental(input: {
 
 /**
  * Type-check every definition in a book.
- * Returns Kink errors for any type mismatches.
+ * Also runs totality checking for definitions marked with `firm true`.
+ * Returns Kink errors for any type mismatches or totality failures.
  */
-function checkBook(input: { book: Book }): Kink[] {
-  const { book } = input
+function checkBook(input: { book: Book; firmSet?: FirmSet }): Kink[] {
+  const { book, firmSet } = input
   const allErrors: Kink[] = []
   const names = [...book.keys()]
 
@@ -362,9 +370,22 @@ function checkBook(input: { book: Book }): Kink[] {
         names,
       })
       allErrors.push(...errors)
-    } else {
-      // check returned null = hard failure with no state
-      // This shouldn't happen for well-formed terms, but handle gracefully
+    }
+
+    // Totality check for firm definitions
+    if (firmSet?.has(name)) {
+      const totalResult = checkTotal({ name, term, book })
+      if (!totalResult.ok) {
+        allErrors.push(
+          makeKink({
+            form: 'total-bad',
+            rank: 'halt',
+            site: VOID_SITE,
+            text: totalResult.reason,
+            rest: { name },
+          }),
+        )
+      }
     }
   }
 

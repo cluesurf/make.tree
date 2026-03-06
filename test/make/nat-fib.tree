@@ -12,16 +12,16 @@ task nat-is-zero
   take n, like nat
   fork case, read n
     hook zero
-      back make true
+      send back, make true
     hook succ, base pred
-      back make false
+      send back, make false
 
 task make-zero
-  back make zero
+  send back, make zero
 
 task make-succ
   take p, like nat
-  back make succ
+  send back, make succ
     bind pred, read p
 
 task nat-add
@@ -29,9 +29,9 @@ task nat-add
   take b, like nat
   fork case, read a
     hook zero
-      back read b
+      send back, read b
     hook succ, base pred
-      back make succ
+      send back, make succ
         bind pred, call nat-add
           bind a, read pred
           bind b, read b
@@ -40,14 +40,14 @@ task nat-fib
   take n, like nat
   fork case, read n
     hook zero
-      back make zero
+      send back, make zero
     hook succ, base pred
       fork case, read pred
         hook zero
-          back make succ
+          send back, make succ
             bind pred, make zero
         hook succ, base pp
-          back call nat-add
+          send back, call nat-add
             bind a, call nat-fib
               bind n, read pred
             bind b, call nat-fib

@@ -6,4 +6,4 @@ form integer
 
 task read-dock
   take val, like integer
-  back read val
+  send back, read val

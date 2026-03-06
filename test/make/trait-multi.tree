@@ -18,33 +18,33 @@ form color
       take self, like color
       fork case, read self
         hook red
-          back text <red>
+          send back, text <red>
         hook green
-          back text <green>
+          send back, text <green>
         hook blue
-          back text <blue>
+          send back, text <blue>
 
   wear numeric
     task to-number
       take self, like color
       fork case, read self
         hook red
-          back mark 1
+          send back, mark 1
         hook green
-          back mark 2
+          send back, mark 2
         hook blue
-          back mark 3
+          send back, mark 3
 
   wear helpers
     task warmth
       take self, like color
       fork case, read self
         hook red
-          back mark 1
+          send back, mark 1
         hook green
-          back mark 0
+          send back, mark 0
         hook blue
-          back mark 0
+          send back, mark 0
 
 form shape
   case circle
@@ -56,21 +56,21 @@ suit shape
       take self, like shape
       fork case, read self
         hook circle
-          back text <circle>
+          send back, text <circle>
         hook square
-          back text <square>
+          send back, text <square>
 
 task make-red
-  back make red
+  send back, make red
 
 task make-green
-  back make green
+  send back, make green
 
 task make-blue
-  back make blue
+  send back, make blue
 
 task make-circle
-  back make circle
+  send back, make circle
 
 task make-square
-  back make square
+  send back, make square

@@ -30,13 +30,13 @@ form point
     task distance-to
       take self, like point
       take other, like point
-      back call add
+      send back, call add
         bind a, read self/x
         bind b, read other/x
 
     task from-value
       take value, like u64
-      back make point
+      send back, make point
         bind x, read value
         bind y, read value
 
@@ -44,7 +44,7 @@ form point
     task scale
       take self, like point
       take factor, like u64
-      back make point
+      send back, make point
         bind x
           call mul
             bind a, read self/x
@@ -58,7 +58,7 @@ form point
       take self, like point
       take other, like point
       take offset, like u64
-      back make point
+      send back, make point
         bind x
           call add
             bind a
@@ -77,6 +77,6 @@ form point
 task make-point
   take x, like u64
   take y, like u64
-  back make point
+  send back, make point
     bind x, read x
     bind y, read y

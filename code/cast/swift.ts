@@ -701,7 +701,7 @@ function castBoolTestStmt(input: {
   const trueArm = arms.find(([n]) => n === 'true')
   const falseArm = arms.find(([n]) => n === 'false')
 
-  lines.push(`${pad}if ${scrExpr} as! Bool {`)
+  lines.push(`${pad}if ${scrExpr} {`)
   if (trueArm) {
     let armBod = trueArm[1]
     let armDep = dep
@@ -845,7 +845,12 @@ function castExpr(input: {
       }
       const funcStr = castExpr({ term: func, dep, ctx })
       const argsStr = args.map(a => castExpr({ term: a, dep, ctx }))
-      return `(${funcStr} as! (${args.map(() => 'Any').join(', ')}) -> Any)(${argsStr.join(', ')})`
+      // Only cast to function type when the func is a dynamic value (var/lam),
+      // not when it's a known function reference
+      if (func.form === 'var' || func.form === 'lam') {
+        return `(${funcStr} as! (${args.map(() => 'Any').join(', ')}) -> Any)(${argsStr.join(', ')})`
+      }
+      return `${funcStr}(${argsStr.join(', ')})`
     }
     case 'let': {
       const name = varName({ name: term.name, dep })
@@ -860,6 +865,8 @@ function castExpr(input: {
     case 'use':
       return castExpr({ term: term.bod(term.val), dep, ctx })
     case 'ref':
+      if (term.name === '.true') return 'true'
+      if (term.name === '.false') return 'false'
       return camelCase(term.name)
     case 'var':
       return term.name
@@ -896,6 +903,15 @@ function castExpr(input: {
       const op = castOper(term.oper)
       const a = castExpr({ term: term.a, dep, ctx })
       const b = castExpr({ term: term.b, dep, ctx })
+      // For eq/ne: check if either operand is a string literal
+      // If so, compare as strings. Otherwise compare as Int.
+      if (term.oper === 'eq' || term.oper === 'ne') {
+        const isStrA = term.a.form === 'txt'
+        const isStrB = term.b.form === 'txt'
+        if (isStrA || isStrB) {
+          return `(${a} as! String ${op} ${b} as! String)`
+        }
+      }
       return `((${a} as! Int) ${op} (${b} as! Int))`
     }
     case 'lst': {

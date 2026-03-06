@@ -10,10 +10,10 @@ task either-map-right
   take f
   fork case, read e
     hook left, base value
-      back make left
+      send back, make left
         bind value, read value
     hook right, base value
-      back make right
+      send back, make right
         bind value, call f
           bind x, read value
 
@@ -22,11 +22,11 @@ task either-map-left
   take f
   fork case, read e
     hook left, base value
-      back make left
+      send back, make left
         bind value, call f
           bind x, read value
     hook right, base value
-      back make right
+      send back, make right
         bind value, read value
 
 task either-unwrap-right
@@ -34,31 +34,31 @@ task either-unwrap-right
   take fallback
   fork case, read e
     hook left, base value
-      back read fallback
+      send back, read fallback
     hook right, base value
-      back read value
+      send back, read value
 
 task either-unwrap-left
   take e, like either
   take fallback
   fork case, read e
     hook left, base value
-      back read value
+      send back, read value
     hook right, base value
-      back read fallback
+      send back, read fallback
 
 task either-is-left
   take e, like either
   fork case, read e
     hook left, base value
-      back wave true
+      send back, wave true
     hook right, base value
-      back wave false
+      send back, wave false
 
 task either-is-right
   take e, like either
   fork case, read e
     hook left, base value
-      back wave false
+      send back, wave false
     hook right, base value
-      back wave true
+      send back, wave true

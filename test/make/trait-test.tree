@@ -13,14 +13,14 @@ form color
       take self, like color
       fork case, read self
         hook red
-          back text <red>
+          send back, text <red>
         hook green
-          back text <green>
+          send back, text <green>
         hook blue
-          back text <blue>
+          send back, text <blue>
 
 task make-red
-  back make red
+  send back, make red
 
 task make-green
-  back make green
+  send back, make green

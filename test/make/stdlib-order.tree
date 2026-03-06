@@ -8,41 +8,41 @@ task order-reverse
   take o, like order
   fork case, read o
     hook less
-      back make more
+      send back, make more
     hook equal
-      back make equal
+      send back, make equal
     hook more
-      back make less
+      send back, make less
 
 task order-is-less
   take o, like order
   fork case, read o
     hook less
-      back wave true
+      send back, wave true
     hook equal
-      back wave false
+      send back, wave false
     hook more
-      back wave false
+      send back, wave false
 
 task order-is-equal
   take o, like order
   fork case, read o
     hook less
-      back wave false
+      send back, wave false
     hook equal
-      back wave true
+      send back, wave true
     hook more
-      back wave false
+      send back, wave false
 
 task order-is-more
   take o, like order
   fork case, read o
     hook less
-      back wave false
+      send back, wave false
     hook equal
-      back wave false
+      send back, wave false
     hook more
-      back wave true
+      send back, wave true
 
 task compare-u64
   take a, like u64
@@ -53,7 +53,7 @@ task compare-u64
       bind b, read b
   fork case, read is-less
     hook true
-      back make less
+      send back, make less
     hook false
       save is-eq
         call eq
@@ -61,6 +61,6 @@ task compare-u64
           bind b, read b
       fork case, read is-eq
         hook true
-          back make equal
+          send back, make equal
         hook false
-          back make more
+          send back, make more

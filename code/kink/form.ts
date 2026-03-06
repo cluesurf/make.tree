@@ -103,6 +103,12 @@ export type KinkPureBad = KinkBase & {
   call: string
 }
 
+// Phase 4b: Totality errors
+export type KinkTotalBad = KinkBase & {
+  form: 'total-bad'
+  name: string
+}
+
 // Phase 5: Generate errors
 export type KinkEmitBad = KinkBase & {
   form: 'emit-bad'
@@ -126,6 +132,7 @@ export type Kink =
   | KinkTypeMissArm
   | KinkTypeHoleMiss
   | KinkPureBad
+  | KinkTotalBad
   | KinkEmitBad
 
 /** Create an error. */

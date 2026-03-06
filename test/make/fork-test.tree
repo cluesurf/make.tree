@@ -7,9 +7,9 @@ task max
       bind a, read a
       bind b, read b
     hook true
-      back read a
+      send back, read a
     hook false
-      back read b
+      send back, read b
 
 task is-zero
   take n, like u64
@@ -18,9 +18,9 @@ task is-zero
       bind a, read n
       bind b, mark 0
     hook true
-      back mark 1
+      send back, mark 1
     hook false
-      back mark 0
+      send back, mark 0
 
 task clamp
   take n, like u64
@@ -31,13 +31,13 @@ task clamp
       bind a, read n
       bind b, read lo
     hook true
-      back read lo
+      send back, read lo
     hook false
       fork test
         call gt
           bind a, read n
           bind b, read hi
         hook true
-          back read hi
+          send back, read hi
         hook false
-          back read n
+          send back, read n

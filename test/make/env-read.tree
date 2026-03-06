@@ -1,0 +1,69 @@
+
+dock load
+  load <node:os>, name os
+
+form info
+  link system, like text
+  link architecture, like text
+  link name, like text
+  link version, like text
+  link endian, like text
+  link cores, like size
+  link memory, like size
+
+task read-env
+  save system
+    call os/platform
+  save architecture
+    call os/arch
+  save osname
+    call os/type
+  save osversion
+    call os/release
+  save endian
+    call os/endianness
+  save cpulist
+    call os/cpus
+  save corecount
+    read cpulist/length
+  save memory
+    call os/totalmem
+  send back
+    make info
+      bind system, read system
+      bind architecture, read architecture
+      bind name, read osname
+      bind version, read osversion
+      bind endian, read endian
+      bind cores, read corecount
+      bind memory, read memory
+
+task info-system
+  take i, like info
+  fork case, read i
+    hook info, base system, base architecture, base name, base version, base endian, base cores, base memory
+      send back, read system
+
+task info-architecture
+  take i, like info
+  fork case, read i
+    hook info, base system, base architecture, base name, base version, base endian, base cores, base memory
+      send back, read architecture
+
+task info-cores
+  take i, like info
+  fork case, read i
+    hook info, base system, base architecture, base name, base version, base endian, base cores, base memory
+      send back, read cores
+
+task info-memory
+  take i, like info
+  fork case, read i
+    hook info, base system, base architecture, base name, base version, base endian, base cores, base memory
+      send back, read memory
+
+task info-endian
+  take i, like info
+  fork case, read i
+    hook info, base system, base architecture, base name, base version, base endian, base cores, base memory
+      send back, read endian

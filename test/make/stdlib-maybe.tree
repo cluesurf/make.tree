@@ -9,43 +9,43 @@ task maybe-map
   take f
   fork case, read m
     hook some, base value
-      back make some
+      send back, make some
         bind value, call f
           bind x, read value
     hook none
-      back make none
+      send back, make none
 
 task maybe-unwrap
   take m, like maybe
   take fallback
   fork case, read m
     hook some, base value
-      back read value
+      send back, read value
     hook none
-      back read fallback
+      send back, read fallback
 
 task maybe-is-some
   take m, like maybe
   fork case, read m
     hook some, base value
-      back wave true
+      send back, wave true
     hook none
-      back wave false
+      send back, wave false
 
 task maybe-is-none
   take m, like maybe
   fork case, read m
     hook some, base value
-      back wave false
+      send back, wave false
     hook none
-      back wave true
+      send back, wave true
 
 task maybe-from-wave
   take cond, like bool
   take value
   fork case, read cond
     hook true
-      back make some
+      send back, make some
         bind value, read value
     hook false
-      back make none
+      send back, make none

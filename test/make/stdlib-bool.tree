@@ -7,44 +7,44 @@ task bool-not
   take a, like bool
   fork case, read a
     hook true
-      back make false
+      send back, make false
     hook false
-      back make true
+      send back, make true
 
 task bool-and
   take a, like bool
   take b, like bool
   fork case, read a
     hook true
-      back read b
+      send back, read b
     hook false
-      back make false
+      send back, make false
 
 task bool-or
   take a, like bool
   take b, like bool
   fork case, read a
     hook true
-      back make true
+      send back, make true
     hook false
-      back read b
+      send back, read b
 
 task bool-xor
   take a, like bool
   take b, like bool
   fork case, read a
     hook true
-      back call bool-not
+      send back, call bool-not
         bind a, read b
     hook false
-      back read b
+      send back, read b
 
 task bool-eq
   take a, like bool
   take b, like bool
   fork case, read a
     hook true
-      back read b
+      send back, read b
     hook false
-      back call bool-not
+      send back, call bool-not
         bind a, read b

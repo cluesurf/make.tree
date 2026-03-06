@@ -6,11 +6,11 @@ task classify
       call lt
         bind a, read n
         bind b, mark 0
-      back text <negative>
+      send back, text <negative>
     hook is-zero
       call eq
         bind a, read n
         bind b, mark 0
-      back text <zero>
+      send back, text <zero>
     hook is-positive
-      back text <positive>
+      send back, text <positive>

@@ -21,7 +21,7 @@ describe('fuse/index', () => {
       list: [
         // tree adder
         //   take size
-        //   hook bind
+        //   hook fuse
         //     task add-{size}
         //       take a, like u64
         //       take b, like u64
@@ -34,7 +34,7 @@ describe('fuse/index', () => {
           base: [{ form: 'base', name: 'size', site }],
           hook: [{
             form: 'tree-hook',
-            name: 'bind',
+            name: 'fuse',
             list: [{
               form: 'task',
               name: 'add-{size}',
@@ -115,7 +115,7 @@ describe('fuse/index', () => {
           base: [{ form: 'base', name: 'name', site }],
           hook: [{
             form: 'tree-hook',
-            name: 'bind',
+            name: 'fuse',
             list: [{
               form: 'task',
               name: 'double-{name}',
@@ -184,6 +184,66 @@ describe('fuse/index', () => {
     expect(expanded.list[0]!.form).toBe('task')
   })
 
+  it('only expands hook fuse, ignores other hooks', () => {
+    const card: SurfCard = {
+      file: 'test.tree',
+      list: [
+        {
+          form: 'tree',
+          name: 'example',
+          base: [{ form: 'base', name: 'name', site }],
+          hook: [
+            {
+              form: 'tree-hook',
+              name: 'other',
+              list: [{
+                form: 'task',
+                name: 'should-not-appear',
+                head: [],
+                base: [],
+                flow: [],
+                task: [],
+                site,
+              } as SurfTask],
+              site,
+            } as SurfTreeHook,
+            {
+              form: 'tree-hook',
+              name: 'fuse',
+              list: [{
+                form: 'task',
+                name: 'should-appear-{name}',
+                head: [],
+                base: [],
+                flow: [],
+                task: [],
+                site,
+              } as SurfTask],
+              site,
+            } as SurfTreeHook,
+          ],
+          site,
+        } as SurfTree,
+        {
+          form: 'fuse',
+          name: 'example',
+          bind: [{
+            form: 'bind',
+            name: 'name',
+            sift: { form: 'sift-text', val: 'ok', site },
+            site,
+          }],
+          site,
+        } as SurfFuse,
+      ],
+    }
+
+    const expanded = expandFuse({ card })
+    const tasks = expanded.list.filter(n => n.form === 'task')
+    expect(tasks).toHaveLength(1)
+    expect((tasks[0] as SurfTask).name).toBe('should-appear-ok')
+  })
+
   it('expands fuse inside a task body', () => {
     const card: SurfCard = {
       file: 'test.tree',
@@ -194,7 +254,7 @@ describe('fuse/index', () => {
           base: [],
           hook: [{
             form: 'tree-hook',
-            name: 'bind',
+            name: 'fuse',
             list: [{
               form: 'show',
               sift: { form: 'sift-text', val: 'step done', site },

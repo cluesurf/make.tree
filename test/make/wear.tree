@@ -7,7 +7,7 @@ form point
     task add-points
       take a, like u64
       take b, like u64
-      back call add
+      send back, call add
         bind a, read a
         bind b, read b
 
@@ -15,6 +15,6 @@ form point
     task points-equal
       take a, like u64
       take b, like u64
-      back call eq
+      send back, call eq
         bind a, read a
         bind b, read b

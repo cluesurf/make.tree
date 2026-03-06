@@ -16,7 +16,7 @@ task count-to
         call add
           bind a, read i
           bind b, mark 1
-  back read total
+  send back, read total
 
 task factorial
   take n, like u64
@@ -35,7 +35,7 @@ task factorial
         call add
           bind a, read i
           bind b, mark 1
-  back read result
+  send back, read result
 
 task count-down
   take n, like u64
@@ -49,4 +49,4 @@ task count-down
         call sub
           bind a, read i
           bind b, mark 1
-  back read i
+  send back, read i

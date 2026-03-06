@@ -3,5 +3,5 @@ load ./multi-b
 
 task hello
   take name, like text
-  back call greet
+  send back, call greet
     bind name, read name

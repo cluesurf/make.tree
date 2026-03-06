@@ -2,7 +2,7 @@
 task debug-add
   take a, like u64
   take b, like u64
-  rest
-  back call add
+  rest flow
+  send back, call add
     bind a, read a
     bind b, read b

@@ -96,9 +96,10 @@ function expandFuseNode(input: {
     subst.set(bind.name, val)
   }
 
-  // Expand all hooks from the tree template
+  // Expand only `hook fuse` from the tree template
   const result: Surf[] = []
   for (const hook of tree.hook) {
+    if (hook.name !== 'fuse') continue
     for (const item of hook.list) {
       result.push(substSurf({ node: item, subst, trees }))
     }

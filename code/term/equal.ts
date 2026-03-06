@@ -131,15 +131,12 @@ function identical(input: {
     }
 
     case 'slf': {
+      // Following Kind2: only compare bodies, not typ annotation.
+      // The typ is just metadata for the checker. Comparing it can
+      // cause infinite recursion with self-referential types like Equal.
       const b_ = b as typeof a
-      return envBind({
-        env: equal({ a: a.typ, b: b_.typ, dep }),
-        fn: typEq => {
-          if (!typEq) return envPure(false)
-          const v: Term = { form: 'var', name: a.name, idx: dep }
-          return equal({ a: a.bod(v), b: b_.bod(v), dep: dep + 1 })
-        },
-      })
+      const v: Term = { form: 'var', name: a.name, idx: dep }
+      return equal({ a: a.bod(v), b: b_.bod(v), dep: dep + 1 })
     }
 
     case 'var':
@@ -220,15 +217,10 @@ function similar(input: {
       return equal({ a: a.val, b: (b as typeof a).val, dep })
 
     case 'slf': {
+      // Following Kind2: only compare bodies, not typ annotation.
       const b_ = b as typeof a
-      return envBind({
-        env: equal({ a: a.typ, b: b_.typ, dep }),
-        fn: typEq => {
-          if (!typEq) return envPure(false)
-          const v: Term = { form: 'var', name: a.name, idx: dep }
-          return equal({ a: a.bod(v), b: b_.bod(v), dep: dep + 1 })
-        },
-      })
+      const v: Term = { form: 'var', name: a.name, idx: dep }
+      return equal({ a: a.bod(v), b: b_.bod(v), dep: dep + 1 })
     }
 
     case 'ins':
@@ -448,16 +440,161 @@ function occurs(input: { uid: number; term: Term }): boolean {
 
 /**
  * Build solution λa1...λan. term from a spine of variables.
- * The ctx variables become the lambda parameters.
+ *
+ * When (?X v0 v1 ... vn) = K, the solution is:
+ *   X := λx0.λx1...λxn. K[v0:=x0, v1:=x1, ..., vn:=xn]
+ *
+ * The lambda body must substitute occurrences of spine variables
+ * in K with the corresponding lambda parameters.
  */
 function buildSolution(input: { ctx: Term[]; term: Term }): Term {
   const { ctx, term } = input
+  if (ctx.length === 0) return term
+
+  // Collect spine variable indices for substitution
+  const spineIdxs: number[] = []
+  for (const v of ctx) {
+    if (v.form === 'var') spineIdxs.push(v.idx)
+  }
+
   let result = term
   for (let i = ctx.length - 1; i >= 0; i--) {
     const v = ctx[i]!
     const name = v.form === 'var' ? v.name : `x${i}`
-    const captured = result
-    result = { form: 'lam', name, bod: () => captured }
+    const varIdx = v.form === 'var' ? v.idx : -1
+    const inner = result
+    result = {
+      form: 'lam',
+      name,
+      bod: (x: Term) =>
+        varIdx >= 0 ? substVar({ term: inner, varIdx, replacement: x }) : inner,
+    }
   }
   return result
+}
+
+/**
+ * Substitute a variable (by de Bruijn level/index) in a term.
+ * Since HOAS bod functions can't be traversed, this only handles
+ * the first-order parts of the term tree.
+ */
+function substVar(input: {
+  term: Term
+  varIdx: number
+  replacement: Term
+}): Term {
+  const { term, varIdx, replacement } = input
+  switch (term.form) {
+    case 'var':
+      return term.idx === varIdx ? replacement : term
+    case 'app':
+      return {
+        form: 'app',
+        func: substVar({ term: term.func, varIdx, replacement }),
+        argm: substVar({ term: term.argm, varIdx, replacement }),
+      }
+    case 'ann':
+      return {
+        form: 'ann',
+        done: term.done,
+        val: substVar({ term: term.val, varIdx, replacement }),
+        typ: substVar({ term: term.typ, varIdx, replacement }),
+      }
+    case 'ins':
+      return {
+        form: 'ins',
+        val: substVar({ term: term.val, varIdx, replacement }),
+      }
+    case 'op2':
+      return {
+        form: 'op2',
+        oper: term.oper,
+        a: substVar({ term: term.a, varIdx, replacement }),
+        b: substVar({ term: term.b, varIdx, replacement }),
+      }
+    case 'con':
+      return {
+        form: 'con',
+        name: term.name,
+        args: term.args.map(([f, t]) => [
+          f,
+          substVar({ term: t, varIdx, replacement }),
+        ]),
+      }
+    case 'mat':
+      return {
+        form: 'mat',
+        arms: term.arms.map(([n, t]) => [
+          n,
+          substVar({ term: t, varIdx, replacement }),
+        ]),
+      }
+    case 'swi':
+      return {
+        form: 'swi',
+        zero: substVar({ term: term.zero, varIdx, replacement }),
+        succ: substVar({ term: term.succ, varIdx, replacement }),
+      }
+    case 'lst':
+      return {
+        form: 'lst',
+        list: term.list.map(t =>
+          substVar({ term: t, varIdx, replacement }),
+        ),
+      }
+    case 'log':
+      return {
+        form: 'log',
+        msg: substVar({ term: term.msg, varIdx, replacement }),
+        val: substVar({ term: term.val, varIdx, replacement }),
+      }
+    case 'src':
+      return {
+        form: 'src',
+        site: term.site,
+        val: substVar({ term: term.val, varIdx, replacement }),
+      }
+    // HOAS forms: can't traverse bod, but we can handle the non-bod parts
+    case 'all':
+      return {
+        form: 'all',
+        name: term.name,
+        inp: substVar({ term: term.inp, varIdx, replacement }),
+        bod: x =>
+          substVar({ term: term.bod(x), varIdx, replacement }),
+      }
+    case 'lam':
+      return {
+        form: 'lam',
+        name: term.name,
+        bod: x =>
+          substVar({ term: term.bod(x), varIdx, replacement }),
+      }
+    case 'slf':
+      return {
+        form: 'slf',
+        name: term.name,
+        typ: substVar({ term: term.typ, varIdx, replacement }),
+        bod: x =>
+          substVar({ term: term.bod(x), varIdx, replacement }),
+      }
+    case 'let':
+      return {
+        form: 'let',
+        name: term.name,
+        val: substVar({ term: term.val, varIdx, replacement }),
+        bod: x =>
+          substVar({ term: term.bod(x), varIdx, replacement }),
+      }
+    case 'use':
+      return {
+        form: 'use',
+        name: term.name,
+        val: substVar({ term: term.val, varIdx, replacement }),
+        bod: x =>
+          substVar({ term: term.bod(x), varIdx, replacement }),
+      }
+    default:
+      return term
+  }
 }

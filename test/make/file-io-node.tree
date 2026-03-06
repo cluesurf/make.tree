@@ -11,6 +11,6 @@ task write-file
 
 task read-file
   take path, like text
-  back call fs/read-file-sync
+  send back, call fs/read-file-sync
     bind path, read path
     bind encoding, text <utf8>

@@ -1,0 +1,42 @@
+
+form locale
+  link language, like text
+  link region, like text
+  link tag, like text
+  link timezone, like text
+
+task make-locale
+  take language, like text
+  take region, like text
+  take tag, like text
+  take timezone, like text
+  send back
+    make locale
+      bind language, read language
+      bind region, read region
+      bind tag, read tag
+      bind timezone, read timezone
+
+task locale-language
+  take l, like locale
+  fork case, read l
+    hook locale, base language, base region, base tag, base timezone
+      send back, read language
+
+task locale-region
+  take l, like locale
+  fork case, read l
+    hook locale, base language, base region, base tag, base timezone
+      send back, read region
+
+task locale-tag
+  take l, like locale
+  fork case, read l
+    hook locale, base language, base region, base tag, base timezone
+      send back, read tag
+
+task locale-timezone
+  take l, like locale
+  fork case, read l
+    hook locale, base language, base region, base tag, base timezone
+      send back, read timezone

@@ -1,0 +1,34 @@
+
+dock load
+  load <node:os>, name os
+
+task get
+  take kind, like text
+  fork roll
+    hook is-home
+      call eq
+        bind a, read kind
+        bind b, text <home>
+      send back, call os/homedir
+    hook is-temporary
+      call eq
+        bind a, read kind
+        bind b, text <temporary>
+      send back, call os/tmpdir
+    hook is-hostname
+      call eq
+        bind a, read kind
+        bind b, text <hostname>
+      send back, call os/hostname
+    hook is-platform
+      call eq
+        bind a, read kind
+        bind b, text <platform>
+      send back, call os/platform
+    hook is-arch
+      call eq
+        bind a, read kind
+        bind b, text <arch>
+      send back, call os/arch
+    hook fallback
+      send back, text <unknown>

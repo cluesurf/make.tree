@@ -5,7 +5,7 @@ task add
   like size
 
   save c, call sum a, b
-  back c
+  send back, c
 
 time add-numbers
   save x, call add

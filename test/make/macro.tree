@@ -1,10 +1,10 @@
 tree doubler
   take name
 
-  hook bind
+  hook fuse
     task double-{name}
       take n, like u64
-      back call mul
+      send back, call mul
         bind a, read n
         bind b, mark 2
 

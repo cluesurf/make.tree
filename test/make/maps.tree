@@ -3,7 +3,7 @@ task make-map
     make find
       bind foo, text <bar>
       bind key, mark 42
-  back read m
+  send back, read m
 
 task map-ops
   save m
@@ -11,9 +11,9 @@ task map-ops
   call m/save
     bind k, text <hello>
     bind v, mark 1
-  back call m/read
+  send back, call m/read
     bind k, text <hello>
 
 task get-size
   take m
-  back call m/size
+  send back, call m/size

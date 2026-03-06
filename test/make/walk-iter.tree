@@ -5,4 +5,4 @@ task print-all
     hook tick
       take item
       show read item
-  back mark 0
+  send back, mark 0

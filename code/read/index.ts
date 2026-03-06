@@ -568,8 +568,6 @@ function readCaseArm(fork: PFork): SurfCaseArm {
 function readStatement(fork: PFork): Surf | null {
   const kw = headWord(fork)
   switch (kw) {
-    case 'back':
-      return readBack(fork)
     case 'save':
       return readSave(fork)
     case 'fork':
@@ -597,6 +595,7 @@ function readStatement(fork: PFork): Surf | null {
     case 'halt':
       return readHaltNode(fork)
     case 'rest':
+      // rest flow (new syntax) or bare rest (old syntax)
       return { form: 'rest', site }
     case 'meet':
       return readMeet(fork)
@@ -607,6 +606,10 @@ function readStatement(fork: PFork): Surf | null {
       return null
     case 'next':
       return { form: 'next', site }
+    case 'turn':
+      // turn next → continue
+      if (childWord(fork, 1) === 'next') return { form: 'next', site }
+      return null
     case 'slot':
       return { form: 'slot', name: childWord(fork, 1) ?? '', site }
     case 'beam':
@@ -748,6 +751,9 @@ function readForkNode(fork: PFork): SurfFork {
       sift = readCall(child, [])
     } else if (kw === 'hook') {
       hooks.push(readHook(child))
+    } else if (kw === 'case') {
+      // fork case with `case` keyword children (new syntax)
+      hooks.push(readHook(child))
     }
   }
 
@@ -757,10 +763,13 @@ function readForkNode(fork: PFork): SurfFork {
 // -- walk --
 
 function readWalkNode(fork: PFork): SurfWalk {
-  const mode = childWord(fork, 1) ?? 'test'
+  const rawMode = childWord(fork, 1) ?? 'test'
+  // walk form → treat as walk site (iterator)
+  const mode = rawMode === 'form' ? 'site' : rawMode
   const children = childForks(fork, 2)
   let sift: Surf | undefined
   const hooks: SurfHook[] = []
+  const binds: SurfBind[] = []
 
   for (const child of children) {
     const kw = headWord(child)
@@ -775,10 +784,15 @@ function readWalkNode(fork: PFork): SurfWalk {
       sift = readCall(child, [])
     } else if (kw === 'hook') {
       hooks.push(readHook(child))
+    } else if (kw === 'bind') {
+      // walk size: bind base, 0 / bind head, 10
+      binds.push(readBind(child))
     }
   }
 
-  return { form: 'walk', mode, sift, hook: hooks, site }
+  const result: SurfWalk = { form: 'walk', mode, sift, hook: hooks, site }
+  if (binds.length > 0) result.bind = binds
+  return result
 }
 
 // -- hook --
@@ -793,6 +807,16 @@ function readHook(fork: PFork): SurfHook {
     const kw = headWord(child)
     if (kw === 'base') {
       collectBases(child, base)
+    } else if (kw === 'take') {
+      // take site, name item → extract alias as base param for walk hooks
+      const takeName = childWord(child, 1) ?? ''
+      let aliasName = takeName
+      for (const takeChild of childForks(child, 2)) {
+        if (headWord(takeChild) === 'name') {
+          aliasName = childWord(takeChild, 1) ?? takeName
+        }
+      }
+      base.push({ form: 'base', name: aliasName, site })
     } else {
       const stmt = readStatement(child)
       if (stmt) flow.push(stmt)
@@ -818,24 +842,41 @@ function readCall(fork: PFork, extraChildren: PFork[]): SurfCall {
   const name = childWord(fork, 1) ?? ''
   const binds: SurfBind[] = []
   const hook: Record<string, SurfHook> = {}
+  const chain: SurfCall[] = []
+  const callbackBase: SurfBase[] = []
+  const callbackFlow: Surf[] = []
   let halt = false
   let wait = false
 
-  for (const child of childForks(fork, 2)) {
-    if (headWord(child) === 'bind') binds.push(readBind(child))
-    if (headWord(child) === 'halt') halt = true
-    if (headWord(child) === 'wait') wait = childWord(child, 1) === 'true'
+  const allChildren = [...childForks(fork, 2), ...extraChildren]
+  for (const child of allChildren) {
+    const kw = headWord(child)
+    if (kw === 'bind') binds.push(readBind(child))
+    else if (kw === 'halt') halt = true
+    else if (kw === 'wait') wait = childWord(child, 1) === 'true'
+    else if (kw === 'take') {
+      callbackBase.push(readBase(child))
+    }
+    else if (callbackBase.length > 0) {
+      // Once we've seen 'take' params, remaining children are callback body
+      const stmt = readStatement(child)
+      if (stmt) callbackFlow.push(stmt)
+    }
+    else if (kw === 'call') chain.push(readCall(child, []))
+    else if (kw === 'read' || kw === 'loan' || kw === 'move' || kw === 'cite' || kw === 'text' || kw === 'mark' || kw === 'wave') {
+      binds.push({ form: 'bind', name: '', sift: readSiftExpr(child), site })
+    }
   }
 
-  for (const child of extraChildren) {
-    if (headWord(child) === 'bind') binds.push(readBind(child))
-    if (headWord(child) === 'halt') halt = true
-    if (headWord(child) === 'wait') wait = childWord(child, 1) === 'true'
+  // If we collected callback params, create a 'body' hook
+  if (callbackBase.length > 0) {
+    hook['body'] = { form: 'hook', name: 'body', base: callbackBase, flow: callbackFlow, site }
   }
 
   const result: SurfCall = { form: 'call', name, bind: binds, hook, site }
   if (halt) result.halt = true
   if (wait) result.wait = true
+  if (chain.length > 0) result.chain = chain
   return result
 }
 
@@ -846,7 +887,20 @@ function readMake(fork: PFork, extraChildren: PFork[]): SurfMake {
   const binds: SurfBind[] = []
 
   for (const child of childForks(fork, 2)) {
-    if (headWord(child) === 'bind') binds.push(readBind(child))
+    const kw = headWord(child)
+    if (kw === 'bind') {
+      binds.push(readBind(child))
+    } else if (kw === 'save') {
+      // make list: save item, 1 → bind with name and value
+      // make find: save a, <name> → bind with key and value
+      const saveName = childWord(child, 1) ?? ''
+      const siftFork = childFork(child, 2)
+      const sift = siftFork ? readSiftExpr(siftFork) : undefined
+      binds.push({ form: 'bind', name: saveName, sift, site })
+    } else if (kw === 'mark' || kw === 'text' || kw === 'read' || kw === 'wave' || kw === 'comb') {
+      // make list: bare values (1, 2, 3) → unnamed binds
+      binds.push({ form: 'bind', name: '', sift: readSiftExpr(child), site })
+    }
   }
 
   for (const child of extraChildren) {
@@ -1171,6 +1225,13 @@ function readSiftExpr(fork: PFork): Surf {
       return readMake(fork, [])
     case 'meet':
       return readMeet(fork)
+    case 'term': {
+      const termVal = childWord(fork, 1) ?? ''
+      if (termVal === 'true' || termVal === 'false') {
+        return { form: 'sift-wave', val: termVal === 'true', site }
+      }
+      return { form: 'sift-read', path: [termVal], site }
+    }
     default:
       // Bare word treated as variable reference
       if (kw) return { form: 'sift-read', path: [kw], site }

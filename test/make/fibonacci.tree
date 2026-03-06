@@ -7,11 +7,11 @@ task fib
   take n, like nat
   fork case, read n
     hook zero
-      back mark 0
+      send back, mark 0
     hook succ, base pred
       fork case, read pred
         hook zero
-          back mark 1
+          send back, mark 1
         hook succ, base pp
           save a
             call fib
@@ -19,16 +19,16 @@ task fib
           save b
             call fib
               bind n, read pp
-          back call add
+          send back, call add
             bind a, read a
             bind b, read b
 
 task make-zero
-  back make zero
+  send back, make zero
 
 task make-succ
   take p, like nat
-  back make succ
+  send back, make succ
     bind pred, read p
 
 task fib-tail
@@ -37,9 +37,9 @@ task fib-tail
   take b, like u64
   fork case, read n
     hook zero
-      back read a
+      send back, read a
     hook succ, base pred
-      back call fib-tail
+      send back, call fib-tail
         bind n, read pred
         bind a, read b
         bind b, call add
@@ -48,6 +48,6 @@ task fib-tail
 
 task double
   take n, like u64
-  back call mul
+  send back, call mul
     bind a, read n
     bind b, mark 2

@@ -46,16 +46,16 @@ describe('term/desugar', () => {
       if (term.form === 'num') expect(term.val).toBe(42)
     })
 
-    it('desugars sift-wave true to Con True', () => {
+    it('desugars sift-wave true to Ref .true', () => {
       const term = siftToTerm({ form: 'sift-wave', val: true, site })
-      expect(term.form).toBe('con')
-      if (term.form === 'con') expect(term.name).toBe('True')
+      expect(term.form).toBe('ref')
+      if (term.form === 'ref') expect(term.name).toBe('.true')
     })
 
-    it('desugars sift-wave false to Con False', () => {
+    it('desugars sift-wave false to Ref .false', () => {
       const term = siftToTerm({ form: 'sift-wave', val: false, site })
-      expect(term.form).toBe('con')
-      if (term.form === 'con') expect(term.name).toBe('False')
+      expect(term.form).toBe('ref')
+      if (term.form === 'ref') expect(term.name).toBe('.false')
     })
 
     it('desugars sift-link to Ref for unknown name', () => {
@@ -91,7 +91,7 @@ describe('term/desugar', () => {
       expect(term.form).toBe('app')
       if (term.form === 'app') {
         expect(term.func.form).toBe('ref')
-        expect(term.argm.form).toBe('con')
+        expect(term.argm.form).toBe('ref')
       }
     })
 

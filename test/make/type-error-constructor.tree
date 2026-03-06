@@ -5,4 +5,4 @@ form color
   case blue
 
 task use-bad-constructor
-  back make purple
+  send back, make purple

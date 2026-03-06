@@ -802,27 +802,19 @@ function castStmt(input: {
   switch (term.form) {
     case 'let': {
       const name = varName({ name: term.name, dep })
-      // Check if value is a pattern that should be emitted as statement
-      // (e.g., fork test → .test(Mat, condition) → if/else)
+      // Check if value is a fork test that should be emitted as void statement
+      // (e.g., fork test → .test(Mat, condition) → if/else without return)
       if (term.val.form === 'app') {
         const { func, args } = unwrapApp(term.val)
         if (func.form === 'ref' && func.name === '.test' && args.length === 2 && args[0]!.form === 'mat') {
-          // Emit the fork as an inline if/else statement, then continue
-          castMatchStmt({
-            arms: (args[0]! as Term & { form: 'mat' }).arms,
-            scrutinee: args[1]!,
-            dep, ctx, lines, indent, tail: null,
-          })
+          const mat = args[0]! as Term & { form: 'mat' }
+          castVoidMatchStmt({ arms: mat.arms, scrutinee: args[1]!, dep, ctx, lines, indent })
           const bodTerm = term.bod({ form: 'var', name, idx: dep })
           castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent, tail })
           return
         }
         if (func.form === 'mat' && args.length === 1) {
-          castMatchStmt({
-            arms: func.arms,
-            scrutinee: args[0]!,
-            dep, ctx, lines, indent, tail: null,
-          })
+          castVoidMatchStmt({ arms: func.arms, scrutinee: args[0]!, dep, ctx, lines, indent })
           const bodTerm = term.bod({ form: 'var', name, idx: dep })
           castStmt({ term: bodTerm, dep: dep + 1, ctx, lines, indent, tail })
           return
@@ -1012,8 +1004,10 @@ function castMatchStmt(input: {
   const tagField = useTag ? '$' : 'tag'
 
   // Boolean fork test: arms are ["true"/"True", ...] and ["false"/"False", ...]
+  // Only use native boolean if the arms are NOT ADT constructors (not in tagMap)
   const armNames = new Set(arms.map(([n]) => n.toLowerCase()))
-  const isBooleanFork = arms.length === 2 && armNames.has('true') && armNames.has('false')
+  const armsAreAdtCtrs = arms.some(([n]) => ctx.tagMap.has(n))
+  const isBooleanFork = arms.length === 2 && armNames.has('true') && armNames.has('false') && !armsAreAdtCtrs
 
   if (isBooleanFork) {
     const trueArm = arms.find(([n]) => n.toLowerCase() === 'true')!
@@ -1079,6 +1073,50 @@ function castArmBody(input: {
   }
 
   castStmt({ term: armBod, dep: armDep, ctx, lines, indent, tail })
+}
+
+/** Emit a fork/match as void statements (no return, side-effects only). */
+function castVoidMatchStmt(input: {
+  arms: Array<[string, Term]>
+  scrutinee: Term
+  dep: number
+  ctx: EmitCtx
+  lines: string[]
+  indent: number
+}): void {
+  const { arms, scrutinee, dep, ctx, lines, indent } = input
+  const pad = '  '.repeat(indent)
+  const innerPad = '  '.repeat(indent + 1)
+
+  let scrVar: string
+  if (scrutinee.form === 'var' || scrutinee.form === 'ref') {
+    scrVar = castExpr({ term: scrutinee, dep, ctx })
+  } else {
+    scrVar = `match${dep}`
+    const scrExpr = castExpr({ term: scrutinee, dep, ctx })
+    lines.push(`${pad}const ${scrVar} = ${scrExpr};`)
+  }
+
+  const armNames = new Set(arms.map(([n]) => n.toLowerCase()))
+  const armsAreAdtCtrs = arms.some(([n]) => ctx.tagMap.has(n))
+  const isBooleanFork = arms.length === 2 && armNames.has('true') && armNames.has('false') && !armsAreAdtCtrs
+
+  if (isBooleanFork) {
+    const trueArm = arms.find(([n]) => n.toLowerCase() === 'true')!
+    const falseArm = arms.find(([n]) => n.toLowerCase() === 'false')!
+    lines.push(`${pad}if (${scrVar}) {`)
+    const trueExpr = castExpr({ term: trueArm[1], dep, ctx })
+    lines.push(`${innerPad}${trueExpr};`)
+    lines.push(`${pad}} else {`)
+    const falseExpr = castExpr({ term: falseArm[1], dep, ctx })
+    lines.push(`${innerPad}${falseExpr};`)
+    lines.push(`${pad}}`)
+  } else {
+    for (const [armName, bod] of arms) {
+      const expr = castExpr({ term: bod, dep, ctx })
+      lines.push(`${pad}${expr};`)
+    }
+  }
 }
 
 function castSwiStmt(input: {
@@ -1224,6 +1262,11 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
         const methodName = resolveMethodName({ name: prim, ctx })
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx })
+          // promise.make(callback) → new Promise(callback)
+          if (obj === 'promise' && methodName === 'make') {
+            const callbackArgs = args.slice(1).map(a => castExpr({ term: a, dep, ctx }))
+            return `new Promise(${callbackArgs.join(', ')})`
+          }
           if (args.length === 1) return `${obj}.${methodName}()`
           const methodArgs = args.slice(1).map(a => castExpr({ term: a, dep, ctx }))
           return `${obj}.${methodName}(${methodArgs.join(', ')})`
@@ -1250,6 +1293,8 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       return castExpr({ term: term.bod(term.val), dep, ctx })
 
     case 'ref':
+      if (term.name === '.true') return 'true'
+      if (term.name === '.false') return 'false'
       return sanitizeName(term.name)
 
     case 'var':
@@ -1452,7 +1497,7 @@ function isTypeOnly(term: Term): boolean {
 function varName(input: { name: string; dep: number }): string {
   const { name, dep } = input
   if (name === '_') return `_${dep}`
-  return name
+  return sanitizeName(name)
 }
 
 function sanitizeName(name: string): string {
@@ -1475,11 +1520,18 @@ function mapMethodName(name: string): string {
   return map[name] ?? sanitizeName(name)
 }
 
-/** Resolve a method name using bind.tree native names, then fallback to camelCase. */
+/** Resolve a method name using bind.tree native names, then Seed conventions, then camelCase. */
 function resolveMethodName(input: { name: string; ctx: EmitCtx }): string {
   const native = input.ctx.nativeNames.get(input.name)
   if (native) return native
-  return sanitizeName(input.name)
+  // Apply Seed convention mappings before camelCase
+  const conventionMap: Record<string, string> = {
+    save: 'set',
+    read: 'get',
+    push: 'push',
+    halt: 'end',
+  }
+  return conventionMap[input.name] ?? sanitizeName(input.name)
 }
 
 function castOper(oper: Oper): string {

@@ -1,12 +1,12 @@
 task make-list
-  back make list
+  send back, make list
     bind a, text <one>
     bind b, text <two>
 
 task empty-list
-  back make list
+  send back, make list
 
 task push-item
   take arr
-  back call arr/save
+  send back, call arr/save
     bind v, mark 99

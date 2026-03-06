@@ -24,23 +24,23 @@ task color-season-mood
         hook spring
           fork case, read m
             hook happy
-              back mark 1
+              send back, mark 1
             hook sad
-              back mark 2
+              send back, mark 2
         hook summer
-          back mark 3
+          send back, mark 3
         hook autumn
-          back mark 4
+          send back, mark 4
         hook winter
-          back mark 5
+          send back, mark 5
     hook green
       fork case, read m
         hook happy
-          back mark 10
+          send back, mark 10
         hook sad
-          back mark 20
+          send back, mark 20
     hook blue
-      back mark 100
+      send back, mark 100
 
 form tree
   case leaf
@@ -53,7 +53,7 @@ task tree-sum
   take t, like tree
   fork case, read t
     hook leaf, base value
-      back read value
+      send back, read value
     hook node, base left, base right
       save l
         call tree-sum
@@ -61,7 +61,7 @@ task tree-sum
       save r
         call tree-sum
           bind t, read right
-      back call add
+      send back, call add
         bind a, read l
         bind b, read r
 
@@ -69,7 +69,7 @@ task tree-depth
   take t, like tree
   fork case, read t
     hook leaf, base value
-      back mark 0
+      send back, mark 0
     hook node, base left, base right
       save l
         call tree-depth
@@ -82,11 +82,11 @@ task tree-depth
           bind a, read l
           bind b, read r
         hook true
-          back call add
+          send back, call add
             bind a, read l
             bind b, mark 1
         hook false
-          back call add
+          send back, call add
             bind a, read r
             bind b, mark 1
 
@@ -104,7 +104,7 @@ task eval-expr
   take e, like expr
   fork case, read e
     hook lit, base value
-      back read value
+      send back, read value
     hook add-expr, base left, base right
       save l
         call eval-expr
@@ -112,7 +112,7 @@ task eval-expr
       save r
         call eval-expr
           bind e, read right
-      back call add
+      send back, call add
         bind a, read l
         bind b, read r
     hook mul-expr, base left, base right
@@ -122,6 +122,6 @@ task eval-expr
       save r
         call eval-expr
           bind e, read right
-      back call mul
+      send back, call mul
         bind a, read l
         bind b, read r

@@ -6,17 +6,17 @@ form maybe
 
 task wrap-value
   take x, like u64
-  back make some
+  send back, make some
     bind value, read x
 
 task get-nothing
-  back make none
+  send back, make none
 
 task unwrap-or
   take m, like maybe
   take fallback, like u64
   fork case, read m
     hook some, base value
-      back read value
+      send back, read value
     hook none
-      back read fallback
+      send back, read fallback

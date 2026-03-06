@@ -4,9 +4,9 @@ form nat
     link pred
 
 task make-zero
-  back make zero
+  send back, make zero
 
 task make-succ
   take p, like nat
-  back make succ
+  send back, make succ
     bind pred, read p

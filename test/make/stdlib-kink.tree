@@ -8,7 +8,7 @@ task make-kink
   take code, like text
   take note, like text
   take hint, like text
-  back make kink
+  send back, make kink
     bind code, read code
     bind note, read note
     bind hint, read hint
@@ -17,10 +17,10 @@ task kink-code
   take k, like kink
   fork case, read k
     hook kink, base code, base note, base hint
-      back read code
+      send back, read code
 
 task kink-note
   take k, like kink
   fork case, read k
     hook kink, base code, base note, base hint
-      back read note
+      send back, read note

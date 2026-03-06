@@ -902,6 +902,8 @@ function castExpr(input: {
     case 'use':
       return castExpr({ term: term.bod(term.val), dep, ctx })
     case 'ref':
+      if (term.name === '.true') return 'true'
+      if (term.name === '.false') return 'false'
       return camelCase(term.name)
     case 'var':
       return term.name

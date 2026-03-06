@@ -7,7 +7,7 @@ task unwrap
   take w, like wrapper
   fork case, read w
     hook make, base value
-      back read value
+      send back, read value
 
 form maybe
   case some
@@ -18,7 +18,7 @@ task force-unwrap
   take m, like maybe
   fork case, read m
     hook some, base value
-      back read value
+      send back, read value
 
 form direction
   case north
@@ -30,4 +30,4 @@ task is-north
   take d, like direction
   fork case, read d
     hook north
-      back mark 1
+      send back, mark 1

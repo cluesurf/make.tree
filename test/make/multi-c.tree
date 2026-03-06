@@ -6,6 +6,6 @@ task color-name
   take c, like color
   fork case, read c
     hook red
-      back text <red>
+      send back, text <red>
     hook blue
-      back text <blue>
+      send back, text <blue>

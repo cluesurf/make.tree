@@ -63,7 +63,9 @@ export function castBook(input: {
 }): string {
   const dockNames = new Set<string>()
   for (const load of input.dock ?? []) {
-    if (load.name) dockNames.add(load.name)
+    const segments = load.path.split('::')
+    const dockName = load.name ?? segments[segments.length - 1]
+    if (dockName) dockNames.add(dockName)
   }
 
   const ctx = analyze({ book: input.book, dockNames })
@@ -1731,14 +1733,22 @@ function castExpr(input: {
         }
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx, usage })
-          const methodName = snakeCase(prim)
           // Dock module calls use :: (module-level functions)
           const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
+          // For dock modules, / in method path becomes :: (nested modules)
+          // For regular objects, / becomes _ (snake_case)
+          const methodName = isDockModule
+            ? prim.replace(/-/g, '_').replace(/\//g, '::')
+            : snakeCase(prim)
           const sep = isDockModule ? '::' : '.'
           if (args.length === 1) {
             // ! prefix = always a function call, . prefix = check if field access
-            if (!isCall && isStructFieldAccess({ fieldName: prim, ctx })) {
-              return `${obj}${sep}${methodName}`
+            if (!isCall && (isDockModule || isStructFieldAccess({ fieldName: prim, ctx }))) {
+              // Dock module constants → UPPER_SNAKE_CASE (e.g. libc::SIGTERM)
+              const finalName = (isDockModule && !isCall && !prim.includes('/'))
+                ? methodName.toUpperCase()
+                : methodName
+              return `${obj}${sep}${finalName}`
             }
             return `${obj}${sep}${methodName}()`
           }
@@ -1766,6 +1776,8 @@ function castExpr(input: {
     case 'use':
       return castExpr({ term: term.bod(term.val), dep, ctx, usage })
     case 'ref':
+      if (term.name === '.true') return 'true'
+      if (term.name === '.false') return 'false'
       return snakeCase(term.name)
     case 'var': {
       if (usage) {

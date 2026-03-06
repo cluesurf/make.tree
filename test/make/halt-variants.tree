@@ -8,7 +8,7 @@ task must-be-positive
     hook true
       halt kink, text <value must be positive>
     hook false
-      back read n
+      send back, read n
 
 task find-first
   take items
