@@ -279,7 +279,7 @@ export function loadPackage(input: {
  * Discover all files reachable from an entrypoint via load/bear.
  * Does NOT parse or desugar. Only reads files enough to find load paths.
  */
-function discoverFiles(input: {
+export function discoverFiles(input: {
   file: string
   env: LoadEnv
   visited: Set<string>

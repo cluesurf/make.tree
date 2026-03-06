@@ -16,6 +16,8 @@ import { expandFuse } from '@/fuse'
 import { desugarCard } from '@/term/desugar'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castRust } from '@/cast/rust'
+import { castBook as castKotlin } from '@/cast/kotlin'
+import { castBook as castSwift } from '@/cast/swift'
 import type { Book } from '@/term/form'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -147,5 +149,79 @@ describe('network/server: Rust', () => {
 
   it('generates add_route function', () => {
     expect(rs).toContain('fn add_route(')
+  })
+})
+
+describe('network/server: Kotlin', () => {
+  const book = compileFile('network-server.tree')
+  const kt = castKotlin({ book })
+
+  it('generates Server data class', () => {
+    expect(kt).toContain('data class Server')
+  })
+
+  it('generates Request data class', () => {
+    expect(kt).toContain('data class Request')
+  })
+
+  it('generates Response data class', () => {
+    expect(kt).toContain('data class Response')
+  })
+
+  it('generates Router data class', () => {
+    expect(kt).toContain('data class Router')
+  })
+
+  it('generates start function', () => {
+    expect(kt).toContain('fun start(')
+  })
+
+  it('generates stop function', () => {
+    expect(kt).toContain('stop(')
+  })
+
+  it('generates makeResponse function', () => {
+    expect(kt).toContain('makeResponse(')
+  })
+
+  it('generates addRoute function', () => {
+    expect(kt).toContain('addRoute(')
+  })
+})
+
+describe('network/server: Swift', () => {
+  const book = compileFile('network-server.tree')
+  const sw = castSwift({ book })
+
+  it('generates Server type', () => {
+    expect(sw).toMatch(/struct Server|enum Server/)
+  })
+
+  it('generates Request type', () => {
+    expect(sw).toMatch(/struct Request|enum Request/)
+  })
+
+  it('generates Response type', () => {
+    expect(sw).toMatch(/struct Response|enum Response/)
+  })
+
+  it('generates Router type', () => {
+    expect(sw).toMatch(/struct Router|enum Router/)
+  })
+
+  it('generates start function', () => {
+    expect(sw).toContain('func start(')
+  })
+
+  it('generates stop function', () => {
+    expect(sw).toContain('stop(')
+  })
+
+  it('generates makeResponse function', () => {
+    expect(sw).toContain('makeResponse(')
+  })
+
+  it('generates addRoute function', () => {
+    expect(sw).toContain('addRoute(')
   })
 })

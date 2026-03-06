@@ -16,6 +16,8 @@ import { expandFuse } from '@/fuse'
 import { desugarCard } from '@/term/desugar'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castRust } from '@/cast/rust'
+import { castBook as castKotlin } from '@/cast/kotlin'
+import { castBook as castSwift } from '@/cast/swift'
 import type { Book } from '@/term/form'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -103,5 +105,55 @@ describe('network/udp: Rust', () => {
 
   it('generates receive_datagram function', () => {
     expect(rs).toContain('fn receive_datagram(')
+  })
+})
+
+describe('network/udp: Kotlin', () => {
+  const book = compileFile('network-udp.tree')
+  const kt = castKotlin({ book })
+
+  it('generates Socket data class', () => {
+    expect(kt).toContain('data class Socket')
+  })
+
+  it('generates Datagram data class', () => {
+    expect(kt).toContain('data class Datagram')
+  })
+
+  it('generates open function', () => {
+    expect(kt).toContain('fun open(')
+  })
+
+  it('generates sendDatagram function', () => {
+    expect(kt).toContain('sendDatagram(')
+  })
+
+  it('generates receiveDatagram function', () => {
+    expect(kt).toContain('receiveDatagram(')
+  })
+})
+
+describe('network/udp: Swift', () => {
+  const book = compileFile('network-udp.tree')
+  const sw = castSwift({ book })
+
+  it('generates Socket type', () => {
+    expect(sw).toMatch(/struct Socket|enum Socket/)
+  })
+
+  it('generates Datagram type', () => {
+    expect(sw).toMatch(/struct Datagram|enum Datagram/)
+  })
+
+  it('generates open function', () => {
+    expect(sw).toContain('func open(')
+  })
+
+  it('generates sendDatagram function', () => {
+    expect(sw).toContain('sendDatagram(')
+  })
+
+  it('generates receiveDatagram function', () => {
+    expect(sw).toContain('receiveDatagram(')
   })
 })

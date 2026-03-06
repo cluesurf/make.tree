@@ -14,8 +14,11 @@ import { predictFuseNames } from '@/fuse'
 import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates } from '@/resolve'
 import { loadPackage } from '@/load'
+import { buildReverseDeps, computeDirtyFiles } from '@/resolve/incremental'
+import { detectTemplateCycles } from '@/resolve/cycle'
 import type { LoadEnv } from '@/load'
 import type { SurfCard, SurfTree, SurfFuse } from '@/surf/form'
+import type { FuseSkele } from '@/resolve/skeleton'
 
 const TEST_DIR = dirname(new URL(import.meta.url).pathname)
 const require_ = createRequire(import.meta.url)
@@ -411,5 +414,235 @@ task is-odd
     expect(result.resolveErrors).toEqual([])
     expect(result.book.has('is-even')).toBe(true)
     expect(result.book.has('is-odd')).toBe(true)
+  })
+
+  it('loads cross-file template: template in A, fuse in B, caller in C', () => {
+    const files = new Map<string, string>([
+      ['/test/main.tree', `
+load ./models
+load ./template
+
+task run
+  like u64
+`],
+      ['/test/template.tree', `
+tree make-accessor
+  take field
+
+  hook fuse
+    task get-{field}
+      like u64
+    task set-{field}
+      take val, like u64
+`],
+      ['/test/models.tree', `
+load ./template
+
+fuse make-accessor
+  bind field, text <name>
+
+fuse make-accessor
+  bind field, text <age>
+`],
+    ])
+
+    const result = loadPackage({
+      file: '/test/main.tree',
+      env: makeEnv(files),
+    })
+
+    expect(result.resolveErrors).toEqual([])
+    expect(result.book.has('run')).toBe(true)
+    expect(result.book.has('get-name')).toBe(true)
+    expect(result.book.has('set-name')).toBe(true)
+    expect(result.book.has('get-age')).toBe(true)
+    expect(result.book.has('set-age')).toBe(true)
+  })
+})
+
+// -- Dynamic binding error tests --
+
+describe('dynamic binding rejection', () => {
+  it('reports error for dynamic fuse binding (read expression)', () => {
+    const cardA = parseCard({
+      file: 'template.tree',
+      text: `
+tree make-getter
+  take name
+
+  hook fuse
+    task get-{name}
+      like u64
+`,
+    })
+    const cardB = parseCard({
+      file: 'user.tree',
+      text: `
+fuse make-getter
+  bind name, read some-var
+`,
+    })
+
+    const skeleA = extractSkele({ card: cardA })
+    const skeleB = extractSkele({ card: cardB })
+
+    const skeletons = new Map([
+      ['template.tree', skeleA],
+      ['user.tree', skeleB],
+    ])
+
+    const state = initResolver({ skeletons })
+    const resolved = resolveTemplates({ state })
+
+    expect(resolved.errors.length).toBeGreaterThan(0)
+    expect(resolved.errors[0]!.form).toBe('dynamic-binding')
+  })
+})
+
+// -- Cycle detection tests --
+
+describe('cycle detection', () => {
+  it('returns no cycles for independent fuses', () => {
+    const fuseA: FuseSkele = {
+      templateName: 'make-a',
+      bindings: new Map([['name', { form: 'static' as const, value: 'foo' }]]),
+      file: 'a.tree',
+      predictedNames: ['get-foo'],
+    }
+    const fuseB: FuseSkele = {
+      templateName: 'make-b',
+      bindings: new Map([['name', { form: 'static' as const, value: 'bar' }]]),
+      file: 'b.tree',
+      predictedNames: ['get-bar'],
+    }
+
+    const producerMap = new Map<string, FuseSkele>([
+      ['get-foo', fuseA],
+      ['get-bar', fuseB],
+    ])
+
+    const cycles = detectTemplateCycles({
+      fuses: [fuseA, fuseB],
+      producerMap,
+    })
+    expect(cycles).toEqual([])
+  })
+})
+
+// -- Incremental resolution tests --
+
+describe('incremental resolution', () => {
+  it('buildReverseDeps maps refs to files', () => {
+    const files = new Map<string, string>([
+      ['/test/main.tree', `
+load ./helper
+
+task run
+  save x
+    call greet
+      bind name, text <hi>
+  back read x
+`],
+      ['/test/helper.tree', `
+task greet
+  take name, like text
+  like text
+`],
+    ])
+
+    const result = loadPackage({
+      file: '/test/main.tree',
+      env: makeEnv(files),
+    })
+
+    const reverseDeps = buildReverseDeps({
+      book: result.book,
+      fileMap: result.fileMap,
+    })
+
+    // greet is defined in helper, referenced in main
+    const greetDeps = reverseDeps.get('greet')
+    expect(greetDeps).toBeDefined()
+    expect(greetDeps!.has('/test/main.tree')).toBe(true)
+  })
+
+  it('computeDirtyFiles propagates through reverse deps', () => {
+    const reverseDeps = new Map<string, Set<string>>([
+      ['greet', new Set(['/test/main.tree', '/test/other.tree'])],
+      ['helper', new Set(['/test/main.tree'])],
+    ])
+
+    const dirty = computeDirtyFiles({
+      changedNames: new Set(['greet']),
+      reverseDeps,
+    })
+
+    expect(dirty.has('/test/main.tree')).toBe(true)
+    expect(dirty.has('/test/other.tree')).toBe(true)
+    expect(dirty.size).toBe(2)
+  })
+})
+
+// -- Skeleton edge cases --
+
+describe('skeleton edge cases', () => {
+  it('extracts mask names', () => {
+    const card = parseCard({
+      file: 'test.tree',
+      text: `
+mask printable
+  task print
+    take self
+    like text
+`,
+    })
+    const skele = extractSkele({ card })
+    expect(skele.staticNames.has('printable')).toBe(true)
+    expect(skele.staticNames.get('printable')!.form).toBe('mask')
+  })
+
+  it('extracts names inside book namespaces', () => {
+    const card = parseCard({
+      file: 'test.tree',
+      text: `
+book math
+  task add
+    take a, like u64
+    take b, like u64
+    like u64
+
+  form vector
+    link x, like u64
+    link y, like u64
+`,
+    })
+    const skele = extractSkele({ card })
+    expect(skele.staticNames.has('math/add')).toBe(true)
+    expect(skele.staticNames.has('math/vector')).toBe(true)
+  })
+
+  it('handles fuse with no bindings', () => {
+    const card = parseCard({
+      file: 'test.tree',
+      text: `
+tree make-default
+
+  hook fuse
+    task default-handler
+      like u64
+
+fuse make-default
+`,
+    })
+    const skele = extractSkele({ card })
+    expect(skele.fuses.length).toBe(1)
+    expect(skele.fuses[0]!.bindings.size).toBe(0)
+
+    const skeletons = new Map([['test.tree', skele]])
+    const state = initResolver({ skeletons })
+    const resolved = resolveTemplates({ state })
+
+    expect(resolved.errors).toEqual([])
+    expect(resolved.known.has('default-handler')).toBe(true)
   })
 })

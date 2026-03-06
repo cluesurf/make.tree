@@ -17,7 +17,9 @@ import { castBook as castHVM } from '@/cast/hvm'
 import { castBook as castRust } from '@/cast/rust'
 import { castBook as castKotlin } from '@/cast/kotlin'
 import { castBook as castSwift } from '@/cast/swift'
-import { loadBook, loadPackage } from '@/load'
+import { loadBook, loadPackage, discoverFiles } from '@/load'
+import { extractSkele } from '@/resolve/skeleton'
+import { initResolver, resolveTemplates } from '@/resolve'
 import { discoverDeckEnv, createDeckLoadEnv } from '@/deck'
 import { renderInfoList } from '@/kink/render'
 import { makeKink } from '@/kink/form'
@@ -227,9 +229,10 @@ export function compileIncremental(input: {
 
   const oldIndex = store.getIndex()
 
-  // Phase 1: discover all files via load resolution.
-  const discovery = loadBook({ file, env })
-  const allFiles = discovery.files
+  // Phase 1: discover all files via load/bear resolution (lightweight, no desugar).
+  const visited = new Set<string>()
+  const allFiles: string[] = []
+  discoverFiles({ file, env, visited, files: allFiles })
 
   // Phase 2: hash each file and determine which changed.
   const newIndex: Record<string, string> = {}
@@ -257,9 +260,9 @@ export function compileIncremental(input: {
     ? JSON.parse(oldSigsRaw)
     : {}
 
-  // Phase 4: re-parse changed files, compare signatures.
+  // Phase 4: re-parse changed files, extract skeletons, resolve templates.
   const freshGraph = createGraph()
-  const cards = new Map<string, SurfCard>()
+  const rawCards = new Map<string, SurfCard>()
   const newSigs: Record<string, Record<string, string>> = {}
   let cached = 0
   let recompiled = 0
@@ -269,14 +272,14 @@ export function compileIncremental(input: {
     const hash = newIndex[f]
     if (!hash) continue
 
-    let card: SurfCard | null = null
+    let rawCard: SurfCard | null = null
 
-    if (!contentChanged.has(f) && store.has({ hash, phase: 'card' })) {
-      card = store.read({ hash, phase: 'card' }) as SurfCard | null
+    if (!contentChanged.has(f) && store.has({ hash, phase: 'rawcard' })) {
+      rawCard = store.read({ hash, phase: 'rawcard' }) as SurfCard | null
       cached++
     }
 
-    if (!card) {
+    if (!rawCard) {
       let text: string
       try {
         text = env.readFile(f)
@@ -287,17 +290,16 @@ export function compileIncremental(input: {
       const lead = env.parse({ file: f, text })
       if (!lead || !lead.tree) continue
 
-      const rawCard = readCard({ tree: lead.tree, file: f })
-      card = expandFuse({ card: rawCard })
+      rawCard = readCard({ tree: lead.tree, file: f })
 
-      store.write({ hash, phase: 'card', data: card })
+      store.write({ hash, phase: 'rawcard', data: rawCard })
       recompiled++
     }
 
-    cards.set(f, card)
+    rawCards.set(f, rawCard)
 
-    // Update dependency graph
-    for (const node of card.list) {
+    // Update dependency graph from raw card
+    for (const node of rawCard.list) {
       if (node.form === 'load' || node.form === 'bear') {
         const loadPath = (node as SurfLoad).path.join('/')
         if (!loadPath.startsWith('@')) {
@@ -308,6 +310,31 @@ export function compileIncremental(input: {
         }
       }
     }
+  }
+
+  // Phase 4b: skeleton-first template resolution across all files.
+  const skeletons = new Map<string, import('@/resolve/skeleton').FileSkele>()
+  for (const [f, rawCard] of rawCards) {
+    skeletons.set(f, extractSkele({ card: rawCard }))
+  }
+  const resolverState = initResolver({ skeletons })
+  resolveTemplates({ state: resolverState })
+
+  // Collect package-wide tree templates for cross-file fuse expansion.
+  const allTrees = new Map<string, import('@/surf/form').SurfTree>()
+  for (const [, rawCard] of rawCards) {
+    for (const node of rawCard.list) {
+      if (node.form === 'tree') {
+        allTrees.set(node.name, node as import('@/surf/form').SurfTree)
+      }
+    }
+  }
+
+  // Phase 4c: expand fuses with package-wide trees, compute signatures.
+  const cards = new Map<string, SurfCard>()
+  for (const [f, rawCard] of rawCards) {
+    const card = expandFuse({ card: rawCard, externalTrees: allTrees })
+    cards.set(f, card)
 
     // Compute signatures for this file
     const fileSigs = cardSignatures({ list: card.list })

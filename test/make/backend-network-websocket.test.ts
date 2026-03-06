@@ -16,6 +16,8 @@ import { expandFuse } from '@/fuse'
 import { desugarCard } from '@/term/desugar'
 import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castRust } from '@/cast/rust'
+import { castBook as castKotlin } from '@/cast/kotlin'
+import { castBook as castSwift } from '@/cast/swift'
 import type { Book } from '@/term/form'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -102,5 +104,47 @@ describe('network/websocket: Rust', () => {
 
   it('generates send_message function', () => {
     expect(rs).toContain('fn send_message(')
+  })
+})
+
+describe('network/websocket: Kotlin', () => {
+  const book = compileFile('network-websocket.tree')
+  const kt = castKotlin({ book })
+
+  it('generates Socket data class', () => {
+    expect(kt).toContain('data class Socket')
+  })
+
+  it('generates Message data class', () => {
+    expect(kt).toContain('data class Message')
+  })
+
+  it('generates connect function', () => {
+    expect(kt).toContain('fun connect(')
+  })
+
+  it('generates sendMessage function', () => {
+    expect(kt).toContain('sendMessage(')
+  })
+})
+
+describe('network/websocket: Swift', () => {
+  const book = compileFile('network-websocket.tree')
+  const sw = castSwift({ book })
+
+  it('generates Socket type', () => {
+    expect(sw).toMatch(/struct Socket|enum Socket/)
+  })
+
+  it('generates Message type', () => {
+    expect(sw).toMatch(/struct Message|enum Message/)
+  })
+
+  it('generates connect function', () => {
+    expect(sw).toContain('func connect(')
+  })
+
+  it('generates sendMessage function', () => {
+    expect(sw).toContain('sendMessage(')
   })
 })

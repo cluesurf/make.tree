@@ -191,7 +191,8 @@ describe('resolvePackageFile', () => {
       env,
     })
 
-    expect(result).toBe(path.join(linkPkg, 'code', 'base.tree'))
+    // realpathSync resolves /var → /private/var on macOS
+    expect(result).toBe(fs.realpathSync(path.join(linkPkg, 'code', 'base.tree')))
 
     fs.rmSync(root, { recursive: true })
   })
