@@ -8,7 +8,7 @@
 
 import { readCard } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard, type FirmSet } from '@/term/desugar'
+import { desugarCard, type FirmSet, type AsyncMeta } from '@/term/desugar'
 import { resolveStdlib } from '@/stdlib'
 import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates, type ResolveError } from '@/resolve'
@@ -27,6 +27,7 @@ export type LoadResult = {
   files: string[]
   fileMap: Map<string, string[]>
   firmSet: FirmSet
+  asyncMeta: AsyncMeta
 }
 
 export function loadBook(input: {
@@ -38,6 +39,7 @@ export function loadBook(input: {
   const files: string[] = []
   const fileMap = new Map<string, string[]>()
   const firmSet: FirmSet = new Set()
+  const asyncMeta: AsyncMeta = new Map()
 
   loadFile({
     file: input.file,
@@ -47,9 +49,10 @@ export function loadBook(input: {
     files,
     fileMap,
     firmSet,
+    asyncMeta,
   })
 
-  return { book, files, fileMap, firmSet }
+  return { book, files, fileMap, firmSet, asyncMeta }
 }
 
 function loadFile(input: {
@@ -60,8 +63,9 @@ function loadFile(input: {
   files: string[]
   fileMap: Map<string, string[]>
   firmSet: FirmSet
+  asyncMeta: AsyncMeta
 }): void {
-  const { file, env, visited, book, files, fileMap, firmSet } = input
+  const { file, env, visited, book, files, fileMap, firmSet, asyncMeta } = input
 
   if (visited.has(file)) return
   visited.add(file)
@@ -120,7 +124,7 @@ function loadFile(input: {
 
       const resolved = env.resolvePath(file, loadPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta })
       }
     }
 
@@ -128,7 +132,7 @@ function loadFile(input: {
       const bearPath = node.path.join('/')
       const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta })
       }
     }
   }
@@ -142,6 +146,9 @@ function loadFile(input: {
   }
   for (const name of fileResult.firmSet) {
     firmSet.add(name)
+  }
+  for (const [name, val] of fileResult.asyncMeta) {
+    asyncMeta.set(name, val)
   }
   fileMap.set(file, fileNames)
 }
@@ -213,6 +220,7 @@ export function loadPackage(input: {
   const book: Book = new Map()
   const fileMap = new Map<string, string[]>()
   const firmSet: FirmSet = new Set()
+  const asyncMeta: AsyncMeta = new Map()
   const processedStdlib = new Set<string>()
 
   for (const f of allFiles) {
@@ -262,6 +270,9 @@ export function loadPackage(input: {
     for (const name of fileResult.firmSet) {
       firmSet.add(name)
     }
+    for (const [name, val] of fileResult.asyncMeta) {
+      asyncMeta.set(name, val)
+    }
     fileMap.set(f, fileNames)
   }
 
@@ -270,6 +281,7 @@ export function loadPackage(input: {
     files: allFiles,
     fileMap,
     firmSet,
+    asyncMeta,
     resolveErrors: resolved.errors,
     skeletons,
   }

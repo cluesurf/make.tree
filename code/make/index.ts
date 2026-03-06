@@ -20,6 +20,8 @@ import { castBook as castSwift } from '@/cast/swift'
 import { loadBook, loadPackage, discoverFiles } from '@/load'
 import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates } from '@/resolve'
+import { analyzePurity, type PurityMap } from '@/term/purity'
+import { compileHybrid as castHybrid, type HybridResult, type NativeTarget } from '@/cast/hybrid'
 import { discoverDeckEnv, createDeckLoadEnv } from '@/deck'
 import { renderInfoList } from '@/kink/render'
 import { makeKink } from '@/kink/form'
@@ -62,10 +64,10 @@ export function compile(input: {
   const { file, env, target } = input
 
   const result = loadBook({ file, env })
-  const { book, files, firmSet } = result
+  const { book, files, firmSet, asyncMeta } = result
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target })
+  const code = generate({ book, target, asyncMeta })
 
   return { code, errors, files, book }
 }
@@ -102,10 +104,10 @@ export function compilePackage(input: {
   const { file, env, target } = input
 
   const result = loadPackage({ file, env })
-  const { book, files, firmSet, resolveErrors } = result
+  const { book, files, firmSet, asyncMeta, resolveErrors } = result
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target })
+  const code = generate({ book, target, asyncMeta })
 
   return { code, errors, files, book, resolveErrors }
 }
@@ -130,6 +132,36 @@ export function compileDeck(input: {
   const loadEnv = createDeckLoadEnv({ env: deckEnv, parse })
 
   return compilePackage({ file, env: loadEnv, target })
+}
+
+/**
+ * Compile a package with hybrid HVM/native splitting.
+ * Pure definitions are compiled to HVM interaction nets.
+ * Effectful definitions are compiled to the native target.
+ */
+export function compilePackageHybrid(input: {
+  file: string
+  env: LoadEnv
+  nativeTarget: NativeTarget
+}): CompileResult & { hybrid: HybridResult; purityMap: PurityMap } {
+  const { file, env, nativeTarget } = input
+
+  const result = loadPackage({ file, env })
+  const { book, files, firmSet, asyncMeta } = result
+
+  const purityMap = analyzePurity({ book, asyncMeta })
+
+  const errors = checkBook({ book, firmSet })
+  const hybrid = castHybrid({
+    book,
+    purityMap,
+    nativeTarget,
+    asyncMeta,
+  })
+
+  const code = hybrid.nativeCode
+
+  return { code, errors, files, book, hybrid, purityMap }
 }
 
 /**
