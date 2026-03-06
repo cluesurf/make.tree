@@ -56,8 +56,16 @@ export function encodeSelfType(input: { adt: AdtDesc }): {
 } {
   const { adt } = input
 
-  // Build the self-type for the ADT
-  const typeDef = buildSelfType({ adt })
+  // Build the self-type for the ADT, wrapped in Ann so that
+  // references to the type name can resolve without re-checking
+  // (prevents infinite recursion for self-referential types).
+  const slfTerm = buildSelfType({ adt })
+  const typeDef: Term = {
+    form: 'ann',
+    done: false,
+    val: slfTerm,
+    typ: { form: 'set' },
+  }
 
   // Build each constructor
   const ctrs = adt.ctrs.map(ctr => ({

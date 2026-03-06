@@ -116,9 +116,9 @@ describe('rust: E2E fork test (if/else conditionals)', () => {
   })
 
   it('generates native comparison operators', () => {
-    expect(generatedRust).toMatch(/\(a > b\)/)
+    expect(generatedRust).toMatch(/\(a\.clone\(\) > b\.clone\(\)\)/)
     expect(generatedRust).toMatch(/\(n == 0/)
-    expect(generatedRust).toMatch(/\(n < lo\)/)
+    expect(generatedRust).toMatch(/\(n\.clone\(\) < lo\.clone\(\)\)/)
   })
 
   it('generates max function with u64 params', () => {

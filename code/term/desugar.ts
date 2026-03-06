@@ -41,6 +41,8 @@ import type { Term, Book, Ctr, Tele, Oper } from '@/term/form'
 import type { Kink } from '@/kink/form'
 import { makeKink } from '@/kink/form'
 import { VOID_SITE } from '@/kink/site'
+import { encodeSelfType } from '@/term/adt'
+import type { AdtDesc, CtrDesc } from '@/term/adt'
 
 /** Desugaring context: tracks variable scope and metavar counter. */
 type Ctx = {
@@ -98,6 +100,12 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
     }
     if (node.form === 'form' && (node as SurfForm).firm) {
       firmSet.add(node.name)
+      // Register self-type encoded constructors in the book
+      const desc = surfFormToAdtDesc(node as SurfForm)
+      const { ctrs } = encodeSelfType({ adt: desc })
+      for (const ctr of ctrs) {
+        book.set(ctr.name, { form: 'ann', done: false, val: ctr.term, typ: ctr.typ })
+      }
     }
 
     // Process wear blocks inside forms
@@ -183,6 +191,11 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
       }
       if (node.form === 'form' && (node as SurfForm).firm) {
         firmSet.add(node.name)
+        const desc = surfFormToAdtDesc(node as SurfForm)
+        const { ctrs } = encodeSelfType({ adt: desc })
+        for (const ctr of ctrs) {
+          book.set(ctr.name, { form: 'ann', done: false, val: ctr.term, typ: ctr.typ })
+        }
       }
 
       if (node.form === 'form') {
@@ -278,6 +291,10 @@ function desugarDef(input: {
     case 'task':
       return { name: surf.name, term: desugarTask({ task: surf, ctx }) }
     case 'form':
+      // firm forms use self-type encoding for dependent types and proofs
+      if ((surf as SurfForm).firm) {
+        return { name: surf.name, term: desugarFormSelfType({ form: surf as SurfForm }) }
+      }
       return { name: surf.name, term: desugarForm({ form: surf, ctx }) }
     case 'test':
       return {
@@ -409,6 +426,50 @@ function desugarForm(input: { form: SurfForm; ctx: Ctx }): Term {
   }
 
   return { form: 'adt', indx, ctrs, type: adtType }
+}
+
+/**
+ * Convert a SurfForm to an AdtDesc for self-type encoding.
+ */
+function surfFormToAdtDesc(form: SurfForm): AdtDesc {
+  const ctrs: CtrDesc[] = form.case.map(c => ({
+    name: c.name,
+    fields: c.link.map(l => ({
+      name: l.name,
+      typ: l.like ? resolveType(l.like) : ({ form: 'set' } as Term),
+    })),
+  }))
+
+  // Struct-like form: links at form level with no case arms
+  if (ctrs.length === 0 && form.link.length > 0) {
+    ctrs.push({
+      name: form.name,
+      fields: form.link.map(l => ({
+        name: l.name,
+        typ: l.like ? resolveType(l.like) : ({ form: 'set' } as Term),
+      })),
+    })
+  }
+
+  return {
+    name: form.name,
+    indices: form.head.map(h => ({
+      name: h.name,
+      typ: h.need ? resolveTypeName(h.need) : ({ form: 'set' } as Term),
+    })),
+    ctrs,
+  }
+}
+
+/**
+ * Desugar a form with `firm true` to self-type encoding.
+ * Returns the annotated self-type definition (Ann(Slf{...}, Set)).
+ * Constructors are registered separately in desugarCard.
+ */
+function desugarFormSelfType(input: { form: SurfForm }): Term {
+  const desc = surfFormToAdtDesc(input.form)
+  const { typeDef } = encodeSelfType({ adt: desc })
+  return typeDef
 }
 
 /**

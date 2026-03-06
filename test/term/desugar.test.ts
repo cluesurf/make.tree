@@ -657,4 +657,105 @@ describe('term/desugar', () => {
       if (result.form === 'num') expect(result.val).toBe(10)
     })
   })
+
+  describe('firm form → self-type encoding', () => {
+    it('firm form produces self-type encoding (Ann Slf)', () => {
+      const natForm: SurfForm = {
+        form: 'form',
+        name: 'nat',
+        head: [],
+        link: [],
+        case: [
+          { form: 'case-arm', name: 'zero', link: [], site },
+          { form: 'case-arm', name: 'succ', link: [
+            { form: 'link', name: 'pred', like: { form: 'type-name', name: 'nat' }, site },
+          ], site },
+        ],
+        bond: [],
+        task: [],
+        wear: [],
+        firm: true,
+        site,
+      }
+
+      const card: SurfCard = { file: 'test.tree', list: [natForm] }
+      const { book, firmSet } = desugarCard({ card })
+
+      // Form name in firm set
+      expect(firmSet.has('nat')).toBe(true)
+
+      // Type definition is self-type (Ann with Slf val)
+      const natDef = book.get('nat')
+      expect(natDef).toBeDefined()
+      expect(natDef!.form).toBe('ann')
+      if (natDef!.form === 'ann') {
+        expect(natDef!.val.form).toBe('slf')
+        expect(natDef!.typ.form).toBe('set')
+      }
+
+      // Constructors are registered
+      const zeroDef = book.get('zero')
+      expect(zeroDef).toBeDefined()
+      expect(zeroDef!.form).toBe('ann')
+
+      const succDef = book.get('succ')
+      expect(succDef).toBeDefined()
+      expect(succDef!.form).toBe('ann')
+    })
+
+    it('firm form constructors type-check', () => {
+      const natForm: SurfForm = {
+        form: 'form',
+        name: 'nat',
+        head: [],
+        link: [],
+        case: [
+          { form: 'case-arm', name: 'zero', link: [], site },
+          { form: 'case-arm', name: 'succ', link: [
+            { form: 'link', name: 'pred', like: { form: 'type-name', name: 'nat' }, site },
+          ], site },
+        ],
+        bond: [],
+        task: [],
+        wear: [],
+        firm: true,
+        site,
+      }
+
+      const card: SurfCard = { file: 'test.tree', list: [natForm] }
+      const { book } = desugarCard({ card })
+
+      // Type-check zero
+      const zeroResult = check({ term: { form: 'ref', name: 'zero' }, book })
+      expect(zeroResult).not.toBeNull()
+
+      // Type-check succ
+      const succResult = check({ term: { form: 'ref', name: 'succ' }, book })
+      expect(succResult).not.toBeNull()
+    })
+
+    it('non-firm form produces ADT encoding', () => {
+      const boolForm: SurfForm = {
+        form: 'form',
+        name: 'bool',
+        head: [],
+        link: [],
+        case: [
+          { form: 'case-arm', name: 'true', link: [], site },
+          { form: 'case-arm', name: 'false', link: [], site },
+        ],
+        bond: [],
+        task: [],
+        wear: [],
+        site,
+      }
+
+      const card: SurfCard = { file: 'test.tree', list: [boolForm] }
+      const { book } = desugarCard({ card })
+
+      const boolDef = book.get('bool')
+      expect(boolDef).toBeDefined()
+      expect(boolDef!.form).toBe('adt')
+    })
+  })
 })

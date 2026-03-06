@@ -323,6 +323,12 @@ export function infer(input: {
         fn: book => {
           const def = book.get(term.name)
           if (def) {
+            // If already annotated, trust the type without re-checking.
+            // This prevents infinite recursion for self-referential types
+            // like Nat whose self-type body references Nat.
+            if (def.form === 'ann') {
+              return envPure(ann({ val: term, typ: def.typ }))
+            }
             return envBind({
               env: infer({ sus, src, term: def, dep }),
               fn: valA =>
@@ -974,6 +980,37 @@ export function verify(input: {
               }),
           }),
       })
+    }
+
+    case 'app': {
+      // When app(Mat/Swi, scrutinee) is verified against an expected type,
+      // synthesize the match function type from the scrutinee type and
+      // expected return type, then verify the Mat/Swi against that.
+      if (term.func.form === 'mat' || term.func.form === 'swi') {
+        return envBind({
+          env: infer({ sus, src, term: term.argm, dep }),
+          fn: argA => {
+            const argType = getType(argA)
+            const matchType: Term = {
+              form: 'all',
+              name: '_',
+              inp: argType,
+              bod: () => typx,
+            }
+            return envBind({
+              env: verify({ sus, src, term: term.func, typx: matchType, dep }),
+              fn: funcA =>
+                envPure(
+                  ann({
+                    val: { form: 'app', func: funcA, argm: argA },
+                    typ: typx,
+                  }),
+                ),
+            })
+          },
+        })
+      }
+      return inferAndCompare({ sus, src, term, typx, dep })
     }
 
     default:

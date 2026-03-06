@@ -157,6 +157,7 @@ export function castBook(input: {
       const bodyLines: string[] = []
       const bodyIndent = isTailRec ? 2 : 1
       const usage = buildUsageMap({ term: body, dep: totalDep })
+      const mutVars = collectMutVars({ term: body, dep: totalDep })
       castStmt({
         term: body,
         dep: totalDep,
@@ -166,6 +167,7 @@ export function castBook(input: {
         tail,
         okWrap: usesHalt,
         usage,
+        mutVars,
       })
       const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
@@ -368,6 +370,8 @@ function castImplBlock(input: {
       const paramStr = paramParts.join(', ')
 
       const bodyLines: string[] = []
+      const usage = buildUsageMap({ term: body, dep: params.length })
+      const mutVars = collectMutVars({ term: body, dep: params.length })
       castStmt({
         term: body,
         dep: params.length,
@@ -375,6 +379,8 @@ function castImplBlock(input: {
         lines: bodyLines,
         indent: 2,
         okWrap: usesHalt,
+        usage,
+        mutVars,
       })
       lines.push(
         `    fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n    }`,
@@ -956,6 +962,84 @@ function isCopyType(name: string): boolean {
   return name.startsWith('_') || name === 'true' || name === 'false'
 }
 
+/**
+ * Collect variables that are reassigned (bound more than once in a linear scope).
+ * These need `let mut` in Rust. A variable is "mutated" when a `let` in the
+ * continuation chain uses the same name as an earlier `let` in the same chain.
+ * Lambda bodies and match arms start new scopes and do not count as reassignment.
+ */
+function collectMutVars(input: { term: Term; dep: number }): Set<string> {
+  const muts = new Set<string>()
+  function walk(t: Term, d: number, bound: Set<string>): void {
+    if (!t || !t.form) return
+    switch (t.form) {
+      case 'let': {
+        const name = varName({ name: t.name, dep: d })
+        if (bound.has(name)) {
+          muts.add(name)
+        }
+        walk(t.val, d, bound)
+        const next = new Set(bound)
+        next.add(name)
+        walk(t.bod({ form: 'var', name, idx: d }), d + 1, next)
+        return
+      }
+      case 'lam':
+        // Lambda starts a fresh scope
+        walk(t.bod({ form: 'var', name: t.name, idx: d }), d + 1, new Set())
+        return
+      case 'app':
+        walk(t.func, d, bound)
+        walk(t.argm, d, bound)
+        return
+      case 'mat':
+        // Each match arm starts a fresh scope
+        for (const [, bod] of t.arms) {
+          let inner: Term = bod
+          let dd = d
+          while (inner.form === 'lam') {
+            inner = inner.bod({ form: 'var', name: inner.name, idx: dd })
+            dd++
+          }
+          walk(inner, dd, new Set())
+        }
+        return
+      case 'swi':
+        walk(t.zero, d, new Set())
+        walk(t.succ, d, new Set())
+        return
+      case 'op2':
+        walk(t.a, d, bound)
+        walk(t.b, d, bound)
+        return
+      case 'con':
+        for (const [, arg] of t.args) walk(arg, d, bound)
+        return
+      case 'log':
+        walk(t.msg, d, bound)
+        walk(t.val, d, bound)
+        return
+      case 'lst':
+        for (const item of t.list) walk(item, d, bound)
+        return
+      case 'ann':
+      case 'ins':
+      case 'src':
+      case 'rst':
+        walk(t.val, d, bound)
+        return
+      case 'hlt':
+        walk(t.msg, d, bound)
+        return
+      case 'use':
+        walk(t.bod(t.val), d, bound)
+        return
+    }
+  }
+  walk(input.term, input.dep, new Set())
+  return muts
+}
+
 function countLamDepth(term: Term): number {
   let count = 0
   let cur = term
@@ -1076,8 +1160,9 @@ function castStmt(input: {
   tail?: TailCtx
   okWrap?: boolean
   usage?: UsageCtx
+  mutVars?: Set<string>
 }): void {
-  const { term, dep, ctx, lines, indent, tail, okWrap, usage } = input
+  const { term, dep, ctx, lines, indent, tail, okWrap, usage, mutVars } = input
   const pad = '    '.repeat(indent)
 
   switch (term.form) {
@@ -1094,6 +1179,7 @@ function castStmt(input: {
           tail,
           okWrap,
           usage,
+          mutVars,
         })
         return
       }
@@ -1104,8 +1190,15 @@ function castStmt(input: {
         ? (usage.get(name) ?? 0)
         : countVarUses({ name, term: bodTerm, dep: dep + 1 })
       const val = castExpr({ term: term.val, dep, ctx, usage })
-      const displayName = varUses === 0 ? `_${name}` : name
-      lines.push(`${pad}let ${displayName} = ${val};`)
+      const isMut = mutVars?.has(name) ?? false
+      if (isMut && lines.some(l => l.includes(`let mut ${name} =`) || l.includes(`let ${name} =`))) {
+        // Reassignment of a mutable variable
+        lines.push(`${pad}${name} = ${val};`)
+      } else {
+        const displayName = varUses === 0 ? `_${name}` : name
+        const mutPrefix = isMut ? 'let mut' : 'let'
+        lines.push(`${pad}${mutPrefix} ${displayName} = ${val};`)
+      }
       castStmt({
         term: bodTerm,
         dep: dep + 1,
@@ -1115,6 +1208,7 @@ function castStmt(input: {
         tail,
         okWrap,
         usage,
+        mutVars,
       })
       return
     }
@@ -1154,6 +1248,7 @@ function castStmt(input: {
               tail,
               okWrap,
               usage,
+              mutVars,
             })
             return
           }
@@ -1170,6 +1265,7 @@ function castStmt(input: {
           tail,
           okWrap,
           usage,
+          mutVars,
         })
         return
       }
@@ -1185,6 +1281,7 @@ function castStmt(input: {
           tail,
           okWrap,
           usage,
+          mutVars,
         })
         return
       }
@@ -1205,6 +1302,7 @@ function castStmt(input: {
           tail,
           okWrap,
           usage,
+          mutVars,
         })
         return
       }
@@ -1227,6 +1325,7 @@ function castStmt(input: {
             lines,
             indent: indent + 1,
             usage,
+            mutVars,
           })
           lines.push(`${pad}}`)
         }
@@ -1260,13 +1359,13 @@ function castStmt(input: {
     case 'log': {
       const msg = castExpr({ term: term.msg, dep, ctx, usage })
       lines.push(`${pad}println!("{}", ${msg});`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     }
     case 'rst': {
       // Rust has no debugger statement; emit a comment
       lines.push(`${pad}// breakpoint`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     }
     case 'hlt': {
@@ -1283,13 +1382,13 @@ function castStmt(input: {
       return
     }
     case 'ann':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     case 'ins':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     case 'src':
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage })
+      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     case 'use':
       castStmt({
@@ -1301,6 +1400,7 @@ function castStmt(input: {
         tail,
         okWrap,
         usage,
+        mutVars,
       })
       return
   }
@@ -1323,8 +1423,9 @@ function castMatchStmt(input: {
   tail?: TailCtx
   okWrap?: boolean
   usage?: UsageCtx
+  mutVars?: Set<string>
 }): void {
-  const { arms, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage } = input
+  const { arms, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage, mutVars } = input
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx, usage })
 
@@ -1365,7 +1466,7 @@ function castMatchStmt(input: {
         }
         lines.push(`${pad}    None => {`)
       }
-      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 2, tail, okWrap, usage })
+      castStmt({ term: armBod, dep: armDep, ctx, lines, indent: indent + 2, tail, okWrap, usage, mutVars })
       lines.push(`${pad}    }`)
       continue
     }
@@ -1421,6 +1522,7 @@ function castMatchStmt(input: {
       tail,
       okWrap,
       usage,
+      mutVars,
     })
     lines.push(`${pad}    }`)
   }
@@ -1459,13 +1561,14 @@ function castSwiStmt(input: {
   tail?: TailCtx
   okWrap?: boolean
   usage?: UsageCtx
+  mutVars?: Set<string>
 }): void {
-  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage } = input
+  const { zero, succ, scrutinee, dep, ctx, lines, indent, tail, okWrap, usage, mutVars } = input
   const pad = '    '.repeat(indent)
   const scrExpr = castExpr({ term: scrutinee, dep, ctx, usage })
 
   lines.push(`${pad}if ${scrExpr} == 0 {`)
-  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
+  castStmt({ term: zero, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage, mutVars })
 
   if (succ.form === 'lam') {
     const pName = varName({ name: succ.name, dep })
@@ -1480,6 +1583,7 @@ function castSwiStmt(input: {
       tail,
       okWrap,
       usage,
+      mutVars,
     })
   } else {
     lines.push(`${pad}} else {`)
@@ -1640,15 +1744,16 @@ function castTestStmt(input: {
   tail?: TailCtx
   okWrap?: boolean
   usage?: UsageCtx
+  mutVars?: Set<string>
 }): void {
-  const { condition, trueArm, falseArm, dep, ctx, lines, indent, tail, okWrap, usage } = input
+  const { condition, trueArm, falseArm, dep, ctx, lines, indent, tail, okWrap, usage, mutVars } = input
   const pad = '    '.repeat(indent)
   const condExpr = castExpr({ term: condition, dep, ctx, usage })
 
   lines.push(`${pad}if ${condExpr} {`)
-  castStmt({ term: trueArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
+  castStmt({ term: trueArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage, mutVars })
   lines.push(`${pad}} else {`)
-  castStmt({ term: falseArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage })
+  castStmt({ term: falseArm, dep, ctx, lines, indent: indent + 1, tail, okWrap, usage, mutVars })
   lines.push(`${pad}}`)
 }
 
@@ -1781,10 +1886,10 @@ function castExpr(input: {
       return snakeCase(term.name)
     case 'var': {
       if (usage) {
-        // Decrement usage count to track last-use for future
-        // clone/move emission (requires type awareness to know
-        // which types need .clone() vs are Copy)
-        useVar({ name: term.name, usage })
+        const needsClone = useVar({ name: term.name, usage })
+        if (needsClone) {
+          return `${term.name}.clone()`
+        }
       }
       return term.name
     }
