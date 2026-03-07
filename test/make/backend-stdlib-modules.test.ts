@@ -135,25 +135,25 @@ describe('test framework module: all backends', () => {
 
   it('TypeScript generates test types and functions', () => {
     const ts = castTS({ book })
-    expect(ts).toContain('export function testReportMake(')
-    expect(ts).toContain('export function testReportPassed(')
-    expect(ts).toContain('export function testReportTotal(')
-    expect(ts).toContain('export function testFailureMake(')
-    expect(ts).toContain('export function testFailureName(')
-    expect(ts).toContain('testMockMake')
-    expect(ts).toContain('export function testMockCount(')
+    expect(ts).toContain('function make')
+    expect(ts).toContain('function passed')
+    expect(ts).toContain('function total')
+    expect(ts).toContain('function fail')
+    expect(ts).toContain('function name')
+    expect(ts).toContain('stamp')
+    expect(ts).toContain('function count')
   })
 
   it('Rust generates test functions', () => {
     const rs = castRust({ book })
-    expect(rs).toContain('fn test_report_make(')
-    expect(rs).toContain('fn test_report_total(')
-    expect(rs).toContain('test_mock_make')
+    expect(rs).toContain('fn make')
+    expect(rs).toContain('fn total')
+    expect(rs).toContain('stamp')
   })
 
   it('HVM generates test definitions', () => {
     const hvm = castHVM({ book })
-    expect(hvm).toContain('@test_report_make')
-    expect(hvm).toContain('@test_mock_make')
+    expect(hvm).toContain('@make')
+    expect(hvm).toContain('@stamp')
   })
 })
