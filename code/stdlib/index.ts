@@ -159,8 +159,10 @@ export function clearStdlibCache(): void {
  * Resolve a package path to a filesystem path.
  *
  * Maps:
- *   @cluesurf/base/code/base/form/boolean -> base.tree/code/base/form/boolean/base.tree
- *   @cluesurf/bind/code/node/fs           -> bind.tree/code/node/fs/base.tree
+ *   @cluesurf/base/code/boolean -> base.tree/code/boolean.tree
+ *   @cluesurf/bind/code/node/fs           -> bind.tree/code/node/fs.tree
+ *
+ * Falls back to dir/base.tree for legacy layout.
  */
 export function resolvePackagePath(input: {
   loadPath: string
@@ -173,11 +175,15 @@ export function resolvePackagePath(input: {
   if (!match) return null
 
   const [, pkg, rest] = match
-  // Package directory: base.tree or bind.tree
   const pkgDir = `${pkg}.tree`
-  // The rest maps to a directory with base.tree inside
-  const filePath = path.resolve(root, pkgDir, `${rest}/base.tree`)
-  return filePath
+
+  // Try collapsed file first: rest.tree
+  const collapsed = path.resolve(root, pkgDir, `${rest}.tree`)
+  if (fs.existsSync(collapsed)) return collapsed
+
+  // Fallback: rest/base.tree (legacy)
+  const legacy = path.resolve(root, pkgDir, `${rest}/base.tree`)
+  return legacy
 }
 
 /**
@@ -219,13 +225,8 @@ export function resolveStdlib(input: {
 
   // 5. Check file exists
   if (!fs.existsSync(filePath)) {
-    // Try without the trailing /base.tree (maybe it's a direct file)
-    const altPath = path.resolve(root, loadPath.replace(/^@cluesurf\/(base|case)\//, '$1.tree/') + '.tree')
-    if (!fs.existsSync(altPath)) {
-      cardCache.set(loadPath, null)
-      return null
-    }
-    return loadFromFile({ filePath: altPath, loadPath, parse })
+    cardCache.set(loadPath, null)
+    return null
   }
 
   return loadFromFile({ filePath, loadPath, parse })

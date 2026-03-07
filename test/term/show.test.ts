@@ -8,11 +8,11 @@ describe('term/show', () => {
   })
 
   it('shows U64 type', () => {
-    expect(showTerm({ form: 'u64' })).toBe('U64')
+    expect(showTerm({ form: 'int', size: 64, sign: false })).toBe('U64')
   })
 
   it('shows F64 type', () => {
-    expect(showTerm({ form: 'f64' })).toBe('F64')
+    expect(showTerm({ form: 'flt', size: 64 })).toBe('F64')
   })
 
   it('shows Num value', () => {
@@ -64,8 +64,8 @@ describe('term/show', () => {
     const all: Term = {
       form: 'all',
       name: 'x',
-      inp: { form: 'u64' },
-      bod: (_x) => ({ form: 'u64' }),
+      inp: { form: 'int', size: 64, sign: false },
+      bod: (_x) => ({ form: 'int', size: 64, sign: false }),
     }
     expect(showTerm(all)).toBe('∀(x: U64) U64')
   })
@@ -128,7 +128,7 @@ describe('term/show', () => {
       form: 'ann',
       done: false,
       val: { form: 'num', val: 42 },
-      typ: { form: 'u64' },
+      typ: { form: 'int', size: 64, sign: false },
     }
     expect(showTerm(ann)).toBe('42')
     expect(showTermFull(ann)).toBe('{42: U64}')

@@ -395,10 +395,10 @@ function castImplBlock(input: {
 function resolveTraitTypeName(name: string | null): string {
   if (!name) return 'impl Clone'
   switch (name) {
-    case 'u64':
-      return 'u64'
-    case 'f64':
-      return 'f64'
+    case 'u8': case 'u16': case 'u32': case 'u64': case 'u128':
+    case 'i8': case 'i16': case 'i32': case 'i64': case 'i128':
+    case 'f32': case 'f64':
+      return name
     case 'text':
       return 'String'
     case 'maybe':
@@ -613,8 +613,14 @@ function resolveRustType(input: { term: Term; ctx: EmitCtx }): string {
     if (ctx.enumNames.has(term.name)) return pascalCase(term.name)
     return pascalCase(term.name)
   }
-  if (term.form === 'u64') return 'u64'
-  if (term.form === 'f64') return 'f64'
+  if (term.form === 'int') {
+    if (term.size === 0) return 'num::BigInt'
+    return `${term.sign ? 'i' : 'u'}${term.size}`
+  }
+  if (term.form === 'flt') {
+    if (term.size === 0) return 'num::BigRational'
+    return `f${term.size}`
+  }
   // All (pi type) → impl Fn(A, B, ...) -> R for function-typed params
   if (term.form === 'all') {
     const paramTypes: string[] = []
@@ -745,8 +751,8 @@ function countVarUses(input: { name: string; term: Term; dep: number }): number 
     case 'nat':
     case 'txt':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'nxt':
       return 0
     case 'lam':
@@ -848,8 +854,8 @@ function collectVarUses(input: {
     case 'nat':
     case 'txt':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'nxt':
     case 'hol':
     case 'met':
@@ -1957,8 +1963,8 @@ function castExpr(input: {
       return '() /* continue */'
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return '()'
@@ -2065,8 +2071,8 @@ function isTypeOnly(term: Term): boolean {
   switch (term.form) {
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return true

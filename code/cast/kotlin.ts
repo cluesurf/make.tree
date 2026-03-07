@@ -954,8 +954,8 @@ function castExpr(input: {
     }
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return 'Unit'
@@ -1022,8 +1022,8 @@ function isTypeOnly(term: Term): boolean {
   switch (term.form) {
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return true

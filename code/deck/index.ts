@@ -178,8 +178,8 @@ function parseLoadPath(input: { loadPath: string }): {
  * Resolve a subpath within a package directory.
  *
  * Tries in order:
- *   1. dir/rest/base.tree (standard seed convention)
- *   2. dir/rest.tree (direct file)
+ *   1. dir/rest.tree (preferred: collapsed module file)
+ *   2. dir/rest/base.tree (legacy: directory with base.tree entry)
  *   3. dir/rest/note.tree (package index)
  */
 function resolveInDir(input: {
@@ -197,13 +197,13 @@ function resolveInDir(input: {
     return null
   }
 
-  // Try dir/rest/base.tree (standard convention)
-  const baseTree = path.join(dir, rest, 'base.tree')
-  if (fs.existsSync(baseTree)) return baseTree
-
-  // Try dir/rest.tree (direct file)
+  // Try dir/rest.tree (preferred convention)
   const directTree = path.join(dir, `${rest}.tree`)
   if (fs.existsSync(directTree)) return directTree
+
+  // Try dir/rest/base.tree (legacy fallback)
+  const baseTree = path.join(dir, rest, 'base.tree')
+  if (fs.existsSync(baseTree)) return baseTree
 
   // Try dir/rest/note.tree (submodule index)
   const noteTree = path.join(dir, rest, 'note.tree')
@@ -238,12 +238,12 @@ export function createDeckLoadEnv(input: {
 
       // Relative imports use filesystem resolution
       const dir = path.dirname(fromFile)
-      // Try dir/loadPath/base.tree first (seed convention)
-      const baseTree = path.join(dir, loadPath, 'base.tree')
-      if (fs.existsSync(baseTree)) return baseTree
-      // Try dir/loadPath.tree
+      // Try dir/loadPath.tree first (preferred convention)
       const directTree = path.join(dir, `${loadPath}.tree`)
       if (fs.existsSync(directTree)) return directTree
+      // Try dir/loadPath/base.tree (legacy fallback)
+      const baseTree = path.join(dir, loadPath, 'base.tree')
+      if (fs.existsSync(baseTree)) return baseTree
       // Try dir/loadPath (exact path, already has extension)
       if (fs.existsSync(path.join(dir, loadPath))) return path.join(dir, loadPath)
       return null

@@ -56,18 +56,18 @@ describe('cast/typescript', () => {
     })
 
     it('erases U64 type', () => {
-      expect(cast({ form: 'u64' })).toBe('undefined')
+      expect(cast({ form: 'int', size: 64, sign: false })).toBe('undefined')
     })
 
     it('erases F64 type', () => {
-      expect(cast({ form: 'f64' })).toBe('undefined')
+      expect(cast({ form: 'flt', size: 64 })).toBe('undefined')
     })
 
     it('erases Ann', () => {
       expect(cast({
         form: 'ann', done: false,
         val: { form: 'num', val: 42 },
-        typ: { form: 'u64' },
+        typ: { form: 'int', size: 64, sign: false },
       })).toBe('42')
     })
 
@@ -267,8 +267,8 @@ describe('cast/typescript', () => {
           val: { form: 'lam', name: 'x', bod: (x: Term) => x },
           typ: {
             form: 'all', name: 'x',
-            inp: { form: 'u64' },
-            bod: () => ({ form: 'u64' }),
+            inp: { form: 'int', size: 64, sign: false },
+            bod: () => ({ form: 'int', size: 64, sign: false }),
           },
         } as Term],
       ])
@@ -283,7 +283,7 @@ describe('cast/typescript', () => {
         ['five', {
           form: 'ann', done: false,
           val: { form: 'num', val: 5 },
-          typ: { form: 'u64' },
+          typ: { form: 'int', size: 64, sign: false },
         } as Term],
       ])
 

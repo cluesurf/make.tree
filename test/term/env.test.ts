@@ -85,7 +85,7 @@ describe('term/env', () => {
   it('susp and takeSusp manage suspended checks', () => {
     const state = emptyState()
     const susp = {
-      need: { form: 'u64' } as Term,
+      need: { form: 'int', size: 64, sign: false } as Term,
       have: { form: 'num', val: 1 } as Term,
       dep: 0,
     }

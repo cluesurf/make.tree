@@ -68,7 +68,7 @@ function compileText(text: string): Book {
 
 describe('boolean form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
 
     // Should have 'boolean' in the book
@@ -78,7 +78,7 @@ describe('boolean form', () => {
   })
 
   it('has true and false constructors', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
     const term = book.get('boolean')!
 
@@ -89,7 +89,7 @@ describe('boolean form', () => {
   })
 
   it('generates TypeScript code', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(ts).toBeDefined()
@@ -97,7 +97,7 @@ describe('boolean form', () => {
   })
 
   it('generates HVM code', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
     const hvm = castHVM({ book })
     expect(hvm).toBeDefined()
@@ -107,7 +107,7 @@ describe('boolean form', () => {
 
 describe('maybe form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
 
     expect(book.has('maybe')).toBe(true)
@@ -116,7 +116,7 @@ describe('maybe form', () => {
   })
 
   it('has some and none constructors', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
     const term = book.get('maybe')!
 
@@ -127,7 +127,7 @@ describe('maybe form', () => {
   })
 
   it('some constructor has value field', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
     const term = book.get('maybe')!
 
@@ -140,7 +140,7 @@ describe('maybe form', () => {
   })
 
   it('has type parameter in ADT type', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
     const term = book.get('maybe')!
 
@@ -150,7 +150,7 @@ describe('maybe form', () => {
   })
 
   it('generates TypeScript code', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(ts).toBeDefined()
@@ -159,7 +159,7 @@ describe('maybe form', () => {
 
 describe('result form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/result')
+    const card = loadStdlib('@cluesurf/base/code/result')
     const book = desugar(card)
 
     expect(book.has('result')).toBe(true)
@@ -168,7 +168,7 @@ describe('result form', () => {
   })
 
   it('has okay and error constructors', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/result')
+    const card = loadStdlib('@cluesurf/base/code/result')
     const book = desugar(card)
     const term = book.get('result')!
 
@@ -179,7 +179,7 @@ describe('result form', () => {
   })
 
   it('has two type parameters', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/result')
+    const card = loadStdlib('@cluesurf/base/code/result')
     const book = desugar(card)
     const term = book.get('result')!
 
@@ -197,7 +197,7 @@ describe('result form', () => {
   })
 
   it('okay constructor has value field typed as t', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/result')
+    const card = loadStdlib('@cluesurf/base/code/result')
     const book = desugar(card)
     const term = book.get('result')!
 
@@ -215,7 +215,7 @@ describe('result form', () => {
   })
 
   it('generates TypeScript code', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/result')
+    const card = loadStdlib('@cluesurf/base/code/result')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(ts).toBeDefined()
@@ -224,7 +224,7 @@ describe('result form', () => {
 
 describe('kink form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/kink')
+    const card = loadStdlib('@cluesurf/base/code/kink')
     const book = desugar(card)
 
     expect(book.has('kink')).toBe(true)
@@ -233,7 +233,7 @@ describe('kink form', () => {
   })
 
   it('has implicit constructor from struct links', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/kink')
+    const card = loadStdlib('@cluesurf/base/code/kink')
     const book = desugar(card)
     const term = book.get('kink')!
 
@@ -245,7 +245,7 @@ describe('kink form', () => {
   })
 
   it('generates TypeScript code', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/kink')
+    const card = loadStdlib('@cluesurf/base/code/kink')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(ts).toBeDefined()
@@ -254,7 +254,7 @@ describe('kink form', () => {
 
 describe('pair form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/pair')
+    const card = loadStdlib('@cluesurf/base/code/pair')
     const book = desugar(card)
 
     expect(book.has('pair')).toBe(true)
@@ -263,7 +263,7 @@ describe('pair form', () => {
   })
 
   it('has two type parameters', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/pair')
+    const card = loadStdlib('@cluesurf/base/code/pair')
     const book = desugar(card)
     const term = book.get('pair')!
 
@@ -330,7 +330,7 @@ describe('stdlib via loadBook', () => {
     // Write a test .tree file that loads from stdlib
     const testFile = path.resolve(__dirname, '_tmp_load_test.tree')
     const testText = `
-load @cluesurf/base/code/base/form/boolean
+load @cluesurf/base/code/boolean
 
 task use-bool
   take x, like boolean
@@ -373,7 +373,7 @@ task use-bool
   it('loads maybe via load directive with find filter', () => {
     const testFile = path.resolve(__dirname, '_tmp_find_test.tree')
     const testText = `
-load @cluesurf/base/code/base/form/maybe
+load @cluesurf/base/code/maybe
   find maybe
 
 task wrap
@@ -409,7 +409,7 @@ task wrap
 
 describe('codegen for stdlib ADTs', () => {
   it('ADT-only book emits type declaration in TypeScript', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
     const ts = castTS({ book })
 
@@ -420,7 +420,7 @@ describe('codegen for stdlib ADTs', () => {
   })
 
   it('Rust codegen does not crash for ADT-only book', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+    const card = loadStdlib('@cluesurf/base/code/boolean')
     const book = desugar(card)
     const rust = castRust({ book })
 
@@ -428,7 +428,7 @@ describe('codegen for stdlib ADTs', () => {
   })
 
   it('HVM codegen does not crash for ADT-only book', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+    const card = loadStdlib('@cluesurf/base/code/maybe')
     const book = desugar(card)
     const hvm = castHVM({ book })
 
@@ -492,7 +492,7 @@ task unwrap-or
 
 describe('list form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/list')
+    const card = loadStdlib('@cluesurf/base/code/list')
     const book = desugar(card)
 
     expect(book.has('list')).toBe(true)
@@ -501,7 +501,7 @@ describe('list form', () => {
   })
 
   it('has type parameter', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/list')
+    const card = loadStdlib('@cluesurf/base/code/list')
     const book = desugar(card)
     const term = book.get('list')!
 
@@ -510,14 +510,14 @@ describe('list form', () => {
   })
 
   it('generates TypeScript without crashing', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/list')
+    const card = loadStdlib('@cluesurf/base/code/list')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(typeof ts).toBe('string')
   })
 
   it('generates Rust without crashing', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/list')
+    const card = loadStdlib('@cluesurf/base/code/list')
     const book = desugar(card)
     const rust = castRust({ book })
     expect(typeof rust).toBe('string')
@@ -526,7 +526,7 @@ describe('list form', () => {
 
 describe('line form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/line')
+    const card = loadStdlib('@cluesurf/base/code/line')
     const book = desugar(card)
 
     expect(book.has('line')).toBe(true)
@@ -535,7 +535,7 @@ describe('line form', () => {
   })
 
   it('has type parameter', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/line')
+    const card = loadStdlib('@cluesurf/base/code/line')
     const book = desugar(card)
     const term = book.get('line')!
 
@@ -544,7 +544,7 @@ describe('line form', () => {
   })
 
   it('generates TypeScript without crashing', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/line')
+    const card = loadStdlib('@cluesurf/base/code/line')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(typeof ts).toBe('string')
@@ -553,7 +553,7 @@ describe('line form', () => {
 
 describe('hash form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/hash')
+    const card = loadStdlib('@cluesurf/base/code/hash')
     const book = desugar(card)
 
     expect(book.has('hash')).toBe(true)
@@ -562,7 +562,7 @@ describe('hash form', () => {
   })
 
   it('has two type parameters (k, v)', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/hash')
+    const card = loadStdlib('@cluesurf/base/code/hash')
     const book = desugar(card)
     const term = book.get('hash')!
 
@@ -579,7 +579,7 @@ describe('hash form', () => {
   })
 
   it('generates TypeScript without crashing', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/hash')
+    const card = loadStdlib('@cluesurf/base/code/hash')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(typeof ts).toBe('string')
@@ -588,7 +588,7 @@ describe('hash form', () => {
 
 describe('walk form', () => {
   it('parses and desugars correctly', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/walk')
+    const card = loadStdlib('@cluesurf/base/code/walk')
     const book = desugar(card)
 
     expect(book.has('walk')).toBe(true)
@@ -597,7 +597,7 @@ describe('walk form', () => {
   })
 
   it('has type parameter', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/walk')
+    const card = loadStdlib('@cluesurf/base/code/walk')
     const book = desugar(card)
     const term = book.get('walk')!
 
@@ -606,7 +606,7 @@ describe('walk form', () => {
   })
 
   it('generates TypeScript without crashing', () => {
-    const card = loadStdlib('@cluesurf/base/code/base/form/walk')
+    const card = loadStdlib('@cluesurf/base/code/walk')
     const book = desugar(card)
     const ts = castTS({ book })
     expect(typeof ts).toBe('string')
@@ -937,7 +937,7 @@ task get-line
 })
 
 describe('all 5 backends: boolean', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/boolean')
+  const card = loadStdlib('@cluesurf/base/code/boolean')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -967,7 +967,7 @@ describe('all 5 backends: boolean', () => {
 })
 
 describe('all 5 backends: maybe', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/maybe')
+  const card = loadStdlib('@cluesurf/base/code/maybe')
   const book = desugar(card)
 
   it('TypeScript (skips type, maps to native)', () => {
@@ -997,7 +997,7 @@ describe('all 5 backends: maybe', () => {
 })
 
 describe('all 5 backends: result', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/result')
+  const card = loadStdlib('@cluesurf/base/code/result')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1027,7 +1027,7 @@ describe('all 5 backends: result', () => {
 })
 
 describe('all 5 backends: kink', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/kink')
+  const card = loadStdlib('@cluesurf/base/code/kink')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1057,7 +1057,7 @@ describe('all 5 backends: kink', () => {
 })
 
 describe('all 5 backends: pair', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/pair')
+  const card = loadStdlib('@cluesurf/base/code/pair')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1087,7 +1087,7 @@ describe('all 5 backends: pair', () => {
 })
 
 describe('all 5 backends: list', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/list')
+  const card = loadStdlib('@cluesurf/base/code/list')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1117,7 +1117,7 @@ describe('all 5 backends: list', () => {
 })
 
 describe('all 5 backends: hash', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/hash')
+  const card = loadStdlib('@cluesurf/base/code/hash')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1147,7 +1147,7 @@ describe('all 5 backends: hash', () => {
 })
 
 describe('all 5 backends: walk', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/walk')
+  const card = loadStdlib('@cluesurf/base/code/walk')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1177,7 +1177,7 @@ describe('all 5 backends: walk', () => {
 })
 
 describe('all 5 backends: line', () => {
-  const card = loadStdlib('@cluesurf/base/code/base/form/line')
+  const card = loadStdlib('@cluesurf/base/code/line')
   const book = desugar(card)
 
   it('TypeScript', () => {
@@ -1507,8 +1507,8 @@ describe('multiple stdlib imports via loadBook', () => {
   it('loads boolean and result in one file', () => {
     const testFile = path.resolve(__dirname, '_tmp_multi_import.tree')
     const testText = `
-load @cluesurf/base/code/base/form/boolean
-load @cluesurf/base/code/base/form/result
+load @cluesurf/base/code/boolean
+load @cluesurf/base/code/result
 
 task validate
   take flag, like boolean
@@ -1550,7 +1550,7 @@ describe('dock keyword (platform dispatch)', () => {
   it('dock load is extracted from SurfCard', () => {
     const text = `
 dock
-  load @cluesurf/base/code/case/node/file
+  load @cluesurf/base/code/native/node/file
 
 task read-file
   take path, like text

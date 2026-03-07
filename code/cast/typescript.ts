@@ -502,11 +502,11 @@ function resolveType(input: { term: Term; heads: string[]; formNames: Set<string
   const { term, heads, formNames, ctrToEnum } = input
 
   switch (term.form) {
-    case 'u64':
+    case 'int':
     case 'num':
-      return 'number'
-    case 'f64':
-      return 'number'
+      return term.form === 'int' && term.size === 0 ? 'bigint' : 'number'
+    case 'flt':
+      return term.size === 0 ? 'number' : 'number'
     case 'set':
       return 'any'
     case 'ref': {
@@ -1398,8 +1398,8 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
 
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
       return 'undefined'
 
@@ -1484,8 +1484,8 @@ function isTypeOnly(term: Term): boolean {
   switch (term.form) {
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return true

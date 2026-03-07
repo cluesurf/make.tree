@@ -136,7 +136,7 @@ describe('multi-file with load', () => {
 describe('union types (like or)', () => {
   it('compiles form with union type link without error', () => {
     const ts = compileFile('union.tree')
-    expect(ts).toContain('export function readDock(val: Integer)')
+    expect(ts).toContain('export function readDock(val: DockValue)')
   })
 })
 

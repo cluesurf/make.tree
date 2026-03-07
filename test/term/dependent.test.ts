@@ -349,7 +349,7 @@ describe('dependent types: ADT Mat/Con path', () => {
 
   it('Mat coverage checking: missing arm fails', () => {
     const book = adtBoolBook()
-    const matType: Term = all('b', ref('Bool'), () => { return { form: 'u64' } })
+    const matType: Term = all('b', ref('Bool'), () => { return { form: 'int', size: 64, sign: false } })
     const matTerm: Term = {
       form: 'mat',
       arms: [['True', { form: 'num', val: 1 }]],
@@ -396,7 +396,7 @@ describe('dependent types: ADT Mat/Con path', () => {
     const book = adtNatBook()
 
     // is-zero : Nat -> U64 via Mat
-    const isZeroType: Term = all('n', ref('Nat'), () => ({ form: 'u64' }))
+    const isZeroType: Term = all('n', ref('Nat'), () => ({ form: 'int', size: 64, sign: false }))
     const isZeroMat: Term = {
       form: 'mat',
       arms: [

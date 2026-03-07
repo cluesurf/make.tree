@@ -155,9 +155,11 @@ function identical(input: {
       return envPure(a.val === (b as typeof a).val)
 
     case 'set':
-    case 'u64':
-    case 'f64':
       return envPure(true)
+    case 'int':
+      return envPure(a.size === (b as typeof a).size && a.sign === (b as typeof a).sign)
+    case 'flt':
+      return envPure(a.size === (b as typeof a).size)
 
     case 'hol':
       return envPure(a.name === (b as typeof a).name)
@@ -290,9 +292,11 @@ function similar(input: {
       return envPure(a.val === (b as typeof a).val)
 
     case 'set':
-    case 'u64':
-    case 'f64':
       return envPure(true)
+    case 'int':
+      return envPure(a.size === (b as typeof a).size && a.sign === (b as typeof a).sign)
+    case 'flt':
+      return envPure(a.size === (b as typeof a).size)
 
     case 'hol':
       return envPure(a.name === (b as typeof a).name)

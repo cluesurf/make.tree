@@ -1,0 +1,39 @@
+task use-i8
+  take x, like i8
+  send back, read x
+
+task use-i16
+  take x, like i16
+  send back, read x
+
+task use-i32
+  take x, like i32
+  send back, read x
+
+task use-i64
+  take x, like i64
+  send back, read x
+
+task use-u8
+  take x, like u8
+  send back, read x
+
+task use-u16
+  take x, like u16
+  send back, read x
+
+task use-u32
+  take x, like u32
+  send back, read x
+
+task use-u64
+  take x, like u64
+  send back, read x
+
+task use-f32
+  take x, like f32
+  send back, read x
+
+task use-f64
+  take x, like f64
+  send back, read x

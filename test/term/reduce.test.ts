@@ -138,7 +138,7 @@ describe('term/reduce', () => {
       form: 'ann',
       done: false,
       val: { form: 'num', val: 10 },
-      typ: { form: 'u64' },
+      typ: { form: 'int', size: 64, sign: false },
     }
     const result = red(term)
     expect(result.form).toBe('num')

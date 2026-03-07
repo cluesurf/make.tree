@@ -356,11 +356,11 @@ describe('term/desugar', () => {
         // Type: All "a" U64 (All "b" U64 ?met)
         expect(term!.typ.form).toBe('all')
         if (term!.typ.form === 'all') {
-          expect(term!.typ.inp.form).toBe('u64')
+          expect(term!.typ.inp.form).toBe('int')
           const inner = term!.typ.bod({ form: 'var', name: 'a', idx: 0 })
           expect(inner.form).toBe('all')
           if (inner.form === 'all') {
-            expect(inner.inp.form).toBe('u64')
+            expect(inner.inp.form).toBe('int')
             const ret = inner.bod({ form: 'var', name: 'b', idx: 1 })
             expect(ret.form).toBe('met') // return type is a metavar
           }
@@ -481,12 +481,12 @@ describe('term/desugar', () => {
         expect(ctr.tele.form).toBe('ext')
         if (ctr.tele.form === 'ext') {
           expect(ctr.tele.name).toBe('fst')
-          expect(ctr.tele.typ.form).toBe('u64')
+          expect(ctr.tele.typ.form).toBe('int')
           const inner = ctr.tele.bod({ form: 'var', name: 'fst', idx: 0 })
           expect(inner.form).toBe('ext')
           if (inner.form === 'ext') {
             expect(inner.name).toBe('snd')
-            expect(inner.typ.form).toBe('u64')
+            expect(inner.typ.form).toBe('int')
             const ret = inner.bod({ form: 'var', name: 'snd', idx: 1 })
             expect(ret.form).toBe('ret')
           }

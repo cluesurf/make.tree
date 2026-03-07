@@ -113,14 +113,17 @@ export type TermSet = {
   form: 'set'
 }
 
-/** U64 type */
-export type TermU64 = {
-  form: 'u64'
+/** Integer type with size and signedness */
+export type TermInt = {
+  form: 'int'
+  size: 8 | 16 | 32 | 64 | 128 | 0
+  sign: boolean
 }
 
-/** F64 type */
-export type TermF64 = {
-  form: 'f64'
+/** Float type with size */
+export type TermFlt = {
+  form: 'flt'
+  size: 32 | 64 | 128 | 0
 }
 
 /** U64 value */
@@ -230,8 +233,8 @@ export type Term =
   | TermLet
   | TermUse
   | TermSet
-  | TermU64
-  | TermF64
+  | TermInt
+  | TermFlt
   | TermNum
   | TermOp2
   | TermSwi

@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require_ = createRequire(import.meta.url)
 const treeParsePath = path.resolve(__dirname, '../../../../../../deck/tree/host/code/index.js')
 const makeTree = require_(treeParsePath).default
-const CASE_ROOT = path.resolve(__dirname, '../../../base.tree/code/case')
+const CASE_ROOT = path.resolve(__dirname, '../../../base.tree/code/native')
 
 function getBook(filePath: string) {
   const text = fs.readFileSync(filePath, 'utf8')
@@ -52,7 +52,7 @@ it('inspect rust/process/current listen term', () => {
 })
 
 it('inspect rust/process/base run term', () => {
-  const book = getBook(path.resolve(CASE_ROOT, 'rust/process/base.tree'))
+  const book = getBook(path.resolve(CASE_ROOT, 'rust/process.tree'))
   const run = book.get('run')!
   console.log('\n=== RUN TERM ===')
   console.log(showTerm(run))
@@ -68,7 +68,7 @@ it('inspect node/process/current listen term', () => {
 })
 
 it('inspect node/process/base run term', () => {
-  const book = getBook(path.resolve(CASE_ROOT, 'node/process/base.tree'))
+  const book = getBook(path.resolve(CASE_ROOT, 'node/process.tree'))
   const run = book.get('run')!
   console.log('\n=== NODE RUN TERM ===')
   console.log(showTerm(run))

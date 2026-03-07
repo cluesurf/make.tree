@@ -355,18 +355,18 @@ export function infer(input: {
         ann({ val: { form: 'set' }, typ: { form: 'set' } }),
       )
 
-    case 'u64':
+    case 'int':
       return envPure(
-        ann({ val: { form: 'u64' }, typ: { form: 'set' } }),
+        ann({ val: term, typ: { form: 'set' } }),
       )
 
-    case 'f64':
+    case 'flt':
       return envPure(
-        ann({ val: { form: 'f64' }, typ: { form: 'set' } }),
+        ann({ val: term, typ: { form: 'set' } }),
       )
 
     case 'num':
-      return envPure(ann({ val: term, typ: { form: 'u64' } }))
+      return envPure(ann({ val: term, typ: { form: 'int', size: 64, sign: false } }))
 
     case 'txt':
       return envPure(
@@ -796,11 +796,11 @@ export function verify(input: {
                   lv: 2,
                   term: typ.inp,
                 })
-                if (inpTyp.form === 'u64') {
+                if (inpTyp.form === 'int') {
                   // zero case: typBod(0)
                   const zerAnn = ann({
                     val: { form: 'num', val: 0 },
-                    typ: { form: 'u64' },
+                    typ: { form: 'int', size: 64, sign: false },
                   })
                   return envBind({
                     env: verify({
@@ -815,7 +815,7 @@ export function verify(input: {
                       const sucTyp: Term = {
                         form: 'all',
                         name: 'n',
-                        inp: { form: 'u64' },
+                        inp: { form: 'int', size: 64, sign: false },
                         bod: x =>
                           typ.bod({
                             form: 'op2',
@@ -1307,6 +1307,6 @@ function getOpReturnType(input: {
 }): Term {
   // Comparison ops always return U64 (0 or 1)
   const cmpOps = new Set(['eq', 'ne', 'lt', 'gt', 'lte', 'gte'])
-  if (cmpOps.has(input.oper)) return { form: 'u64' }
+  if (cmpOps.has(input.oper)) return { form: 'int', size: 64, sign: false }
   return input.inputType
 }

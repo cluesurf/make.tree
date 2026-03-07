@@ -34,14 +34,14 @@ describe('cast/hvm', () => {
     })
 
     it('erases U64 type', () => {
-      expect(cast({ form: 'u64' })).toBe('*')
+      expect(cast({ form: 'int', size: 64, sign: false })).toBe('*')
     })
 
     it('erases Ann', () => {
       expect(cast({
         form: 'ann', done: false,
         val: { form: 'num', val: 42 },
-        typ: { form: 'u64' },
+        typ: { form: 'int', size: 64, sign: false },
       })).toBe('42')
     })
   })
@@ -239,11 +239,11 @@ describe('cast/hvm', () => {
   describe('castBook', () => {
     it('generates HVM for a simple book', () => {
       const book: Book = new Map([
-        ['five', { form: 'ann', done: false, val: { form: 'num', val: 5 }, typ: { form: 'u64' } } as Term],
+        ['five', { form: 'ann', done: false, val: { form: 'num', val: 5 }, typ: { form: 'int', size: 64, sign: false } } as Term],
         ['id', {
           form: 'ann', done: false,
           val: { form: 'lam', name: 'x', bod: (x: Term) => x },
-          typ: { form: 'all', name: 'x', inp: { form: 'u64' }, bod: () => ({ form: 'u64' }) },
+          typ: { form: 'all', name: 'x', inp: { form: 'int', size: 64, sign: false }, bod: () => ({ form: 'int', size: 64, sign: false }) },
         } as Term],
       ])
 

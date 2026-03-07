@@ -1411,14 +1411,25 @@ function resolveType(typ: SurfType): Term {
 function resolveTypeName(name: string): Term {
   switch (name) {
     // Unsigned integers
-    case 'u8': case 'u16': case 'u32': case 'u64':
-      return { form: 'u64' }
+    case 'u8': return { form: 'int', size: 8, sign: false }
+    case 'u16': return { form: 'int', size: 16, sign: false }
+    case 'u32': return { form: 'int', size: 32, sign: false }
+    case 'u64': return { form: 'int', size: 64, sign: false }
+    case 'u128': return { form: 'int', size: 128, sign: false }
     // Signed integers
-    case 'i8': case 'i16': case 'i32': case 'i64':
-      return { form: 'u64' }
+    case 'i8': return { form: 'int', size: 8, sign: true }
+    case 'i16': return { form: 'int', size: 16, sign: true }
+    case 'i32': return { form: 'int', size: 32, sign: true }
+    case 'i64': return { form: 'int', size: 64, sign: true }
+    case 'i128': return { form: 'int', size: 128, sign: true }
+    // Arbitrary precision integer
+    case 'integer': return { form: 'int', size: 0, sign: true }
     // Floats
-    case 'f32': case 'f64':
-      return { form: 'f64' }
+    case 'f32': return { form: 'flt', size: 32 }
+    case 'f64': return { form: 'flt', size: 64 }
+    case 'f128': return { form: 'flt', size: 128 }
+    // Arbitrary precision float
+    case 'float': return { form: 'flt', size: 0 }
     // Text / string
     case 'text': case 'string':
       return { form: 'ref', name: 'String' }
@@ -1430,7 +1441,7 @@ function resolveTypeName(name: string): Term {
       return { form: 'ref', name: 'Void' }
     // Size (unsigned integer alias)
     case 'size': case 'mark':
-      return { form: 'u64' }
+      return { form: 'int', size: 64, sign: false }
     // Stdlib ADT types (resolved as refs to their form names)
     case 'maybe':
       return { form: 'ref', name: 'maybe' }

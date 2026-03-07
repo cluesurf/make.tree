@@ -40,10 +40,10 @@ beforeEach(() => {
 describe('resolvePackagePath', () => {
   it('maps @cluesurf/base paths to filesystem', () => {
     const result = resolvePackagePath({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       root: stdlibRoot,
     })
-    expect(result).toContain('base.tree/code/base/form/boolean/base.tree')
+    expect(result).toContain('base.tree/code/boolean.tree')
   })
 
   it('maps @cluesurf/bind paths to filesystem', () => {
@@ -91,7 +91,7 @@ describe('resolveStdlib legacy', () => {
 describe('resolveStdlib filesystem', () => {
   it('loads boolean form from base.tree', () => {
     const card = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       parse,
     })
     expect(card).not.toBeNull()
@@ -103,7 +103,7 @@ describe('resolveStdlib filesystem', () => {
 
   it('loads maybe form from base.tree', () => {
     const card = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/maybe',
+      loadPath: '@cluesurf/base/code/maybe',
       parse,
     })
     expect(card).not.toBeNull()
@@ -113,7 +113,7 @@ describe('resolveStdlib filesystem', () => {
 
   it('loads result form from base.tree', () => {
     const card = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/result',
+      loadPath: '@cluesurf/base/code/result',
       parse,
     })
     expect(card).not.toBeNull()
@@ -123,7 +123,7 @@ describe('resolveStdlib filesystem', () => {
 
   it('returns null for nonexistent path', () => {
     const card = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/nonexistent-type-xyz',
+      loadPath: '@cluesurf/base/code/nonexistent-type-xyz',
       parse,
     })
     expect(card).toBeNull()
@@ -131,11 +131,11 @@ describe('resolveStdlib filesystem', () => {
 
   it('caches results across calls', () => {
     const card1 = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       parse,
     })
     const card2 = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       parse,
     })
     // Should be the exact same object (cached)
@@ -144,12 +144,12 @@ describe('resolveStdlib filesystem', () => {
 
   it('cache clears properly', () => {
     const card1 = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       parse,
     })
     clearStdlibCache()
     const card2 = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
       parse,
     })
     // Different object after cache clear
@@ -162,7 +162,7 @@ describe('resolveStdlib filesystem', () => {
 describe('resolveStdlib without parse', () => {
   it('returns null for filesystem paths when no parse provided', () => {
     const card = resolveStdlib({
-      loadPath: '@cluesurf/base/code/base/form/boolean',
+      loadPath: '@cluesurf/base/code/boolean',
     })
     expect(card).toBeNull()
   })

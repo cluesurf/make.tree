@@ -227,20 +227,20 @@ describe('process current API', () => {
 
 // ── Case files: Node.js ─────────────────────────────────────────────
 
-const caseRoot = path.resolve(stdlibRoot, 'base.tree/code/case')
+const caseRoot = path.resolve(stdlibRoot, 'base.tree/code/native')
 
 describe('node process case files', () => {
   const nodeDir = path.resolve(caseRoot, 'node/process')
 
   it('base.tree parses and has run/spawn', () => {
-    const { book } = compileTreeFile(path.resolve(nodeDir, 'base.tree'))
+    const { book } = compileTreeFile(path.resolve(caseRoot, 'node/process.tree'))
     expect(book.has('run')).toBe(true)
     expect(book.has('spawn')).toBe(true)
   })
 
   it('base.tree codegen emits import and function names', () => {
     const { book, dock } = compileTreeFile(
-      path.resolve(nodeDir, 'base.tree'),
+      path.resolve(caseRoot, 'node/process.tree'),
     )
     const js = castNode({ book, dock })
     expect(js).toContain("import cp from 'node:child_process'")
@@ -299,14 +299,14 @@ describe('rust process case files', () => {
   const rustDir = path.resolve(caseRoot, 'rust/process')
 
   it('base.tree parses and has run/spawn', () => {
-    const { book } = compileTreeFile(path.resolve(rustDir, 'base.tree'))
+    const { book } = compileTreeFile(path.resolve(caseRoot, 'rust/process.tree'))
     expect(book.has('run')).toBe(true)
     expect(book.has('spawn')).toBe(true)
   })
 
   it('base.tree codegen emits use statements and fn signatures', () => {
     const { book, dock } = compileTreeFile(
-      path.resolve(rustDir, 'base.tree'),
+      path.resolve(caseRoot, 'rust/process.tree'),
     )
     const rs = castRust({ book, dock })
     // Note: codegen emits `use std::::process` due to double :: conversion
@@ -369,13 +369,13 @@ describe('swift process case files', () => {
   const swiftDir = path.resolve(caseRoot, 'swift/process')
 
   it('base.tree parses and has run/spawn', () => {
-    const { book } = compileTreeFile(path.resolve(swiftDir, 'base.tree'))
+    const { book } = compileTreeFile(path.resolve(caseRoot, 'swift/process.tree'))
     expect(book.has('run')).toBe(true)
     expect(book.has('spawn')).toBe(true)
   })
 
   it('base.tree codegen emits func signatures', () => {
-    const { book } = compileTreeFile(path.resolve(swiftDir, 'base.tree'))
+    const { book } = compileTreeFile(path.resolve(caseRoot, 'swift/process.tree'))
     const sw = castSwift({ book })
     expect(sw).toContain('func run(')
     expect(sw).toContain('func spawn(')

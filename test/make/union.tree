@@ -1,9 +1,9 @@
-form integer
+form dock-value
   link dock
     like or
-      like integer-32
-      like integer-grow
+      like i32
+      like text
 
 task read-dock
-  take val, like integer
+  take val, like dock-value
   send back, read val

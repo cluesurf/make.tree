@@ -142,10 +142,14 @@ function showTermGo(input: {
 
     case 'set':
       return '*'
-    case 'u64':
-      return 'U64'
-    case 'f64':
-      return 'F64'
+    case 'int': {
+      if (term.size === 0) return 'Integer'
+      return `${term.sign ? 'I' : 'U'}${term.size}`
+    }
+    case 'flt': {
+      if (term.size === 0) return 'Float'
+      return `F${term.size}`
+    }
     case 'num':
       return String(term.val)
     case 'op2': {

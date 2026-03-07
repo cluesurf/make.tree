@@ -238,8 +238,8 @@ export function castTerm(input: { term: Term; dep: number; isAsync?: boolean }):
     // Type-level terms are erased in HVM
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
       return '*'
 
@@ -291,8 +291,8 @@ function isTypeOnly(term: Term): boolean {
   switch (term.form) {
     case 'all':
     case 'set':
-    case 'u64':
-    case 'f64':
+    case 'int':
+    case 'flt':
     case 'slf':
     case 'adt':
       return true

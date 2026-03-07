@@ -28,7 +28,7 @@ describe('term/check', () => {
   })
 
   it('infers U64 : Set', () => {
-    const result = check({ term: { form: 'u64' }, book: emptyBook() })
+    const result = check({ term: { form: 'int', size: 64, sign: false }, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result) {
       expect(result.value.form).toBe('ann')
@@ -39,7 +39,7 @@ describe('term/check', () => {
   })
 
   it('infers F64 : Set', () => {
-    const result = check({ term: { form: 'f64' }, book: emptyBook() })
+    const result = check({ term: { form: 'flt', size: 64 }, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result) {
       expect(result.value.form).toBe('ann')
@@ -55,7 +55,7 @@ describe('term/check', () => {
     if (result) {
       expect(result.value.form).toBe('ann')
       if (result.value.form === 'ann') {
-        expect(result.value.typ.form).toBe('u64')
+        expect(result.value.typ.form).toBe('int')
       }
     }
   })
@@ -69,7 +69,7 @@ describe('term/check', () => {
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
@@ -82,7 +82,7 @@ describe('term/check', () => {
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
@@ -96,15 +96,15 @@ describe('term/check', () => {
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
       // Body is x which has type U64
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
   it('infers All : Set', () => {
     const term: Term = {
       form: 'all', name: 'x',
-      inp: { form: 'u64' },
-      bod: (_x) => ({ form: 'u64' }),
+      inp: { form: 'int', size: 64, sign: false },
+      bod: (_x) => ({ form: 'int', size: 64, sign: false }),
     }
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
@@ -117,7 +117,7 @@ describe('term/check', () => {
     const term: Term = {
       form: 'ann', done: true,
       val: { form: 'num', val: 42 },
-      typ: { form: 'u64' },
+      typ: { form: 'int', size: 64, sign: false },
     }
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
@@ -131,8 +131,8 @@ describe('term/check', () => {
     }
     const piType: Term = {
       form: 'all', name: 'x',
-      inp: { form: 'u64' },
-      bod: (_x) => ({ form: 'u64' }),
+      inp: { form: 'int', size: 64, sign: false },
+      bod: (_x) => ({ form: 'int', size: 64, sign: false }),
     }
     const annotated: Term = { form: 'ann', done: true, val: lamTerm, typ: piType }
     const result = check({ term: annotated, book: emptyBook() })
@@ -143,7 +143,7 @@ describe('term/check', () => {
     const id: Term = {
       form: 'ann', done: false,
       val: { form: 'lam', name: 'x', bod: (x) => x },
-      typ: { form: 'all', name: 'x', inp: { form: 'u64' }, bod: () => ({ form: 'u64' }) },
+      typ: { form: 'all', name: 'x', inp: { form: 'int', size: 64, sign: false }, bod: () => ({ form: 'int', size: 64, sign: false }) },
     }
     const book = bookWith({ id })
     const term: Term = {
@@ -154,7 +154,7 @@ describe('term/check', () => {
     const result = check({ term, book })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
@@ -176,12 +176,12 @@ describe('term/check', () => {
 
   it('infers reference type from book', () => {
     const book = bookWith({
-      five: { form: 'ann', done: false, val: { form: 'num', val: 5 }, typ: { form: 'u64' } },
+      five: { form: 'ann', done: false, val: { form: 'num', val: 5 }, typ: { form: 'int', size: 64, sign: false } },
     })
     const result = check({ term: { form: 'ref', name: 'five' }, book })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
@@ -222,7 +222,7 @@ describe('term/check', () => {
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 
@@ -235,7 +235,7 @@ describe('term/check', () => {
     const result = check({ term, book: emptyBook() })
     expect(result).not.toBeNull()
     if (result && result.value.form === 'ann') {
-      expect(result.value.typ.form).toBe('u64')
+      expect(result.value.typ.form).toBe('int')
     }
   })
 })

@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const require_ = createRequire(import.meta.url)
 const treeParsePath = path.resolve(__dirname, '../../../../../../deck/tree/host/code/index.js')
 const makeTree = require_(treeParsePath).default
-const CASE_ROOT = path.resolve(__dirname, '../../../base.tree/code/case')
+const CASE_ROOT = path.resolve(__dirname, '../../../base.tree/code/native')
 
 function compile(filePath: string) {
   const text = fs.readFileSync(filePath, 'utf8')
@@ -55,12 +55,12 @@ it('swift/process/current', () => {
 })
 
 it('node/process/base', () => {
-  logAll('base', path.resolve(CASE_ROOT, 'node/process/base.tree'))
+  logAll('base', path.resolve(CASE_ROOT, 'node/process.tree'))
   expect(true).toBe(true)
 })
 
 it('rust/process/base', () => {
-  logAll('base', path.resolve(CASE_ROOT, 'rust/process/base.tree'))
+  logAll('base', path.resolve(CASE_ROOT, 'rust/process.tree'))
   expect(true).toBe(true)
 })
 

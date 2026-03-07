@@ -22,11 +22,11 @@ describe('term/equal', () => {
   })
 
   it('u64 equals u64', () => {
-    expect(checkEqual({ form: 'u64' }, { form: 'u64' })).toBe(true)
+    expect(checkEqual({ form: 'int', size: 64, sign: false }, { form: 'int', size: 64, sign: false })).toBe(true)
   })
 
   it('f64 equals f64', () => {
-    expect(checkEqual({ form: 'f64' }, { form: 'f64' })).toBe(true)
+    expect(checkEqual({ form: 'flt', size: 64 }, { form: 'flt', size: 64 })).toBe(true)
   })
 
   it('num equals same num', () => {
@@ -73,8 +73,8 @@ describe('term/equal', () => {
 
   it('different forms are not equal', () => {
     expect(checkEqual(
-      { form: 'u64' },
-      { form: 'f64' },
+      { form: 'int', size: 64, sign: false },
+      { form: 'flt', size: 64 },
     )).toBe(false)
   })
 
@@ -91,14 +91,14 @@ describe('term/equal', () => {
   })
 
   it('all equal when inp and bod match', () => {
-    const a: Term = { form: 'all', name: 'x', inp: { form: 'u64' }, bod: (_x) => ({ form: 'u64' }) }
-    const b: Term = { form: 'all', name: 'y', inp: { form: 'u64' }, bod: (_y) => ({ form: 'u64' }) }
+    const a: Term = { form: 'all', name: 'x', inp: { form: 'int', size: 64, sign: false }, bod: (_x) => ({ form: 'int', size: 64, sign: false }) }
+    const b: Term = { form: 'all', name: 'y', inp: { form: 'int', size: 64, sign: false }, bod: (_y) => ({ form: 'int', size: 64, sign: false }) }
     expect(checkEqual(a, b)).toBe(true)
   })
 
   it('all not equal when inp differs', () => {
-    const a: Term = { form: 'all', name: 'x', inp: { form: 'u64' }, bod: (_x) => ({ form: 'u64' }) }
-    const b: Term = { form: 'all', name: 'x', inp: { form: 'f64' }, bod: (_x) => ({ form: 'u64' }) }
+    const a: Term = { form: 'all', name: 'x', inp: { form: 'int', size: 64, sign: false }, bod: (_x) => ({ form: 'int', size: 64, sign: false }) }
+    const b: Term = { form: 'all', name: 'x', inp: { form: 'flt', size: 64 }, bod: (_x) => ({ form: 'int', size: 64, sign: false }) }
     expect(checkEqual(a, b)).toBe(false)
   })
 

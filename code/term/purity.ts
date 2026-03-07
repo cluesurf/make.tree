@@ -216,8 +216,8 @@ function walkTerm(input: { term: Term; depth: number }): WalkResult {
       case 'txt':
       case 'nat':
       case 'set':
-      case 'u64':
-      case 'f64':
+      case 'int':
+      case 'flt':
         break
     }
   }
