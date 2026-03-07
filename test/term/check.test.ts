@@ -158,20 +158,24 @@ describe('term/check', () => {
     }
   })
 
-  it('fails on undefined reference', () => {
+  it('reports error for undefined reference', () => {
     const term: Term = { form: 'ref', name: 'nonexistent' }
     const result = check({ term, book: emptyBook() })
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    const errors = result!.state.logs.filter(l => l.form === 'error')
+    expect(errors.length).toBeGreaterThan(0)
   })
 
-  it('fails inferring unannotated lambda', () => {
+  it('reports error for unannotated lambda', () => {
     const state = envInit({ book: emptyBook() })
     const term: Term = { form: 'lam', name: 'x', bod: (x) => x }
     const result = envRun({
       env: infer({ sus: false, src: null, term, dep: 0 }),
       state,
     })
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    const errors = result!.state.logs.filter(l => l.form === 'error')
+    expect(errors.length).toBeGreaterThan(0)
   })
 
   it('infers reference type from book', () => {
@@ -237,5 +241,114 @@ describe('term/check', () => {
     if (result && result.value.form === 'ann') {
       expect(result.value.typ.form).toBe('int')
     }
+  })
+
+  it('infers rst type from inner value', () => {
+    const term: Term = {
+      form: 'rst',
+      val: { form: 'num', val: 7 },
+    }
+    const result = check({ term, book: emptyBook() })
+    expect(result).not.toBeNull()
+    if (result && result.value.form === 'ann') {
+      expect(result.value.typ.form).toBe('int')
+    }
+  })
+
+  it('infers hlt with fresh metavar type', () => {
+    const term: Term = {
+      form: 'hlt',
+      msg: { form: 'txt', val: 'error' },
+    }
+    const result = check({ term, book: emptyBook() })
+    expect(result).not.toBeNull()
+    if (result && result.value.form === 'ann') {
+      expect(result.value.typ.form).toBe('met')
+    }
+  })
+
+  it('checks hlt against expected type (bottom adopts it)', () => {
+    const hltTerm: Term = {
+      form: 'hlt',
+      msg: { form: 'txt', val: 'panic' },
+    }
+    const piType: Term = {
+      form: 'all', name: 'x',
+      inp: { form: 'int', size: 64, sign: false },
+      bod: () => ({ form: 'int', size: 64, sign: false }),
+    }
+    const annotated: Term = { form: 'ann', done: false, val: hltTerm, typ: piType }
+    const result = check({ term: annotated, book: emptyBook() })
+    expect(result).not.toBeNull()
+  })
+
+  it('infers nxt with fresh metavar type', () => {
+    const term: Term = { form: 'nxt' }
+    const result = check({ term, book: emptyBook() })
+    expect(result).not.toBeNull()
+    if (result && result.value.form === 'ann') {
+      expect(result.value.typ.form).toBe('met')
+    }
+  })
+
+  it('checks nxt against expected type (bottom adopts it)', () => {
+    const nxtTerm: Term = { form: 'nxt' }
+    const u64: Term = { form: 'int', size: 64, sign: false }
+    const annotated: Term = { form: 'ann', done: false, val: nxtTerm, typ: u64 }
+    const result = check({ term: annotated, book: emptyBook() })
+    expect(result).not.toBeNull()
+  })
+
+  it('collects multiple type errors in one definition', () => {
+    // Two functions, both with type mismatches
+    // f1: (42 : F64) - num is U64, not F64
+    // f2: ("hi" : U64) - txt is String, not U64
+    const book = bookWith({
+      f1: {
+        form: 'ann', done: true,
+        val: { form: 'num', val: 42 },
+        typ: { form: 'flt', size: 64 },
+      },
+      f2: {
+        form: 'ann', done: true,
+        val: { form: 'txt', val: 'hi' },
+        typ: { form: 'int', size: 64, sign: false },
+      },
+    })
+    // Check f1
+    const r1 = check({ term: { form: 'ref', name: 'f1' }, book })
+    expect(r1).not.toBeNull()
+    const e1 = r1!.state.logs.filter(l => l.form === 'error')
+    expect(e1.length).toBeGreaterThanOrEqual(1)
+
+    // Check f2
+    const r2 = check({ term: { form: 'ref', name: 'f2' }, book })
+    expect(r2).not.toBeNull()
+    const e2 = r2!.state.logs.filter(l => l.form === 'error')
+    expect(e2.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('collects errors from nested expressions without stopping', () => {
+    // A definition with two bad refs: both undefined
+    const term: Term = {
+      form: 'let', name: 'x',
+      val: { form: 'ref', name: 'undefined1' },
+      bod: () => ({ form: 'ref', name: 'undefined2' }),
+    }
+    const result = check({ term, book: emptyBook() })
+    expect(result).not.toBeNull()
+    const errors = result!.state.logs.filter(l => l.form === 'error')
+    expect(errors.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('checks rst against expected type', () => {
+    const rstTerm: Term = {
+      form: 'rst',
+      val: { form: 'num', val: 42 },
+    }
+    const u64: Term = { form: 'int', size: 64, sign: false }
+    const annotated: Term = { form: 'ann', done: false, val: rstTerm, typ: u64 }
+    const result = check({ term: annotated, book: emptyBook() })
+    expect(result).not.toBeNull()
   })
 })

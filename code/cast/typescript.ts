@@ -18,6 +18,7 @@
 
 import type { Term, Book, Oper, Ctr, Tele } from '@/term/form'
 import type { AsyncMeta } from '@/term/desugar'
+import type { DockLoad } from '@/load'
 
 // ---- Emit Context ----
 
@@ -49,8 +50,6 @@ type TailCtx = {
 } | null
 
 // ---- Public API ----
-
-export type DockLoad = { path: string; name?: string }
 
 export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; stripTypes?: boolean; nativeNames?: Map<string, string> }): string {
   const dockNames = new Set<string>()

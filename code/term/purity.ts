@@ -1,12 +1,15 @@
 /**
- * Purity analysis: classify each definition as pure or effectful.
+ * Purity analysis: classify each definition as pure, effectful, or boundary.
  *
  * Pure definitions can run on HVM interaction nets.
  * Effectful definitions must run on a native platform runtime.
+ * Boundary definitions are effectful but contain pure subtrees
+ * worth offloading to HVM for parallel reduction.
  *
  * A definition is effectful if it:
  *   - Contains Log, Rst, Hlt, or Nxt terms (side effects / control flow)
  *   - Contains a .wait call (async IO)
+ *   - References a dock-loaded native module (e.g. node:fs)
  *   - References another effectful definition
  *
  * Propagation uses fixed-point iteration: if A calls B and B is
@@ -16,19 +19,28 @@
 import type { Term, Book } from '@/term/form'
 import type { AsyncMeta } from '@/term/desugar'
 
-export type Purity = 'pure' | 'effectful'
+export type Purity = 'pure' | 'effectful' | 'boundary'
 export type PurityMap = Map<string, Purity>
 
 /**
  * Analyze purity of every definition in a book.
- * Returns a map from definition name to 'pure' or 'effectful'.
+ * Returns a map from definition name to 'pure', 'effectful', or 'boundary'.
+ *
+ * @param dockNames - Names of dock-loaded native modules (e.g. from `dock load`).
+ *   Any ref to these names makes a definition effectful.
+ * @param boundaryThreshold - Minimum number of pure call-graph refs
+ *   for an effectful function to be classified as 'boundary'. Default 2.
  */
 export function analyzePurity(input: {
   book: Book
   asyncMeta?: AsyncMeta
+  dockNames?: Set<string>
+  boundaryThreshold?: number
 }): PurityMap {
   const { book } = input
   const asyncMeta = input.asyncMeta ?? new Map()
+  const dockNames = input.dockNames ?? new Set()
+  const boundaryThreshold = input.boundaryThreshold ?? 2
 
   // Phase 1: for each def, collect direct effectful markers and refs.
   const directEffectful = new Set<string>()
@@ -40,7 +52,7 @@ export function analyzePurity(input: {
       directEffectful.add(name)
     }
 
-    const info = walkTerm({ term, depth: 0 })
+    const info = walkTerm({ term, depth: 0, dockNames })
     refs.set(name, info.refs)
 
     if (info.hasEffect) {
@@ -66,10 +78,31 @@ export function analyzePurity(input: {
     }
   }
 
-  // Phase 3: build result map.
+  // Phase 3: build result map with boundary detection.
+  // A boundary definition is effectful but calls enough pure defs
+  // that splitting them to HVM would be worthwhile.
   const result: PurityMap = new Map()
   for (const name of book.keys()) {
-    result.set(name, effectful.has(name) ? 'effectful' : 'pure')
+    if (!effectful.has(name)) {
+      result.set(name, 'pure')
+    } else {
+      const depRefs = refs.get(name)
+      if (depRefs) {
+        let pureCallCount = 0
+        for (const dep of depRefs) {
+          if (book.has(dep) && !effectful.has(dep)) {
+            pureCallCount++
+          }
+        }
+        if (pureCallCount >= boundaryThreshold) {
+          result.set(name, 'boundary')
+        } else {
+          result.set(name, 'effectful')
+        }
+      } else {
+        result.set(name, 'effectful')
+      }
+    }
   }
 
   return result
@@ -86,19 +119,35 @@ type WalkResult = {
  *
  * HOAS bodies are instantiated with dummy Var terms to traverse.
  */
-function walkTerm(input: { term: Term; depth: number }): WalkResult {
+function walkTerm(input: { term: Term; depth: number; dockNames?: Set<string> }): WalkResult {
   const refs = new Set<string>()
+  const dockNames = input.dockNames ?? new Set()
   let hasEffect = false
 
   function walk(term: Term, depth: number): void {
     switch (term.form) {
       case 'ref':
         refs.add(term.name)
+        // Refs to dock-loaded native modules are effectful
+        if (dockNames.has(term.name)) hasEffect = true
         break
 
       case 'log':
+        hasEffect = true
+        walk(term.msg, depth)
+        walk(term.val, depth)
+        break
+
       case 'rst':
+        hasEffect = true
+        walk(term.val, depth)
+        break
+
       case 'hlt':
+        hasEffect = true
+        walk(term.msg, depth)
+        break
+
       case 'nxt':
         hasEffect = true
         break

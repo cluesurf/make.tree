@@ -252,6 +252,7 @@ export function loadPackage(input: {
   const fileMap = new Map<string, string[]>()
   const firmSet: FirmSet = new Set()
   const asyncMeta: AsyncMeta = new Map()
+  const dock: DockLoad[] = []
   const processedStdlib = new Set<string>()
 
   for (const f of allFiles) {
@@ -260,6 +261,17 @@ export function loadPackage(input: {
 
     // Expand templates with package-wide tree definitions
     const card = expandFuse({ card: rawCard, externalTrees: allTrees })
+
+    // Collect dock loads from this file
+    for (const node of card.list) {
+      if (node.form === 'load') {
+        const loadNode = node as SurfLoad
+        if (loadNode.dock) {
+          const dockPath = loadNode.path.join('/')
+          dock.push({ path: dockPath, name: loadNode.name })
+        }
+      }
+    }
 
     // Process stdlib imports
     for (const node of card.list) {
@@ -319,6 +331,7 @@ export function loadPackage(input: {
     fileMap,
     firmSet,
     asyncMeta,
+    dock,
     resolveErrors: resolved.errors,
     skeletons,
   }

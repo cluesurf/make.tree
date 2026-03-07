@@ -11,11 +11,9 @@
  */
 
 import { castBook as castBookBase } from './typescript'
-import type { DockLoad } from './typescript'
+import type { DockLoad } from '@/load'
 import type { AsyncMeta } from '@/term/desugar'
 import type { Book } from '@/term/form'
-
-export type { DockLoad }
 
 export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; nativeNames?: Map<string, string> }): string {
   return castBookBase({ book: input.book, dock: input.dock, asyncMeta: input.asyncMeta, stripTypes: true, nativeNames: input.nativeNames })

@@ -214,4 +214,64 @@ describe('purity analysis', () => {
     expect(result.get('io-mid')).toBe('effectful')
     expect(result.get('io-top')).toBe('effectful')
   })
+
+  it('classifies dock-loaded native refs as effectful', () => {
+    const book: Book = new Map([
+      // Calls a dock-loaded native module (e.g. node:fs)
+      ['read-file', lam('path', path => app(ref('fs-promise'), path))],
+      // Pure function that does not touch native modules
+      ['add-one', lam('x', x => op2('add', x, num(1)))],
+    ])
+
+    const dockNames = new Set(['fs-promise'])
+    const result = analyzePurity({ book, dockNames })
+    expect(result.get('read-file')).toBe('effectful')
+    expect(result.get('add-one')).toBe('pure')
+  })
+
+  it('propagates dock effectfulness through call chain', () => {
+    const book: Book = new Map([
+      ['native-call', lam('x', x => app(ref('native-mod'), x))],
+      ['wrapper', lam('x', x => app(ref('native-call'), x))],
+      ['pure-fn', lam('x', x => op2('add', x, num(1)))],
+    ])
+
+    const dockNames = new Set(['native-mod'])
+    const result = analyzePurity({ book, dockNames })
+    expect(result.get('native-call')).toBe('effectful')
+    expect(result.get('wrapper')).toBe('effectful')
+    expect(result.get('pure-fn')).toBe('pure')
+  })
+
+  it('classifies boundary defs (effectful with pure subtrees)', () => {
+    const book: Book = new Map([
+      // Two pure helper functions
+      ['helper-a', lam('x', x => op2('add', x, num(1)))],
+      ['helper-b', lam('x', x => op2('mul', x, num(2)))],
+      // Effectful function that calls both pure helpers
+      ['main', lam('x', x =>
+        log(
+          app(ref('helper-a'), app(ref('helper-b'), x)),
+          num(0),
+        )
+      )],
+    ])
+
+    const result = analyzePurity({ book, boundaryThreshold: 2 })
+    expect(result.get('helper-a')).toBe('pure')
+    expect(result.get('helper-b')).toBe('pure')
+    expect(result.get('main')).toBe('boundary')
+  })
+
+  it('does not classify as boundary when too few pure refs', () => {
+    const book: Book = new Map([
+      ['helper', lam('x', x => op2('add', x, num(1)))],
+      // Only calls one pure helper - below threshold
+      ['main', lam('x', x => log(app(ref('helper'), x), num(0)))],
+    ])
+
+    const result = analyzePurity({ book, boundaryThreshold: 2 })
+    expect(result.get('helper')).toBe('pure')
+    expect(result.get('main')).toBe('effectful')
+  })
 })

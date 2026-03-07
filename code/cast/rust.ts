@@ -16,6 +16,7 @@
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta } from '@/cast/trait'
 import type { AsyncMeta, VoidMeta } from '@/term/desugar'
+import type { DockLoad } from '@/load'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -44,8 +45,6 @@ type TailCtx = {
 type UsageCtx = Map<string, number>
 
 // ---- Public API ----
-
-export type DockLoad = { path: string; name?: string }
 
 /** Names that map to Rust built-in types (skip enum generation). */
 const RUST_BUILTIN_FORMS = new Set(['result', 'maybe'])

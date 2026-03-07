@@ -27,7 +27,6 @@ import type { Env } from '@/term/env'
 import {
   envPure,
   envBind,
-  envFail,
   envRun,
   envInit,
   envLog,
@@ -49,6 +48,22 @@ function getType(term: Term): Term {
 /** Make an annotation node. */
 function ann(input: { val: Term; typ: Term }): Term {
   return { form: 'ann', done: false, val: input.val, typ: input.typ }
+}
+
+/** A poison term for error recovery. Logs the error and returns a hole. */
+function errorTerm(input: {
+  src: Site | null
+  need: Term
+  have: Term
+  term: Term
+  dep: number
+}): Env<Term> {
+  const { src, need, have, term, dep } = input
+  const hole: Term = { form: 'hol', name: 'error', ctx: [] }
+  return envBind({
+    env: envLog({ form: 'error', site: src, need, have, term, dep }),
+    fn: () => envPure(ann({ val: hole, typ: hole })),
+  })
 }
 
 /**
@@ -96,16 +111,12 @@ function checkGo(input: { sus: boolean; term: Term }): Env<Term> {
         fn: book => {
           const def = book.get(term.name)
           if (def) return checkGo({ sus, term: def })
-          return envBind({
-            env: envLog({
-              form: 'error',
-              site: null,
-              need: { form: 'ref', name: 'expression' },
-              have: { form: 'ref', name: 'undefined' },
-              term,
-              dep: 0,
-            }),
-            fn: () => envFail<Term>(),
+          return errorTerm({
+            src: null,
+            need: { form: 'ref', name: 'expression' },
+            have: { form: 'ref', name: 'undefined' },
+            term,
+            dep: 0,
           })
         },
       })
@@ -207,20 +218,16 @@ export function infer(input: {
                         ),
                     })
                   }
-                  return envBind({
-                    env: envLog({
-                      form: 'error',
-                      site: src,
-                      need: { form: 'ref', name: 'function' },
-                      have: getType(funA),
-                      term: {
-                        form: 'app',
-                        func: term.func,
-                        argm: term.argm,
-                      },
-                      dep,
-                    }),
-                    fn: () => envFail<Term>(),
+                  return errorTerm({
+                    src,
+                    need: { form: 'ref', name: 'function' },
+                    have: getType(funA),
+                    term: {
+                      form: 'app',
+                      func: term.func,
+                      argm: term.argm,
+                    },
+                    dep,
                   })
                 },
               }),
@@ -300,16 +307,12 @@ export function infer(input: {
                       }),
                     )
                   }
-                  return envBind({
-                    env: envLog({
-                      form: 'error',
-                      site: src,
-                      need: { form: 'ref', name: 'Self' },
-                      have: getType(valA),
-                      term: { form: 'ins', val: term.val },
-                      dep,
-                    }),
-                    fn: () => envFail<Term>(),
+                  return errorTerm({
+                    src,
+                    need: { form: 'ref', name: 'Self' },
+                    have: getType(valA),
+                    term: { form: 'ins', val: term.val },
+                    dep,
                   })
                 },
               }),
@@ -335,16 +338,12 @@ export function infer(input: {
                 envPure(ann({ val: term, typ: getType(valA) })),
             })
           }
-          return envBind({
-            env: envLog({
-              form: 'error',
-              site: src,
-              need: { form: 'ref', name: 'expression' },
-              have: { form: 'ref', name: 'undefined' },
-              term,
-              dep,
-            }),
-            fn: () => envFail<Term>(),
+          return errorTerm({
+            src,
+            need: { form: 'ref', name: 'expression' },
+            have: { form: 'ref', name: 'undefined' },
+            term,
+            dep,
           })
         },
       })
@@ -398,7 +397,18 @@ export function infer(input: {
                         },
                         dep,
                       }),
-                      fn: () => envFail<Term>(),
+                      fn: () =>
+                        envPure(
+                          ann({
+                            val: {
+                              form: 'op2',
+                              oper: term.oper,
+                              a: fstA,
+                              b: sndA,
+                            },
+                            typ: getType(fstA),
+                          }),
+                        ),
                     })
                   }
                   const retType = getOpReturnType({
@@ -473,6 +483,53 @@ export function infer(input: {
       })
     }
 
+    case 'rst': {
+      return envBind({
+        env: infer({ sus, src, term: term.val, dep }),
+        fn: valA =>
+          envPure(
+            ann({
+              val: { form: 'rst', val: valA },
+              typ: getType(valA),
+            }),
+          ),
+      })
+    }
+
+    case 'hlt': {
+      // Halt/throw is effectful, returns bottom (any type).
+      // When checking against an expected type it adopts that type.
+      // When inferring, give it a fresh metavar type.
+      return envBind({
+        env: infer({ sus, src, term: term.msg, dep }),
+        fn: msgA =>
+          envBind({
+            env: envFreshMeta([]),
+            fn: retType =>
+              envPure(
+                ann({
+                  val: { form: 'hlt', msg: msgA, term: term.term },
+                  typ: retType,
+                }),
+              ),
+          }),
+      })
+    }
+
+    case 'nxt': {
+      // Continue/next is control flow, returns bottom (any type).
+      return envBind({
+        env: envFreshMeta([]),
+        fn: retType =>
+          envPure(
+            ann({
+              val: { form: 'nxt' },
+              typ: retType,
+            }),
+          ),
+      })
+    }
+
     case 'src':
       return infer({ sus, src: term.site, term: term.val, dep })
 
@@ -512,55 +569,39 @@ export function infer(input: {
 
     // Cannot infer these without annotation
     case 'lam':
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'lambda' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+      return errorTerm({
+        src,
+        need: { form: 'ref', name: 'annotation' },
+        have: { form: 'ref', name: 'lambda' },
+        term,
+        dep,
       })
 
     case 'con':
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'constructor' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+      return errorTerm({
+        src,
+        need: { form: 'ref', name: 'annotation' },
+        have: { form: 'ref', name: 'constructor' },
+        term,
+        dep,
       })
 
     case 'mat':
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'match' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+      return errorTerm({
+        src,
+        need: { form: 'ref', name: 'annotation' },
+        have: { form: 'ref', name: 'match' },
+        term,
+        dep,
       })
 
     case 'swi':
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'switch' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+      return errorTerm({
+        src,
+        need: { form: 'ref', name: 'annotation' },
+        have: { form: 'ref', name: 'switch' },
+        term,
+        dep,
       })
 
     case 'hol': {
@@ -590,20 +631,18 @@ export function infer(input: {
     }
 
     case 'var':
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: { form: 'ref', name: 'annotation' },
-          have: { form: 'ref', name: 'variable' },
-          term,
-          dep,
-        }),
-        fn: () => envFail<Term>(),
+      return errorTerm({
+        src,
+        need: { form: 'ref', name: 'annotation' },
+        have: { form: 'ref', name: 'variable' },
+        term,
+        dep,
       })
 
-    default:
-      return envFail<Term>()
+    default: {
+      const hole: Term = { form: 'hol', name: 'error', ctx: [] }
+      return envPure(ann({ val: hole, typ: hole }))
+    }
   }
 }
 
@@ -726,10 +765,8 @@ export function verify(input: {
                       ),
                   })
                 }
-                return envBind({
-                  env: envLog({
-                    form: 'error',
-                    site: src,
+                return errorTerm({
+                    src,
                     need: {
                       form: 'hol',
                       name: `constructor:${term.name}`,
@@ -738,9 +775,7 @@ export function verify(input: {
                     have: { form: 'hol', name: 'not_found', ctx: [] },
                     term,
                     dep,
-                  }),
-                  fn: () => envFail<Term>(),
-                })
+                  })
               }
               return inferAndCompare({ sus, src, term, typx, dep })
             },
@@ -1013,6 +1048,39 @@ export function verify(input: {
       return inferAndCompare({ sus, src, term, typx, dep })
     }
 
+    case 'hlt': {
+      // Halt adopts whatever type is expected (bottom type behavior).
+      return envBind({
+        env: infer({ sus, src, term: term.msg, dep }),
+        fn: msgA =>
+          envPure(
+            ann({
+              val: { form: 'hlt', msg: msgA, term: term.term },
+              typ: typx,
+            }),
+          ),
+      })
+    }
+
+    case 'rst': {
+      // Rest/breakpoint: check the inner value against expected type.
+      return envBind({
+        env: verify({ sus, src, term: term.val, typx, dep }),
+        fn: valA =>
+          envPure(
+            ann({
+              val: { form: 'rst', val: valA },
+              typ: typx,
+            }),
+          ),
+      })
+    }
+
+    case 'nxt': {
+      // Continue/next adopts whatever type is expected (bottom type behavior).
+      return envPure(ann({ val: { form: 'nxt' }, typ: typx }))
+    }
+
     default:
       return inferAndCompare({ sus, src, term, typx, dep })
   }
@@ -1043,7 +1111,7 @@ function inferAndCompare(input: {
   })
 }
 
-/** Compare expected and detected types. Log error and fail if not equal. */
+/** Compare expected and detected types. Log error on mismatch but continue. */
 function compareTypes(input: {
   src: Site | null
   expected: Term
@@ -1062,16 +1130,14 @@ function compareTypes(input: {
           fn: susps => flushSusps(susps),
         })
       }
-      return envBind({
-        env: envLog({
-          form: 'error',
-          site: src,
-          need: expected,
-          have: detected,
-          term,
-          dep,
-        }),
-        fn: () => envFail<null>(),
+      // Log the error but continue checking to collect more errors
+      return envLog({
+        form: 'error',
+        site: src,
+        need: expected,
+        have: detected,
+        term,
+        dep,
       })
     },
   })
@@ -1107,7 +1173,11 @@ function checkLater(input: {
   }
   return envBind({
     env: envSusp({ need: term, have: typx, dep }),
-    fn: () => envPure({ form: 'met', uid: 0, ctx: [] } as Term),
+    fn: () =>
+      envBind({
+        env: envFreshMeta([]),
+        fn: meta => envPure(ann({ val: meta, typ: typx })),
+      }),
   })
 }
 
@@ -1135,7 +1205,7 @@ function checkConArgs(input: {
         term: { form: 'hol', name: 'constructor', ctx: [] },
         dep,
       }),
-      fn: () => envFail(),
+      fn: () => envPure([]),
     })
   }
 
@@ -1197,6 +1267,7 @@ function checkMatArms(input: {
           fn: bodA => checkArm(idx + 1, [...checked, [name, bodA]]),
         })
       }
+      const hole: Term = { form: 'hol', name: 'error', ctx: [] }
       return envBind({
         env: envLog({
           form: 'error',
@@ -1206,7 +1277,7 @@ function checkMatArms(input: {
           term: { form: 'mat', arms },
           dep,
         }),
-        fn: () => envFail(),
+        fn: () => checkArm(idx + 1, [...checked, [name, hole]]),
       })
     }
 
@@ -1256,7 +1327,13 @@ function checkMatArms(input: {
                 term: { form: 'mat', arms },
                 dep,
               }),
-              fn: () => envFail<Term>(),
+              fn: () =>
+                envPure(
+                  ann({
+                    val: { form: 'mat', arms: armsA },
+                    typ: { form: 'all', name: '', inp: typInp, bod: typBod },
+                  }),
+                ),
             })
           }
         }

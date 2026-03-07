@@ -17,8 +17,7 @@
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta } from '@/cast/trait'
 import type { AsyncMeta } from '@/term/desugar'
-
-export type DockLoad = { path: string; name?: string }
+import type { DockLoad } from '@/load'
 
 type EmitCtx = {
   tagMap: Map<string, number>

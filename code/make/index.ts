@@ -34,7 +34,7 @@ import type { Book, Info, Fill } from '@/term/form'
 import type { Kink } from '@/kink/form'
 import type { LoadEnv } from '@/load'
 import type { Surf, SurfCard, SurfLoad } from '@/surf/form'
-import type { DockLoad } from '@/cast/typescript'
+import type { DockLoad } from '@/load'
 
 export type Target = 'typescript' | 'rust' | 'kotlin' | 'swift' | 'hvm'
 
@@ -43,6 +43,7 @@ export type CompileResult = {
   errors: Kink[]
   files: string[]
   book: Book
+  purityMap?: PurityMap
 }
 
 export type CompileFilesResult = {
@@ -66,10 +67,13 @@ export function compile(input: {
   const result = loadBook({ file, env })
   const { book, files, firmSet, asyncMeta, dock } = result
 
+  const dockNames = extractDockNames({ dock: dock ?? [] })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
+
   const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, dock, asyncMeta })
 
-  return { code, errors, files, book }
+  return { code, errors, files, book, purityMap }
 }
 
 /**
@@ -104,12 +108,15 @@ export function compilePackage(input: {
   const { file, env, target } = input
 
   const result = loadPackage({ file, env })
-  const { book, files, firmSet, asyncMeta, resolveErrors } = result
+  const { book, files, firmSet, asyncMeta, resolveErrors, dock } = result
+
+  const dockNames = extractDockNames({ dock: dock ?? [] })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, asyncMeta })
 
-  return { code, errors, files, book, resolveErrors }
+  return { code, errors, files, book, purityMap, resolveErrors }
 }
 
 /**
@@ -147,9 +154,10 @@ export function compilePackageHybrid(input: {
   const { file, env, nativeTarget } = input
 
   const result = loadPackage({ file, env })
-  const { book, files, firmSet, asyncMeta } = result
+  const { book, files, firmSet, asyncMeta, dock } = result
 
-  const purityMap = analyzePurity({ book, asyncMeta })
+  const dockNames = extractDockNames({ dock: dock ?? [] })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
   const hybrid = castHybrid({
@@ -186,10 +194,13 @@ export function compileText(input: {
   const dock = extractDockLoads({ card })
   const { book, asyncMeta, firmSet } = desugarCard({ card })
 
+  const dockNames = extractDockNames({ dock })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
+
   const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, dock, asyncMeta })
 
-  return { code, errors, files: [file], book }
+  return { code, errors, files: [file], book, purityMap }
 }
 
 /**
@@ -218,12 +229,15 @@ export function compileTextTolerant(input: {
   const { book, asyncMeta, firmSet, errors: desugarErrors } = desugarCardTolerant({ card })
   allErrors.push(...desugarErrors)
 
+  const dockNames = extractDockNames({ dock })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
+
   const checkErrors = checkBook({ book, firmSet })
   allErrors.push(...checkErrors)
 
   const code = generate({ book, target, dock, asyncMeta })
 
-  return { code, errors: allErrors, files: [file], book }
+  return { code, errors: allErrors, files: [file], book, purityMap }
 }
 
 /**
@@ -448,7 +462,10 @@ export function compileIncremental(input: {
     }
   }
 
-  // Phase 7: type-check and generate code.
+  // Phase 7: purity analysis, type-check, and generate code.
+  const dockNames = extractDockNames({ dock: allDock })
+  const purityMap = analyzePurity({ book, asyncMeta, dockNames })
+
   const errors = checkBook({ book, firmSet })
   const code = generate({ book, target, dock: allDock, asyncMeta })
 
@@ -457,7 +474,7 @@ export function compileIncremental(input: {
   store.writeRaw({ name: 'graph.json', data: serializeGraph({ graph: freshGraph }) })
   store.writeRaw({ name: 'signatures.json', data: JSON.stringify(newSigs) })
 
-  return { code, errors, files: allFiles, book, cached, recompiled }
+  return { code, errors, files: allFiles, book, purityMap, cached, recompiled }
 }
 
 /**
@@ -506,6 +523,15 @@ function extractDockLoads(input: { card: { list: Array<{ form: string }> } }): D
   return input.card.list
     .filter((n): n is SurfLoad => n.form === 'load' && (n as SurfLoad).dock === true)
     .map(n => ({ path: n.path[0] ?? '', name: n.name }))
+}
+
+/** Extract the set of names introduced by dock loads (native module refs). */
+function extractDockNames(input: { dock: DockLoad[] }): Set<string> {
+  const names = new Set<string>()
+  for (const d of input.dock) {
+    if (d.name) names.add(d.name)
+  }
+  return names
 }
 
 /** Generate code for the given target. */

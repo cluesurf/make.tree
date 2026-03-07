@@ -358,8 +358,10 @@ describe('dependent types: ADT Mat/Con path', () => {
     const val = lam('b', b => app(matTerm, b))
     book.set('partial', ann(val, matType))
     const result = check({ term: ref('partial'), book })
-    // Should fail due to incomplete match
-    expect(result).toBeNull()
+    // Should report error due to incomplete match but not crash
+    expect(result).not.toBeNull()
+    const errors = result!.state.logs.filter(l => l.form === 'error')
+    expect(errors.length).toBeGreaterThan(0)
   })
 
   function adtNatBook(): Book {

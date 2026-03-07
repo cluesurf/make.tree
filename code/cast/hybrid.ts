@@ -15,7 +15,7 @@ import { castBook as castTS } from '@/cast/typescript'
 import { castBook as castRust } from '@/cast/rust'
 import { castBook as castKotlin } from '@/cast/kotlin'
 import { castBook as castSwift } from '@/cast/swift'
-import type { DockLoad } from '@/cast/typescript'
+import type { DockLoad } from '@/load'
 
 export type NativeTarget = 'typescript' | 'rust' | 'kotlin' | 'swift'
 
@@ -49,10 +49,14 @@ export function compileHybrid(input: {
   const effectfulDefs: string[] = []
 
   for (const [name, term] of book) {
-    if (purityMap.get(name) === 'pure') {
+    const purity = purityMap.get(name)
+    if (purity === 'pure') {
       pureBook.set(name, term)
       pureDefs.push(name)
     } else {
+      // Both 'effectful' and 'boundary' defs go to native.
+      // Boundary defs are effectful but have pure subtrees
+      // that benefit from HVM bridge calls.
       effectfulBook.set(name, term)
       effectfulDefs.push(name)
     }
