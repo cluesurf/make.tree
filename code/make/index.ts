@@ -21,6 +21,7 @@ import { loadBook, loadPackage, discoverFiles } from '@/load'
 import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates } from '@/resolve'
 import { analyzePurity, type PurityMap } from '@/term/purity'
+import { optimizeBook } from '@/term/optimize'
 import { compileHybrid as castHybrid, type HybridResult, type NativeTarget } from '@/cast/hybrid'
 import { discoverDeckEnv, createDeckLoadEnv } from '@/deck'
 import { renderInfoList } from '@/kink/render'
@@ -71,7 +72,8 @@ export function compile(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target, dock, asyncMeta })
+  const optimized = optimizeBook({ book })
+  const code = generate({ book: optimized, target, dock, asyncMeta })
 
   return { code, errors, files, book, purityMap }
 }
@@ -90,7 +92,8 @@ export function compileToFiles(input: {
   const { book, files, fileMap, firmSet } = result
 
   const errors = checkBook({ book, firmSet })
-  const codeFiles = castTSFiles({ book, fileMap })
+  const optimized = optimizeBook({ book })
+  const codeFiles = castTSFiles({ book: optimized, fileMap })
 
   return { codeFiles, errors, files, book }
 }
@@ -114,7 +117,8 @@ export function compilePackage(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target, asyncMeta })
+  const optimized = optimizeBook({ book })
+  const code = generate({ book: optimized, target, asyncMeta })
 
   return { code, errors, files, book, purityMap, resolveErrors }
 }
@@ -160,8 +164,9 @@ export function compilePackageHybrid(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
+  const optimized = optimizeBook({ book })
   const hybrid = castHybrid({
-    book,
+    book: optimized,
     purityMap,
     nativeTarget,
     asyncMeta,
@@ -198,7 +203,8 @@ export function compileText(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target, dock, asyncMeta })
+  const optimized = optimizeBook({ book })
+  const code = generate({ book: optimized, target, dock, asyncMeta })
 
   return { code, errors, files: [file], book, purityMap }
 }
@@ -235,7 +241,8 @@ export function compileTextTolerant(input: {
   const checkErrors = checkBook({ book, firmSet })
   allErrors.push(...checkErrors)
 
-  const code = generate({ book, target, dock, asyncMeta })
+  const optimized = optimizeBook({ book })
+  const code = generate({ book: optimized, target, dock, asyncMeta })
 
   return { code, errors: allErrors, files: [file], book, purityMap }
 }
@@ -467,7 +474,8 @@ export function compileIncremental(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target, dock: allDock, asyncMeta })
+  const optimized = optimizeBook({ book })
+  const code = generate({ book: optimized, target, dock: allDock, asyncMeta })
 
   // Phase 8: persist cache.
   store.setIndex({ index: { files: newIndex } })

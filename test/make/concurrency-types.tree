@@ -1,0 +1,83 @@
+
+form task-handle
+  head result
+  link id, like text
+
+task stamp
+  head result
+  take id, like text
+  send back
+    make task-handle
+      bind id, read id
+
+task read
+  head result
+  take handle
+    like task-handle
+      fuse result, read result
+  send back, read handle/id
+
+form channel
+  head item
+  case sender
+    link id, like text
+  case receiver
+    link id, like text
+
+task open
+  head item
+  take id, like text
+  send back
+    make channel/sender
+      bind id, read id
+
+task close
+  head item
+  take id, like text
+  send back
+    make channel/receiver
+      bind id, read id
+
+task match
+  head item
+  take ch
+    like channel
+      fuse item, read item
+  fork case, read ch
+    hook sender, base id
+      send back, read id
+    hook receiver, base id
+      send back, read id
+
+form effect
+  head result
+  case done
+    link value, like result
+  case call
+    link name, like text
+    link argument, like text
+
+task wrap
+  head result
+  take value, like result
+  send back
+    make effect/done
+      bind value, read value
+
+task cast
+  take name, like text
+  take argument, like text
+  send back
+    make effect/call
+      bind name, read name
+      bind argument, read argument
+
+task unwrap
+  take e
+    like effect
+      fuse result, like text
+  fork case, read e
+    hook done, base value
+      send back, read value
+    hook call, base name, base argument
+      send back, read name
