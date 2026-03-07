@@ -35,32 +35,38 @@ const PROOF_TYPES = new Set([
  */
 function isProofType(input: { term: Term; book: Book }): boolean {
   const { term, book } = input
+
+  // Check the unreduced term first (before unfolding refs like Equal)
+  if (checkHead({ term })) return true
+
+  // Then try after reduction
   const fill = new Map()
   const reduced = reduce({ term, book, fill, lv: 2 })
+  return checkHead({ term: reduced })
 
-  switch (reduced.form) {
-    case 'ref':
-      return PROOF_TYPES.has(reduced.name)
-    case 'app': {
-      // Follow the function chain to find the head
-      let head: Term = reduced.func
-      while (head.form === 'app') {
-        head = head.func
+  function checkHead(input: { term: Term }): boolean {
+    const { term } = input
+    switch (term.form) {
+      case 'ref':
+        return PROOF_TYPES.has(term.name)
+      case 'app': {
+        let head: Term = term.func
+        while (head.form === 'app') {
+          head = head.func
+        }
+        if (head.form === 'ref') {
+          return PROOF_TYPES.has(head.name)
+        }
+        return false
       }
-      if (head.form === 'ref') {
-        return PROOF_TYPES.has(head.name)
-      }
-      return false
+      case 'all':
+        return isProofType({
+          term: term.bod({ form: 'ref', name: '_erase_dummy' }),
+          book,
+        })
+      default:
+        return false
     }
-    case 'all':
-      // For a pi type, check if the return type is a proof type
-      // Use a dummy variable for the body
-      return isProofType({
-        term: reduced.bod({ form: 'ref', name: '_erase_dummy' }),
-        book,
-      })
-    default:
-      return false
   }
 }
 

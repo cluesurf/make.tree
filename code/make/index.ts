@@ -22,6 +22,7 @@ import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates } from '@/resolve'
 import { analyzePurity, type PurityMap } from '@/term/purity'
 import { optimizeBook } from '@/term/optimize'
+import { eraseProofs } from '@/term/erase'
 import { compileHybrid as castHybrid, type HybridResult, type NativeTarget } from '@/cast/hybrid'
 import { discoverDeckEnv, createDeckLoadEnv } from '@/deck'
 import { renderInfoList } from '@/kink/render'
@@ -72,7 +73,8 @@ export function compile(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const optimized = optimizeBook({ book })
+  const erased = eraseProofs({ book, firmSet })
+  const optimized = optimizeBook({ book: erased })
   const code = generate({ book: optimized, target, dock, asyncMeta })
 
   return { code, errors, files, book, purityMap }
@@ -92,7 +94,8 @@ export function compileToFiles(input: {
   const { book, files, fileMap, firmSet } = result
 
   const errors = checkBook({ book, firmSet })
-  const optimized = optimizeBook({ book })
+  const erased = eraseProofs({ book, firmSet })
+  const optimized = optimizeBook({ book: erased })
   const codeFiles = castTSFiles({ book: optimized, fileMap })
 
   return { codeFiles, errors, files, book }
@@ -117,7 +120,8 @@ export function compilePackage(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const optimized = optimizeBook({ book })
+  const erased = eraseProofs({ book, firmSet })
+  const optimized = optimizeBook({ book: erased })
   const code = generate({ book: optimized, target, asyncMeta })
 
   return { code, errors, files, book, purityMap, resolveErrors }
@@ -164,7 +168,8 @@ export function compilePackageHybrid(input: {
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
   const errors = checkBook({ book, firmSet })
-  const optimized = optimizeBook({ book })
+  const erased = eraseProofs({ book, firmSet })
+  const optimized = optimizeBook({ book: erased })
   const hybrid = castHybrid({
     book: optimized,
     purityMap,
