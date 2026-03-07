@@ -15,7 +15,7 @@
 
 import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta } from '@/cast/trait'
-import type { AsyncMeta } from '@/term/desugar'
+import type { AsyncMeta, VoidMeta } from '@/term/desugar'
 
 type EmitCtx = {
   tagMap: Map<string, number>
@@ -60,6 +60,7 @@ export function castBook(input: {
   dock?: DockLoad[]
   traits?: TraitMeta
   asyncMeta?: AsyncMeta
+  voidMeta?: VoidMeta
 }): string {
   const dockNames = new Set<string>()
   for (const load of input.dock ?? []) {
@@ -70,6 +71,7 @@ export function castBook(input: {
 
   const ctx = analyze({ book: input.book, dockNames })
   const asyncMeta = input.asyncMeta ?? new Map()
+  const voidMeta = input.voidMeta ?? new Set()
   const lines: string[] = []
 
   // Build set of method names that belong to impl blocks
@@ -113,7 +115,7 @@ export function castBook(input: {
 
     const safeName = snakeCase(name)
     const paramTypes = extractParamTypes({ term, ctx })
-    const baseReturnType = inferReturnType({ term, ctx })
+    const baseReturnType = voidMeta.has(name) ? '()' : inferReturnType({ term, ctx })
     const isAsync = asyncMeta.get(name) === true
 
     if (val.form === 'lam') {
@@ -138,6 +140,7 @@ export function castBook(input: {
       const returnType = usesHalt
         ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
         : baseReturnType
+      const returnSuffix = returnType === '()' ? '' : ` -> ${returnType}`
       const paramStr = params
         .map((p, i) => {
           const typ = valueParamTypes[i] ?? 'impl Clone'
@@ -172,11 +175,11 @@ export function castBook(input: {
       const asyncPrefix = isAsync ? 'async ' : ''
       if (isTailRec) {
         lines.push(
-          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr}) -> ${returnType} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
+          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr})${returnSuffix} {\n    loop {\n${bodyLines.join('\n')}\n    }\n}`,
         )
       } else {
         lines.push(
-          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n}`,
+          `${asyncPrefix}fn ${safeName}${genericStr}(${paramStr})${returnSuffix} {\n${bodyLines.join('\n')}\n}`,
         )
       }
     } else {
@@ -184,11 +187,12 @@ export function castBook(input: {
       const returnType = usesHalt
         ? `Result<${baseReturnType}, Box<dyn std::error::Error>>`
         : baseReturnType
+      const returnSuffix = returnType === '()' ? '' : ` -> ${returnType}`
       const expr = castExpr({ term: val, dep: 0, ctx })
       if (usesHalt) {
-        lines.push(`fn ${safeName}() -> ${returnType} { Ok(${expr}) }`)
+        lines.push(`fn ${safeName}()${returnSuffix} { Ok(${expr}) }`)
       } else {
-        lines.push(`fn ${safeName}() -> ${returnType} { ${expr} }`)
+        lines.push(`fn ${safeName}()${returnSuffix} { ${expr} }`)
       }
     }
   }
@@ -382,8 +386,9 @@ function castImplBlock(input: {
         usage,
         mutVars,
       })
+      const returnSuffix = returnType === '()' ? '' : ` -> ${returnType}`
       lines.push(
-        `    fn ${safeName}(${paramStr}) -> ${returnType} {\n${bodyLines.join('\n')}\n    }`,
+        `    fn ${safeName}(${paramStr})${returnSuffix} {\n${bodyLines.join('\n')}\n    }`,
       )
     }
   }
@@ -438,8 +443,13 @@ function inferReturnType(input: {
   }
 
   const adts = new Set<string>()
-  const literals = { hasNum: false, hasFlt: false, hasText: false }
+  const literals = { hasNum: false, hasFlt: false, hasText: false, hasUnit: false }
   collectReturnInfo({ term: body, ctx, adts, literals })
+
+  // Void function: body only produces Unit constructors
+  if (literals.hasUnit && adts.size === 0 && !literals.hasNum && !literals.hasFlt && !literals.hasText) {
+    return '()'
+  }
 
   if (adts.size === 1 && !literals.hasNum && !literals.hasFlt && !literals.hasText) {
     const formName = [...adts][0]!
@@ -476,12 +486,16 @@ function collectReturnInfo(input: {
   term: Term
   ctx: EmitCtx
   adts: Set<string>
-  literals: { hasNum: boolean; hasFlt: boolean; hasText: boolean }
+  literals: { hasNum: boolean; hasFlt: boolean; hasText: boolean; hasUnit: boolean }
   fieldVars?: Map<string, string>
 }): void {
   const { term, ctx, adts, literals, fieldVars } = input
   switch (term.form) {
     case 'con': {
+      if (term.name === 'Unit' && term.args.length === 0) {
+        literals.hasUnit = true
+        break
+      }
       const adt = ctx.ctrToEnum.get(term.name)
       if (adt) adts.add(adt)
       for (const [, arg] of term.args) {
@@ -984,6 +998,17 @@ function collectMutVars(input: { term: Term; dep: number }): Set<string> {
         if (bound.has(name)) {
           muts.add(name)
         }
+        // Detect void method call: let _ = obj.method(args)
+        // If obj is a bound variable, it needs `mut`
+        if (t.name === '_') {
+          const { func, args } = unwrapApp(t.val)
+          if (func.form === 'ref' && func.name.startsWith('!') && args.length >= 1) {
+            const receiver = args[0]!
+            if (receiver.form === 'var' && bound.has(receiver.name)) {
+              muts.add(receiver.name)
+            }
+          }
+        }
         walk(t.val, d, bound)
         const next = new Set(bound)
         next.add(name)
@@ -1195,6 +1220,33 @@ function castStmt(input: {
       const varUses = usage
         ? (usage.get(name) ?? 0)
         : countVarUses({ name, term: bodTerm, dep: dep + 1 })
+      // Void method call: let _ = obj.method(args) where result is unused
+      // → emit as bare statement: obj.method(args);
+      if (term.name === '_' && varUses === 0) {
+        const { func, args } = unwrapApp(term.val)
+        if (func.form === 'ref' && func.name.startsWith('!') && args.length >= 1) {
+          // Suppress clone on the receiver: mutation borrows, doesn't consume
+          const receiver = args[0]!
+          if (receiver.form === 'var' && usage) {
+            const cur = usage.get(receiver.name) ?? 0
+            if (cur > 1) usage.set(receiver.name, cur - 1)
+          }
+          const val = castExpr({ term: term.val, dep, ctx, usage })
+          lines.push(`${pad}${val};`)
+          castStmt({
+            term: bodTerm,
+            dep: dep + 1,
+            ctx,
+            lines,
+            indent,
+            tail,
+            okWrap,
+            usage,
+            mutVars,
+          })
+          return
+        }
+      }
       const val = castExpr({ term: term.val, dep, ctx, usage })
       const isMut = mutVars?.has(name) ?? false
       if (isMut && lines.some(l => l.includes(`let mut ${name} =`) || l.includes(`let ${name} =`))) {
@@ -1409,6 +1461,14 @@ function castStmt(input: {
         mutVars,
       })
       return
+  }
+
+  // Void return: Unit constructor at tail position
+  if (term.form === 'con' && term.name === 'Unit' && term.args.length === 0) {
+    if (okWrap) {
+      lines.push(`${pad}Ok(())`)
+    }
+    return
   }
 
   const expr = castExpr({ term, dep, ctx, usage })

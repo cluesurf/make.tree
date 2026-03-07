@@ -44,10 +44,10 @@ const treeParsePath = resolve(
 const makeTree = require_(treeParsePath).default
 
 function loadNativeNames(): Map<string, string> {
-  const fsBindFile = resolve(BIND_TREE_ROOT, 'code', 'node', 'fs', 'base.tree')
+  const fsBindFile = resolve(BIND_TREE_ROOT, 'code', 'node', 'fs.tree')
   const fsNames = loadBindNames({
     file: fsBindFile,
-    name: 'node/fs/base.tree',
+    name: 'node/fs.tree',
     makeTree,
   })
   return mergeBindNames([fsNames])

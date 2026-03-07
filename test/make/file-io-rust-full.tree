@@ -1,0 +1,77 @@
+
+dock load
+  load <std:fs>, name fs
+
+task write-file
+  take path, like text
+  take content, like text
+  save r
+    call fs/write
+      read path
+      read content
+  call r/unwrap
+  send back, text <done>
+
+task read-file
+  take path, like text
+  save r
+    call fs/read-to-string
+      read path
+  send back, call r/unwrap
+
+task copy-file
+  take from, like text
+  take to, like text
+  save r
+    call fs/copy
+      read from
+      read to
+  call r/unwrap
+  send back, text <done>
+
+task move-file
+  take from, like text
+  take to, like text
+  save r
+    call fs/rename
+      read from
+      read to
+  call r/unwrap
+  send back, text <done>
+
+task remove-file
+  take path, like text
+  save r
+    call fs/remove-file
+      read path
+  call r/unwrap
+  send back, text <done>
+
+task test-file-exists
+  take path, like text
+  save meta
+    call fs/metadata
+      read path
+  fork test
+    hook test
+      call meta/is-ok
+    hook hold
+      send back, text <true>
+    hook miss
+      send back, text <false>
+
+task make-dir
+  take path, like text
+  save r
+    call fs/create-dir-all
+      read path
+  call r/unwrap
+  send back, text <done>
+
+task remove-dir
+  take path, like text
+  save r
+    call fs/remove-dir-all
+      read path
+  call r/unwrap
+  send back, text <done>

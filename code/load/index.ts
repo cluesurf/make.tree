@@ -20,7 +20,13 @@ export type LoadEnv = {
   readFile: (path: string) => string
   resolvePath: (fromFile: string, loadPath: string) => string | null
   parse: (input: { file: string; text: string }) => { tree: any } | null
+  /** Determine which mill vocabulary to use for a file. */
+  resolveMillName?: (filePath: string) => string
+  /** Compilation target for conditional platform resolution. */
+  target?: string
 }
+
+export type DockLoad = { path: string; name?: string }
 
 export type LoadResult = {
   book: Book
@@ -28,6 +34,7 @@ export type LoadResult = {
   fileMap: Map<string, string[]>
   firmSet: FirmSet
   asyncMeta: AsyncMeta
+  dock: DockLoad[]
 }
 
 export function loadBook(input: {
@@ -40,6 +47,7 @@ export function loadBook(input: {
   const fileMap = new Map<string, string[]>()
   const firmSet: FirmSet = new Set()
   const asyncMeta: AsyncMeta = new Map()
+  const dock: DockLoad[] = []
 
   loadFile({
     file: input.file,
@@ -50,9 +58,10 @@ export function loadBook(input: {
     fileMap,
     firmSet,
     asyncMeta,
+    dock,
   })
 
-  return { book, files, fileMap, firmSet, asyncMeta }
+  return { book, files, fileMap, firmSet, asyncMeta, dock }
 }
 
 function loadFile(input: {
@@ -64,8 +73,9 @@ function loadFile(input: {
   fileMap: Map<string, string[]>
   firmSet: FirmSet
   asyncMeta: AsyncMeta
+  dock: DockLoad[]
 }): void {
-  const { file, env, visited, book, files, fileMap, firmSet, asyncMeta } = input
+  const { file, env, visited, book, files, fileMap, firmSet, asyncMeta, dock } = input
 
   if (visited.has(file)) return
   visited.add(file)
@@ -86,9 +96,23 @@ function loadFile(input: {
   const rawCard: SurfCard = readCard({ tree: lead.tree, file })
   const card: SurfCard = expandFuse({ card: rawCard })
 
+  // Collect dock loads from this file
+  for (const node of card.list) {
+    if (node.form === 'load') {
+      const loadNode = node as SurfLoad
+      if (loadNode.dock) {
+        const dockPath = loadNode.path.join('/')
+        dock.push({ path: dockPath, name: loadNode.name })
+      }
+    }
+  }
+
   // Process load and bear directives first (depth-first)
   for (const node of card.list) {
     if (node.form === 'load') {
+      const loadNode = node as SurfLoad
+      if (loadNode.dock) continue
+
       const loadPath = node.path.join('/')
 
       // Package imports: resolve from built-in stdlib or filesystem
@@ -102,7 +126,6 @@ function loadFile(input: {
           const stdResult = desugarCard({ card: stdCard })
 
           // If the load has `find` directives, only import named items
-          const loadNode = node as SurfLoad
           if (loadNode.find && loadNode.find.length > 0) {
             const aliasMap = new Map<string, string>()
             for (const f of loadNode.find) {
@@ -124,7 +147,7 @@ function loadFile(input: {
 
       const resolved = env.resolvePath(file, loadPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta, dock })
       }
     }
 
@@ -132,9 +155,17 @@ function loadFile(input: {
       const bearPath = node.path.join('/')
       const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta, dock })
       }
     }
+  }
+
+  // Check mill name: only desugar code files into the Book.
+  // Non-code files (book, deck, line, etc.) are traversed for
+  // load/bear directives above but don't produce compilable terms.
+  if (env.resolveMillName) {
+    const mill = env.resolveMillName(file)
+    if (mill !== 'code') return
   }
 
   // Desugar this file and merge into the shared book
@@ -258,6 +289,12 @@ export function loadPackage(input: {
           }
         }
       }
+    }
+
+    // Skip non-code files from desugaring
+    if (env.resolveMillName) {
+      const mill = env.resolveMillName(f)
+      if (mill !== 'code') continue
     }
 
     // Desugar and merge

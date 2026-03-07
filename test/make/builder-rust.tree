@@ -1,0 +1,27 @@
+
+dock load
+  load <std:fs>, name fs
+  load <std:fs:OpenOptions>, name open-options
+
+task append-chained
+  take path, like text
+  take data, like text
+  save handle
+    call open-options/new
+      call append, wave true
+      call open, read path
+  call handle/write-all
+    read data
+
+task append-split
+  take path, like text
+  take data, like text
+  save opts
+    call open-options/new
+  call opts/append
+    wave true
+  save handle
+    call opts/open
+      read path
+  call handle/write-all
+    read data

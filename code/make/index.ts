@@ -64,10 +64,10 @@ export function compile(input: {
   const { file, env, target } = input
 
   const result = loadBook({ file, env })
-  const { book, files, firmSet, asyncMeta } = result
+  const { book, files, firmSet, asyncMeta, dock } = result
 
   const errors = checkBook({ book, firmSet })
-  const code = generate({ book, target, asyncMeta })
+  const code = generate({ book, target, dock, asyncMeta })
 
   return { code, errors, files, book }
 }
@@ -424,6 +424,12 @@ export function compileIncremental(input: {
   const allDock: DockLoad[] = []
 
   for (const [f, card] of cards) {
+    // Skip non-code files from desugaring
+    if (env.resolveMillName) {
+      const mill = env.resolveMillName(f)
+      if (mill !== 'code') continue
+    }
+
     const dock = extractDockLoads({ card })
     allDock.push(...dock)
 
@@ -509,11 +515,11 @@ function generate(input: { book: Book; target: Target; dock?: DockLoad[]; asyncM
     case 'typescript':
       return castTS({ book, dock, asyncMeta })
     case 'rust':
-      return castRust({ book, asyncMeta })
+      return castRust({ book, dock, asyncMeta })
     case 'kotlin':
-      return castKotlin({ book, asyncMeta })
+      return castKotlin({ book, dock, asyncMeta })
     case 'swift':
-      return castSwift({ book, asyncMeta })
+      return castSwift({ book, dock, asyncMeta })
     case 'hvm':
       return castHVM({ book, asyncMeta })
   }

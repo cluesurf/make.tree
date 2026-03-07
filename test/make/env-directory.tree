@@ -1,0 +1,12 @@
+
+dock
+  load <node:process>, name process
+
+task get-directory
+  send back
+    call process/cwd
+
+task set-directory
+  take path, like text
+  call process/chdir
+    read path

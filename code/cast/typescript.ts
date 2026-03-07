@@ -32,6 +32,7 @@ type EmitCtx = {
   headParams: Map<string, string[]>
   typeInfo: Map<string, FuncType>
   riskSet: Set<string>
+  dockNames: Set<string>
   book: Book
   nativeNames: Map<string, string>
 }
@@ -52,7 +53,11 @@ type TailCtx = {
 export type DockLoad = { path: string; name?: string }
 
 export function castBook(input: { book: Book; dock?: DockLoad[]; asyncMeta?: AsyncMeta; stripTypes?: boolean; nativeNames?: Map<string, string> }): string {
-  const ctx = analyze({ book: input.book, nativeNames: input.nativeNames })
+  const dockNames = new Set<string>()
+  for (const load of input.dock ?? []) {
+    if (load.name) dockNames.add(load.name)
+  }
+  const ctx = analyze({ book: input.book, nativeNames: input.nativeNames, dockNames })
   const asyncMeta = input.asyncMeta ?? new Map()
   const emitTypes = !input.stripTypes
   const lines: string[] = []
@@ -446,7 +451,7 @@ export function castTerm(input: { term: Term; dep: number }): string {
 
 // ---- Phase A: Analyze ----
 
-function analyze(input: { book: Book; nativeNames?: Map<string, string> }): EmitCtx {
+function analyze(input: { book: Book; nativeNames?: Map<string, string>; dockNames?: Set<string> }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
@@ -454,6 +459,7 @@ function analyze(input: { book: Book; nativeNames?: Map<string, string> }): Emit
   const headParams = new Map<string, string[]>()
   const typeInfo = new Map<string, FuncType>()
   const riskSet = new Set<string>()
+  const dockNames = input.dockNames ?? new Set<string>()
 
   // First pass: collect form names for type resolution
   const formNames = new Set<string>()
@@ -494,7 +500,7 @@ function analyze(input: { book: Book; nativeNames?: Map<string, string> }): Emit
   }
 
   const nativeNames = input.nativeNames ?? new Map<string, string>()
-  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, typeInfo, riskSet, book: input.book, nativeNames }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, typeInfo, riskSet, dockNames, book: input.book, nativeNames }
 }
 
 /** Resolve a Core Term type to a TypeScript type string. */
@@ -859,6 +865,12 @@ function castStmt(input: {
         return
       }
 
+      // Runtime primitive: .halt in statement mode → pass through inner expr
+      if (func.form === 'ref' && func.name === '.halt' && args.length === 1) {
+        castStmt({ term: args[0]!, dep, ctx, lines, indent, tail })
+        return
+      }
+
       // Runtime primitive: .for in statement mode → for-of loop
       if (func.form === 'ref' && func.name === '.for' && args.length === 2 && args[1]!.form === 'lam') {
         castForStmt({ iter: args[0]!, lam: args[1]!, dep, ctx, lines, indent })
@@ -1213,6 +1225,11 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
           return `await ${inner}`
         }
 
+        // .halt → pass through (error propagation is implicit in JS)
+        if (prim === 'halt' && args.length === 1) {
+          return castExpr({ term: args[0]!, dep, ctx })
+        }
+
         // .safe → (val ?? null)
         if (prim === 'safe' && args.length === 1) {
           const inner = castExpr({ term: args[0]!, dep, ctx })
@@ -1321,6 +1338,20 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       }
       const useTag = ctx.tagMap.size > 0
       const tag = useTag ? ctx.tagMap.get(term.name) : undefined
+
+      // Lowercase constructor with named fields → plain object (for dock calls like `make options`)
+      // ADT constructors are PascalCase (Succ, Pair) and keep their tag
+      const isPlainObject = tag === undefined && !formName && term.name && /^[a-z]/.test(term.name)
+      if (isPlainObject && term.args.length > 0 && term.args[0]![0]) {
+        const fields = term.args
+          .map(([field, t], i) => {
+            const val = castExpr({ term: t, dep, ctx })
+            const key = field ?? `_${i}`
+            return `${sanitizeName(key)}: ${val}`
+          })
+          .join(', ')
+        return `({ ${fields} })`
+      }
 
       if (term.args.length === 0) {
         if (tag !== undefined) return `({ $: ${tag} })`

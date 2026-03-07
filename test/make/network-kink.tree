@@ -1,0 +1,45 @@
+
+form network-kink
+  link code, like text
+  link note, like text
+  link hint, like text, need false
+
+task kink-make
+  take code, like text
+  take note, like text
+  take hint, like text, need false
+  send back
+    make network-kink
+      bind code, read code
+      bind note, read note
+      bind hint, read hint
+
+task kink-code
+  take k, like network-kink
+  send back, read k/code
+
+task kink-note
+  take k, like network-kink
+  send back, read k/note
+
+task kink-throw
+  take code, like text
+  take note, like text
+  halt kink
+    call kink-make
+      bind code, read code
+      bind note, read note
+
+task connect-with-error
+  wait true
+  take host, like text
+  take port, like size
+
+  save result
+    call tcp-connect
+      wait true
+      read host
+      read port
+      halt kink
+
+  send back, read result

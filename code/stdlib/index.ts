@@ -181,9 +181,15 @@ export function resolvePackagePath(input: {
   const collapsed = path.resolve(root, pkgDir, `${rest}.tree`)
   if (fs.existsSync(collapsed)) return collapsed
 
-  // Fallback: rest/base.tree (legacy)
-  const legacy = path.resolve(root, pkgDir, `${rest}/base.tree`)
-  return legacy
+  // Fallback: rest/base.tree (directory entry)
+  const baseEntry = path.resolve(root, pkgDir, `${rest}/base.tree`)
+  if (fs.existsSync(baseEntry)) return baseEntry
+
+  // Fallback: rest/note.tree (submodule index)
+  const noteEntry = path.resolve(root, pkgDir, `${rest}/note.tree`)
+  if (fs.existsSync(noteEntry)) return noteEntry
+
+  return null
 }
 
 /**

@@ -1,0 +1,19 @@
+
+dock load
+  load <std:fs>, name fs
+
+task write-file
+  take path, like text
+  take content, like text
+  save r
+    call fs/write
+      read path
+      read content
+  call r/unwrap
+
+task remove-file
+  take path, like text
+  save r
+    call fs/remove-file
+      read path
+  call r/unwrap

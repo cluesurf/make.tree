@@ -10,6 +10,7 @@ import {
   hvmStr,
   hvmBool,
   hvmList,
+  hvmRecord,
   hvmHandle,
   hvmNull,
 } from '../form'
@@ -88,6 +89,19 @@ export function toTerm(input: {
       return term
     }
 
+    case 'record': {
+      const arity = value.fields.length
+      if (arity === 0) {
+        return api.termNewCtr({ name: value.name, arity: 0, argsPtr: 0n })
+      }
+      const loc = api.heapAlloc(BigInt(arity))
+      for (let i = 0; i < arity; i++) {
+        const field = toTerm({ ctx, value: value.fields[i] })
+        api.heapSet({ loc: loc + BigInt(i), term: field })
+      }
+      return api.termNewCtr({ name: value.name, arity, argsPtr: loc })
+    }
+
     case 'handle': {
       return api.termNewNum(value.id)
     }
@@ -137,14 +151,14 @@ export function fromTerm(input: {
       return hvmList([])
     }
 
-    // Generic constructor: read fields into a list.
+    // Generic constructor: read fields into a record.
     const fields: HvmValue[] = []
     const loc = api.termVal(term)
     for (let i = 0; i < arity; i++) {
       const field = api.wnf(api.heapRead(loc + BigInt(i)))
       fields.push(fromTerm({ ctx, term: field }))
     }
-    return hvmList(fields)
+    return hvmRecord({ name, fields })
   }
 
   return hvmNull()

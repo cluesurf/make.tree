@@ -29,13 +29,15 @@ pub fn run_io(ctx: &IoContext, term: u64) -> HvmValue {
 
     if name == ids.io_done {
       let loc = HvmApi::term_val(current);
-      let value = HvmApi::wnf(HvmApi::heap_read(loc));
+      // Skip magic field at loc+0, value is at loc+1
+      let value = HvmApi::wnf(HvmApi::heap_read(loc + 1));
       return from_term(&ctx.marshal, value);
     }
 
     if name == ids.io_call {
       let loc = HvmApi::term_val(current);
-      let prim_name_term = HvmApi::wnf(HvmApi::heap_read(loc));
+      // Skip magic field at loc+0; func/argm/cont at loc+1/+2/+3
+      let prim_name_term = HvmApi::wnf(HvmApi::heap_read(loc + 1));
       let prim_name = from_term(&ctx.marshal, prim_name_term);
 
       let prim_str = match &prim_name {
@@ -43,8 +45,8 @@ pub fn run_io(ctx: &IoContext, term: u64) -> HvmValue {
         _ => panic!("IO.call: expected string prim name"),
       };
 
-      let arg = HvmApi::wnf(HvmApi::heap_read(loc + 1));
-      let cont = HvmApi::heap_read(loc + 2);
+      let arg = HvmApi::wnf(HvmApi::heap_read(loc + 2));
+      let cont = HvmApi::heap_read(loc + 3);
 
       let handler = ctx
         .prims
@@ -63,8 +65,9 @@ pub fn run_io(ctx: &IoContext, term: u64) -> HvmValue {
 
     if name == ids.io_bind {
       let loc = HvmApi::term_val(current);
-      let action = HvmApi::heap_read(loc);
-      let cont = HvmApi::heap_read(loc + 1);
+      // Skip magic field at loc+0; action/cont at loc+1/+2
+      let action = HvmApi::heap_read(loc + 1);
+      let cont = HvmApi::heap_read(loc + 2);
 
       let action_result = run_io(ctx, action);
       let hvm_result = to_term(&ctx.marshal, &action_result);

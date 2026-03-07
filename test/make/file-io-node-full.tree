@@ -1,0 +1,66 @@
+
+dock load
+  load <node:fs/promises>, name fs-promise
+  load <node:path>, name path-mod
+
+task write-file
+  wait true
+  take path, like text
+  take content, like text
+  call fs-promise/write-file
+    wait true
+    read path
+    read content
+
+task read-file
+  wait true
+  take path, like text
+  send back
+    call fs-promise/read-file
+      wait true
+      read path
+      text <utf8>
+
+task copy-file
+  wait true
+  take from, like text
+  take to, like text
+  call fs-promise/copy-file
+    wait true
+    read from
+    read to
+
+task move-file
+  wait true
+  take from, like text
+  take to, like text
+  call fs-promise/rename
+    wait true
+    read from
+    read to
+
+task remove-file
+  wait true
+  take path, like text
+  call fs-promise/rm
+    wait true
+    read path
+
+task make-dir
+  wait true
+  take path, like text
+  call fs-promise/mkdir
+    wait true
+    read path
+    make options
+      bind recursive, wave true
+
+task remove-dir
+  wait true
+  take path, like text
+  call fs-promise/rm
+    wait true
+    read path
+    make options
+      bind recursive, wave true
+      bind force, wave true

@@ -27,21 +27,23 @@ fun runIo(input: Pair<IoContext, Long>): HvmValue {
 
         if (name == ids.ioDone) {
             val loc = HvmNative.hvmTermVal(current)
-            val value = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc))
+            // Skip magic field at loc+0, value is at loc+1
+            val value = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc + 1))
             return fromTerm(ctx.marshal to value)
         }
 
         if (name == ids.ioCall) {
             val loc = HvmNative.hvmTermVal(current)
-            val primNameTerm = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc))
+            // Skip magic field at loc+0; func/argm/cont at loc+1/+2/+3
+            val primNameTerm = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc + 1))
             val primName = fromTerm(ctx.marshal to primNameTerm)
 
             require(primName is HvmValue.Str) {
                 "IO.call: expected string prim name"
             }
 
-            val arg = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc + 1))
-            val cont = HvmNative.hvmHeapRead(loc + 2)
+            val arg = HvmNative.hvmWnf(HvmNative.hvmHeapRead(loc + 2))
+            val cont = HvmNative.hvmHeapRead(loc + 3)
 
             val handler = ctx.prims[primName.value]
                 ?: error("Unknown native primitive: ${primName.value}")
@@ -55,8 +57,9 @@ fun runIo(input: Pair<IoContext, Long>): HvmValue {
 
         if (name == ids.ioBind) {
             val loc = HvmNative.hvmTermVal(current)
-            val action = HvmNative.hvmHeapRead(loc)
-            val cont = HvmNative.hvmHeapRead(loc + 1)
+            // Skip magic field at loc+0; action/cont at loc+1/+2
+            val action = HvmNative.hvmHeapRead(loc + 1)
+            val cont = HvmNative.hvmHeapRead(loc + 2)
 
             val actionResult = runIo(ctx to action)
             val hvmResult = toTerm(ctx.marshal to actionResult)

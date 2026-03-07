@@ -51,7 +51,7 @@ describe('resolvePackagePath', () => {
       loadPath: '@cluesurf/bind/code/node/fs',
       root: stdlibRoot,
     })
-    expect(result).toContain('bind.tree/code/node/fs/base.tree')
+    expect(result).toContain('bind.tree/code/node/fs.tree')
   })
 
   it('returns null for non-cluesurf paths', () => {

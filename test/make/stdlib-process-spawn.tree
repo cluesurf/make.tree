@@ -1,0 +1,57 @@
+
+form process-result
+  link code, like size
+  link stdout, like text
+  link stderr, like text
+  link ok, like bool
+
+form process-child
+  dock hidden
+  link id, like size
+
+host exit-code
+  term success
+  term failure
+
+task run
+  wait true
+  take command, like text
+  take arguments, like list
+  like process-result
+  halt kink
+
+task spawn
+  wait true
+  take command, like text
+  take arguments, like list
+  like process-child
+  halt kink
+
+task child-wait
+  wait true
+  take child, like process-child
+  like size
+
+task child-write
+  wait true
+  take child, like process-child
+  take data, like text
+
+task child-read
+  wait true
+  take child, like process-child
+  take kind, like text, fall text <stdout>
+  like text
+
+task signal-listen
+  take signal, like text
+  take handler
+    like task
+      take code, like size
+
+task is-success
+  take code, like size
+  send back
+    call is-equal
+      bind a, read code
+      bind b, mark 0

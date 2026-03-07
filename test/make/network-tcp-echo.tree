@@ -1,0 +1,108 @@
+
+form connection
+  link dock, hide true
+  link host, like text
+  link port, like size
+  link local-host, like text
+  link local-port, like size
+  link secure, like bool
+
+form listener
+  link dock, hide true
+  link host, like text
+  link port, like size
+
+task connect
+  wait true
+  take host, like text
+  take port, like size
+  like connection
+
+  save raw
+    call tcp-connect
+      wait true
+      read host
+      read port
+      halt kink
+
+  send back
+    make connection
+      bind dock, read raw
+      bind host, read host
+      bind port, read port
+      bind local-host, text <0.0.0.0>
+      bind local-port, mark 0
+      bind secure, wave false
+
+task listen
+  wait true
+  take host, like text
+  take port, like size
+  like listener
+
+  save raw
+    call tcp-bind
+      wait true
+      read host
+      read port
+      halt kink
+
+  send back
+    make listener
+      bind dock, read raw
+      bind host, read host
+      bind port, read port
+
+task accept
+  wait true
+  take listener, like listener
+  like connection
+
+  save raw, read listener/dock
+
+  save socket
+    call raw/accept
+      wait true
+      halt kink
+
+  send back
+    make connection
+      bind dock, read socket
+      bind host, call socket/remote-host
+      bind port, call socket/remote-port
+      bind local-host, call socket/local-host
+      bind local-port, call socket/local-port
+      bind secure, wave false
+
+task read-data
+  wait true
+  take connection, like connection
+  like text
+
+  save raw, read connection/dock
+  save result
+    call raw/read
+      wait true
+      halt kink
+
+  send back, read result
+
+task write-data
+  wait true
+  take connection, like connection
+  take data, like text
+
+  save raw, read connection/dock
+
+  call raw/write
+    wait true
+    read data
+    halt kink
+
+task close-connection
+  wait true
+  take connection, like connection
+
+  save raw, read connection/dock
+  call raw/close
+    wait true

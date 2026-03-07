@@ -1,0 +1,33 @@
+
+dock
+  load <node:process>, name process
+
+task get-var
+  take name, like text
+  send back
+    call process/env/{name}
+
+task set-var
+  take name, like text
+  take value, like text
+  save process/env/{name}, read value
+
+task check-var
+  take name, like text
+  send back
+    call is-not-equal
+      read process/env/{name}
+      read void
+
+task remove-var
+  take name, like text
+  save process/env/{name}, read void
+
+task get-directory
+  send back
+    call process/cwd
+
+task set-directory
+  take path, like text
+  call process/chdir
+    read path

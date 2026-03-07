@@ -56,12 +56,28 @@ export type AsyncMeta = Map<string, boolean>
 /** Set of definition names marked with `firm true` (totality checked). */
 export type FirmSet = Set<string>
 
+/** Set of task names that have no `send back` (void return). */
+export type VoidMeta = Set<string>
+
+function flowHasBack(flow: Surf[]): boolean {
+  for (const node of flow) {
+    if (node.form === 'back') return true
+    if (node.form === 'fork' && 'hook' in node) {
+      for (const h of (node as SurfFork).hook) {
+        if (flowHasBack(h.flow)) return true
+      }
+    }
+  }
+  return false
+}
+
 /** Desugar a surface-level file (card) to a Book of Core Term definitions. */
-export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet } {
+export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; voidMeta: VoidMeta } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
   const firmSet: FirmSet = new Set()
+  const voidMeta: VoidMeta = new Set()
 
   // First pass: detect wear task name collisions so we can prefix
   const wearTaskCounts = new Map<string, number>()
@@ -92,6 +108,11 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
     // Collect async metadata from task definitions
     if (node.form === 'task' && (node as SurfTask).wait) {
       asyncMeta.set(node.name, true)
+    }
+
+    // Collect void metadata: tasks with no `send back`
+    if (node.form === 'task' && !flowHasBack((node as SurfTask).flow)) {
+      voidMeta.add(node.name)
     }
 
     // Collect firm metadata from task and form definitions
@@ -152,18 +173,19 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
     }
   }
 
-  return { book, asyncMeta, firmSet }
+  return { book, asyncMeta, firmSet, voidMeta }
 }
 
 /**
  * Error-tolerant desugar: wraps each definition in try-catch.
  * Failed definitions produce errors but don't prevent others from being desugared.
  */
-export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; errors: Kink[] } {
+export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; voidMeta: VoidMeta; errors: Kink[] } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
   const firmSet: FirmSet = new Set()
+  const voidMeta: VoidMeta = new Set()
   const errors: Kink[] = []
 
   const wearTaskCounts = new Map<string, number>()
@@ -185,6 +207,9 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
 
       if (node.form === 'task' && (node as SurfTask).wait) {
         asyncMeta.set(node.name, true)
+      }
+      if (node.form === 'task' && !flowHasBack((node as SurfTask).flow)) {
+        voidMeta.add(node.name)
       }
       if (node.form === 'task' && (node as SurfTask).firm) {
         firmSet.add(node.name)
@@ -258,7 +283,7 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
     }
   }
 
-  return { book, asyncMeta, firmSet, errors }
+  return { book, asyncMeta, firmSet, voidMeta, errors }
 }
 
 /** Desugar all tasks inside a wear block into the book.

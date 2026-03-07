@@ -15,8 +15,8 @@ import type { HvmValue } from './form'
 import { HandleTable } from './wasm/handle'
 import { toTerm, fromTerm } from './wasm/marshal'
 import type { MarshalContext } from './wasm/marshal'
-import { runIo } from './wasm/loop'
-import type { NativePrimFn, IoContext } from './wasm/loop'
+import { runIo, runIoAsync } from './wasm/loop'
+import type { NativePrimFn, AsyncNativePrimFn, IoContext } from './wasm/loop'
 
 export type HvmBridgeConfig = {
   /** The loaded HVM WASM API. */
@@ -31,6 +31,7 @@ export class HvmBridge {
   private marshalCtx: MarshalContext | null = null
   private ioCtx: IoContext | null = null
   private prims: Map<string, NativePrimFn> = new Map()
+  private asyncPrims: Map<string, AsyncNativePrimFn> = new Map()
   private initialized = false
 
   constructor(config: HvmBridgeConfig) {
@@ -69,6 +70,7 @@ export class HvmBridge {
         ioBind: this.api.tableFind({ name: 'IO.bind', len: 7 }),
       },
       prims: this.prims,
+      asyncPrims: this.asyncPrims,
     }
 
     this.initialized = true
@@ -78,8 +80,6 @@ export class HvmBridge {
   loadCode(input: { code: string; name?: string }): void {
     if (!this.initialized) this.init()
 
-    const mainIdBuf = new ArrayBuffer(4)
-    const mainIdView = new DataView(mainIdBuf)
     const mainIdPtr = this.api.module._malloc(4)
 
     this.api.prepareText({
@@ -94,6 +94,11 @@ export class HvmBridge {
   /** Register a native primitive function for IO callbacks. */
   registerPrim(input: { name: string; fn: NativePrimFn }): void {
     this.prims.set(input.name, input.fn)
+  }
+
+  /** Register an async native primitive function for IO callbacks. */
+  registerAsyncPrim(input: { name: string; fn: AsyncNativePrimFn }): void {
+    this.asyncPrims.set(input.name, input.fn)
   }
 
   /** Evaluate an HVM term to weak head normal form. */
@@ -133,6 +138,12 @@ export class HvmBridge {
     return runIo({ ctx: this.ioCtx, term: input.term })
   }
 
+  /** Run an IO action tree with async primitive support. */
+  async runIoAsync(input: { term: bigint }): Promise<HvmValue> {
+    if (!this.ioCtx) throw new Error('HVM bridge not initialized')
+    return runIoAsync({ ctx: this.ioCtx, term: input.term })
+  }
+
   /** Register a JS object in the handle table. Returns its ID. */
   registerHandle(input: { obj: unknown }): number {
     return this.handles.register(input.obj)
@@ -161,6 +172,7 @@ export class HvmBridge {
     }
     this.handles.clear()
     this.prims.clear()
+    this.asyncPrims.clear()
     this.marshalCtx = null
     this.ioCtx = null
   }

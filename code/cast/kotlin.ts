@@ -20,12 +20,15 @@ import type { Term, Book, Oper, Tele } from '@/term/form'
 import type { TraitMeta, MaskInfo, ImplInfo } from '@/cast/trait'
 import type { AsyncMeta } from '@/term/desugar'
 
+export type DockLoad = { path: string; name?: string }
+
 type EmitCtx = {
   tagMap: Map<string, number>
   fieldMap: Map<string, string[]>
   arityMap: Map<string, number>
   ctrToEnum: Map<string, string>
   headParams: Map<string, string[]>
+  dockNames: Set<string>
   book: Book
 }
 
@@ -41,10 +44,20 @@ function isMaybe(name: string): boolean {
 
 // ---- Public API ----
 
-export function castBook(input: { book: Book; traits?: TraitMeta; asyncMeta?: AsyncMeta }): string {
-  const ctx = analyze({ book: input.book })
+export function castBook(input: { book: Book; dock?: DockLoad[]; traits?: TraitMeta; asyncMeta?: AsyncMeta }): string {
+  const dockNames = new Set<string>()
+  for (const load of input.dock ?? []) {
+    if (load.name) dockNames.add(load.name)
+  }
+
+  const ctx = analyze({ book: input.book, dockNames })
   const asyncMeta = input.asyncMeta ?? new Map()
   const lines: string[] = []
+
+  // Phase 1: Dock imports
+  for (const load of input.dock ?? []) {
+    lines.push(`import ${load.path}`)
+  }
 
   // Build set of method names that belong to impl blocks
   const implMethodSet = new Set<string>()
@@ -293,12 +306,13 @@ function castInterface(input: { mask: MaskInfo }): string {
 
 // ---- Phase A: Analyze ----
 
-function analyze(input: { book: Book }): EmitCtx {
+function analyze(input: { book: Book; dockNames?: Set<string> }): EmitCtx {
   const tagMap = new Map<string, number>()
   const fieldMap = new Map<string, string[]>()
   const arityMap = new Map<string, number>()
   const ctrToEnum = new Map<string, string>()
   const headParams = new Map<string, string[]>()
+  const dockNames = input.dockNames ?? new Set<string>()
 
   for (const [name, term] of input.book) {
     const val = unwrapAnn(term)
@@ -319,7 +333,7 @@ function analyze(input: { book: Book }): EmitCtx {
     }
   }
 
-  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, book: input.book }
+  return { tagMap, fieldMap, arityMap, ctrToEnum, headParams, dockNames, book: input.book }
 }
 
 function extractHeadParams(term: Term): string[] {
@@ -871,12 +885,20 @@ function castExpr(input: {
         }
         if (args.length >= 1) {
           const obj = castExpr({ term: args[0]!, dep, ctx })
-          const methodName = camelCase(prim)
-          if (args.length === 1) return `${obj}.${methodName}()`
+          const isDockModule = args[0]!.form === 'ref' && ctx.dockNames.has(args[0]!.name)
+          const methodName = isDockModule ? camelCase(prim) : camelCase(prim)
+          const sep = '.'
+          if (args.length === 1) {
+            const isCall = func.name.startsWith('!')
+            if (!isCall && isDockModule) {
+              return `${obj}${sep}${methodName}`
+            }
+            return `${obj}${sep}${methodName}()`
+          }
           const methodArgs = args
             .slice(1)
             .map(a => castExpr({ term: a, dep, ctx }))
-          return `${obj}.${methodName}(${methodArgs.join(', ')})`
+          return `${obj}${sep}${methodName}(${methodArgs.join(', ')})`
         }
       }
       // Direct call for known top-level functions

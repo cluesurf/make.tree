@@ -7,6 +7,7 @@ export type HvmValue =
   | { kind: 'str'; value: string }
   | { kind: 'bool'; value: boolean }
   | { kind: 'list'; value: HvmValue[] }
+  | { kind: 'record'; name: number; fields: HvmValue[] }
   | { kind: 'handle'; id: HandleId }
   | { kind: 'null' }
 
@@ -24,6 +25,10 @@ export function hvmBool(value: boolean): HvmValue {
 
 export function hvmList(value: HvmValue[]): HvmValue {
   return { kind: 'list', value }
+}
+
+export function hvmRecord(input: { name: number; fields: HvmValue[] }): HvmValue {
+  return { kind: 'record', name: input.name, fields: input.fields }
 }
 
 export function hvmHandle(id: HandleId): HvmValue {
