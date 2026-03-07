@@ -1,0 +1,59 @@
+
+form locale
+  link language, like text
+  link region, like text
+  link tag, like text
+  link timezone, like text
+
+task variable-get
+  take name, like text
+  like text
+
+task variable-set
+  take name, like text
+  take value, like text
+
+task variable-remove
+  take name, like text
+
+task variable-list
+  like hash
+
+task variable-check
+  take name, like text
+  like bool
+
+task path-get
+  take kind, like text
+  like text
+
+task directory-get
+  like text
+
+task directory-set
+  take path, like text
+
+task language-read
+  like locale
+
+  save tag, text <en-US>
+  save parts
+    call split
+      read tag
+      text <->
+  save language, read parts/0
+  save region, read parts/1
+
+  send back
+    make locale
+      bind language, read language
+      bind region, read region
+      bind tag, read tag
+      bind timezone, text <UTC>
+
+task language-list
+  like list
+
+  send back
+    make list
+      text <en-US>
