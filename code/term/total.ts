@@ -11,6 +11,7 @@
  */
 
 import type { Term, Book, Ctr } from '@/term/form'
+import type { AdtDesc } from '@/term/adt'
 
 /** Result of a totality check. */
 export type TotalResult =
@@ -33,6 +34,10 @@ export function checkTotal(input: {
 
   // Unwrap Ann
   const body = unwrapAnn(term)
+
+  // Check purity: firm functions cannot contain side effects
+  const purityResult = checkFirmPurity({ term: body, name })
+  if (!purityResult.ok) return purityResult
 
   // Collect all parameter names from outer lambdas
   const params = collectParams(body)
@@ -432,4 +437,185 @@ function checkPatternCompleteness(input: {
   }
 
   return walk(term)
+}
+
+/**
+ * Check that a firm definition contains no side effects.
+ * Proofs must be pure: no exceptions, async, FFI, or control flow.
+ */
+function checkFirmPurity(input: {
+  term: Term
+  name: string
+}): TotalResult {
+  const { term, name } = input
+
+  function walk(t: Term): TotalResult {
+    switch (t.form) {
+      case 'hlt':
+        return {
+          ok: false,
+          reason: `firm function '${name}' cannot throw exceptions`,
+          term: t,
+        }
+      case 'nxt':
+        return {
+          ok: false,
+          reason: `firm function '${name}' cannot use control flow (turn next)`,
+          term: t,
+        }
+      case 'rst':
+        return {
+          ok: false,
+          reason: `firm function '${name}' cannot use breakpoints (rest flow)`,
+          term: t,
+        }
+      case 'app': {
+        // Reject async calls: App(Ref('.wait'), ...)
+        if (t.func.form === 'ref' && t.func.name === '.wait') {
+          return {
+            ok: false,
+            reason: `firm function '${name}' cannot use async (wait true)`,
+            term: t,
+          }
+        }
+        const r = walk(t.func)
+        if (!r.ok) return r
+        return walk(t.argm)
+      }
+      case 'lam':
+        return walk(t.bod({ form: 'var', name: t.name, idx: -1 }))
+      case 'let': {
+        const r = walk(t.val)
+        if (!r.ok) return r
+        return walk(t.bod({ form: 'var', name: t.name, idx: -1 }))
+      }
+      case 'use':
+        return walk(t.bod({ form: 'var', name: t.name, idx: -1 }))
+      case 'ann':
+        return walk(t.val)
+      case 'ins':
+        return walk(t.val)
+      case 'op2': {
+        const r = walk(t.a)
+        if (!r.ok) return r
+        return walk(t.b)
+      }
+      case 'mat':
+        for (const [, bod] of t.arms) {
+          const r = walk(bod)
+          if (!r.ok) return r
+        }
+        return { ok: true }
+      case 'swi': {
+        const r = walk(t.zero)
+        if (!r.ok) return r
+        return walk(t.succ)
+      }
+      case 'con':
+        for (const [, arg] of t.args) {
+          const r = walk(arg)
+          if (!r.ok) return r
+        }
+        return { ok: true }
+      case 'log': {
+        const r = walk(t.msg)
+        if (!r.ok) return r
+        return walk(t.val)
+      }
+      case 'src':
+        return walk(t.val)
+      case 'lst':
+        for (const item of t.list) {
+          const r = walk(item)
+          if (!r.ok) return r
+        }
+        return { ok: true }
+      default:
+        return { ok: true }
+    }
+  }
+
+  return walk(term)
+}
+
+/**
+ * Check that a recursive type definition only uses itself in
+ * strictly positive positions. A type appearing in the input
+ * of a function type (negative position) would allow non-termination.
+ */
+export function checkPositivity(input: {
+  adt: AdtDesc
+}): TotalResult {
+  const { adt } = input
+  const typeName = adt.name
+
+  for (const ctr of adt.ctrs) {
+    for (const field of ctr.fields) {
+      const result = checkPositive({
+        term: field.typ,
+        typeName,
+        positive: true,
+        ctrName: ctr.name,
+      })
+      if (!result.ok) return result
+    }
+  }
+
+  return { ok: true }
+}
+
+function checkPositive(input: {
+  term: Term
+  typeName: string
+  positive: boolean
+  ctrName: string
+}): TotalResult {
+  const { term, typeName, positive, ctrName } = input
+
+  switch (term.form) {
+    case 'ref':
+      if (term.name === typeName && !positive) {
+        return {
+          ok: false,
+          reason: `type '${typeName}' appears in negative position in constructor '${ctrName}'`,
+          term,
+        }
+      }
+      return { ok: true }
+    case 'all': {
+      // Input position is negative (flip polarity)
+      const inpResult = checkPositive({
+        term: term.inp,
+        typeName,
+        positive: !positive,
+        ctrName,
+      })
+      if (!inpResult.ok) return inpResult
+      // Output position keeps polarity
+      return checkPositive({
+        term: term.bod({ form: 'var', name: term.name, idx: -1 }),
+        typeName,
+        positive,
+        ctrName,
+      })
+    }
+    case 'app': {
+      const r = checkPositive({ term: term.func, typeName, positive, ctrName })
+      if (!r.ok) return r
+      return checkPositive({ term: term.argm, typeName, positive, ctrName })
+    }
+    case 'ann':
+      return checkPositive({ term: term.val, typeName, positive, ctrName })
+    case 'ins':
+      return checkPositive({ term: term.val, typeName, positive, ctrName })
+    case 'slf':
+      return checkPositive({
+        term: term.bod({ form: 'var', name: term.name, idx: -1 }),
+        typeName,
+        positive,
+        ctrName,
+      })
+    default:
+      return { ok: true }
+  }
 }

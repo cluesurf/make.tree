@@ -555,12 +555,15 @@ function readType(fork: PFork): SurfType {
 function readCaseArm(fork: PFork): SurfCaseArm {
   const name = childWord(fork, 1) ?? ''
   const link: SurfLink[] = []
+  const hold: SurfLink[] = []
 
   for (const child of childForks(fork, 2)) {
-    if (headWord(child) === 'link') link.push(readLink(child))
+    const kw = headWord(child)
+    if (kw === 'link') link.push(readLink(child))
+    if (kw === 'hold') hold.push(readLink(child))
   }
 
-  return { form: 'case-arm', name, link, site }
+  return { form: 'case-arm', name, link, hold, site }
 }
 
 // -- Statements --

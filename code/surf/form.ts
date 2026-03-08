@@ -113,6 +113,7 @@ export type SurfCaseArm = SurfMixin & {
   form: 'case-arm'
   name: string
   link: SurfLink[]
+  hold?: SurfLink[]
 }
 
 export type SurfBond = SurfMixin & {
