@@ -23,12 +23,14 @@ export type MineDef = {
 export type MineRule =
   | MineTermRule
   | MineFormRef
+  | MineAnyRule
   | MineCaseRule
   | MineListRule
   | MineMaybeRule
   | MineTextRule
   | MinePathRule
   | MineTakeRule
+  | MineNeedRule
 
 /**
  * mine term [, term X]
@@ -57,6 +59,18 @@ export type MineFormRef = {
  * mine any
  *
  * Try each child rule in order. Use the first that matches.
+ */
+export type MineAnyRule = {
+  form: 'mine-any'
+  list: MineRule[]
+}
+
+/**
+ * mine case
+ *
+ * Match children in any order, but each child rule matches at most
+ * once. Children that are `mine-need` must match exactly once.
+ * Children that are other rules match at most once (optional).
  */
 export type MineCaseRule = {
   form: 'mine-case'
@@ -113,6 +127,18 @@ export type MinePathRule = {
 export type MineTakeRule = {
   form: 'mine-take'
   name: string
+}
+
+/**
+ * mine need
+ *
+ * Only valid inside `mine case`. Marks a child rule as required
+ * (must match exactly once). Without `mine need`, case children
+ * are optional (match at most once).
+ */
+export type MineNeedRule = {
+  form: 'mine-need'
+  rule: MineRule
 }
 
 // ---- Mint Rules ----

@@ -113,7 +113,7 @@ describe('kotlin: E2E halt/throw compilation', () => {
     expect(generatedKotlin).toContain('fun safeDiv(')
   })
 
-  it('uses throw SeedError for halt', () => {
+  it('uses throw SeedError for bust', () => {
     expect(generatedKotlin).toContain('throw SeedError')
   })
 

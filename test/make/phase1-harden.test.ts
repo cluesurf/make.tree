@@ -147,7 +147,7 @@ describe('walk size (range loop) desugaring', () => {
 describe('halt variants', () => {
   const book = compileFile('halt-variants.tree')
 
-  it('desugars halt kink with term field', () => {
+  it('desugars bust with term field', () => {
     expect(book.has('must-be-positive')).toBe(true)
   })
 
@@ -155,7 +155,7 @@ describe('halt variants', () => {
     expect(book.has('find-first')).toBe(true)
   })
 
-  it('TypeScript emits throw for halt kink', () => {
+  it('TypeScript emits throw for bust', () => {
     const out = castTS({ book })
     expect(out).toContain('throw new Error')
     expect(out).toContain('value must be positive')
@@ -171,7 +171,7 @@ describe('halt variants', () => {
     expect(out).toContain('continue;')
   })
 
-  it('Rust emits panic for halt kink', () => {
+  it('Rust emits panic for bust', () => {
     const out = castRust({ book })
     expect(out).toContain('panic!')
     expect(out).toContain('value must be positive')
@@ -182,12 +182,12 @@ describe('halt variants', () => {
     expect(out).toContain('break;')
   })
 
-  it('Kotlin emits throw for halt', () => {
+  it('Kotlin emits throw for bust', () => {
     const out = castKotlin({ book })
     expect(out).toContain('throw SeedError')
   })
 
-  it('Swift emits throw for halt', () => {
+  it('Swift emits throw for bust', () => {
     const out = castSwift({ book })
     expect(out).toContain('throw SeedError')
   })
@@ -251,7 +251,7 @@ describe('compile API: all targets work', () => {
   })
 })
 
-// ---- Halt in all backends ----
+// ---- Bust (throw) in all backends ----
 
 describe('halt-test.tree: all backends', () => {
   const book = compileFile('halt-test.tree')
@@ -278,13 +278,13 @@ describe('halt-test.tree: all backends', () => {
     expect(out).toContain('throw SeedError')
   })
 
-  it('HVM emits halt as log', () => {
+  it('HVM emits bust as log', () => {
     const out = castHVM({ book })
     expect(out).toContain('log(')
   })
 })
 
-// ---- Rest (debugger) in all backends ----
+// ---- Halt code (debugger) in all backends ----
 
 describe('rest-test.tree: all backends', () => {
   const book = compileFile('rest-test.tree')

@@ -119,8 +119,8 @@ describe('multi-file output', () => {
   })
 })
 
-describe('halt/risk error handling', () => {
-  it('emits throw for halt statements', () => {
+describe('bust/risk error handling', () => {
+  it('emits throw for bust statements', () => {
     const result = compileSingle('halt-test.tree')
     expect(result.code).toContain('throw new Error')
   })

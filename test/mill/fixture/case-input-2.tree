@@ -1,0 +1,12 @@
+
+task get-foo
+  take a
+  take b
+
+  hide true
+
+  call disperse
+    risk true
+    bind x, read a
+    wait true
+    bind y, read b

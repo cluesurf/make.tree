@@ -412,9 +412,6 @@ function walkRefs(input: { term: Term; dep: number; refs: Set<string> }): void {
     case 'hlt':
       walkRefs({ term: term.msg, dep, refs })
       return
-    case 'rst':
-      walkRefs({ term: term.val, dep, refs })
-      return
     case 'all':
       walkRefs({ term: term.inp, dep, refs })
       walkRefs({ term: term.bod({ form: 'var', name: term.name, idx: dep }), dep: dep + 1, refs })
@@ -771,9 +768,6 @@ function hasSelfTailCall(input: {
     case 'log':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
 
-    case 'rst':
-      return hasSelfTailCall({ term: term.val, refName, arity, dep })
-
     case 'ann':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
 
@@ -907,18 +901,17 @@ function castStmt(input: {
       return
     }
 
-    case 'rst': {
-      lines.push(`${pad}debugger;`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
-      return
-    }
-
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      if (term.term === 'fork') {
-        lines.push(`${pad}break;`)
-      } else {
+      if (term.term === 'bust') {
         lines.push(`${pad}throw new Error(${msg});`)
+      } else if (term.term === 'code') {
+        lines.push(`${pad}debugger;`)
+      } else if (term.term === 'flow') {
+        lines.push(`${pad}process.exit(1);`)
+      } else {
+        // bare halt or halt fork = break
+        lines.push(`${pad}break;`)
       }
       return
     }
@@ -1413,14 +1406,18 @@ function castExpr(input: { term: Term; dep: number; ctx: EmitCtx }): string {
       return `(console.log(${msg}), ${val})`
     }
 
-    case 'rst': {
-      const val = castExpr({ term: term.val, dep, ctx })
-      return `(debugger, ${val})`
-    }
-
     case 'hlt': {
       const msg = castExpr({ term: term.msg, dep, ctx })
-      return `(() => { throw new Error(${msg}); })()`
+      if (term.term === 'code') {
+        return '(debugger, undefined)'
+      }
+      if (term.term === 'bust') {
+        return `(() => { throw new Error(${msg}); })()`
+      }
+      if (term.term === 'flow') {
+        return `(() => { process.exit(1); })()`
+      }
+      return '(() => { break; })()'
     }
 
     case 'nxt':

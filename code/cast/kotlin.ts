@@ -597,13 +597,16 @@ function castStmt(input: {
       })
       return
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
-      lines.push(`${pad}throw SeedError(${msg}.toString())`)
-      return
-    }
-    case 'rst': {
-      lines.push(`${pad}// breakpoint`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail })
+      if (term.term === 'bust') {
+        const msg = castExpr({ term: term.msg, dep, ctx })
+        lines.push(`${pad}throw SeedError(${msg}.toString())`)
+      } else if (term.term === 'code') {
+        lines.push(`${pad}// breakpoint`)
+      } else if (term.term === 'flow') {
+        lines.push(`${pad}exitProcess(1)`)
+      } else {
+        lines.push(`${pad}break`)
+      }
       return
     }
     case 'nxt': {
@@ -987,12 +990,17 @@ function castExpr(input: {
     case 'src':
       return castExpr({ term: term.val, dep, ctx })
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx })
-      return `run { throw SeedError(${msg}.toString()) }`
-    }
-    case 'rst': {
-      const val = castExpr({ term: term.val, dep, ctx })
-      return `run { /* breakpoint */ ${val} }`
+      if (term.term === 'code') {
+        return 'run { /* breakpoint */ Unit }'
+      }
+      if (term.term === 'bust') {
+        const msg = castExpr({ term: term.msg, dep, ctx })
+        return `run { throw SeedError(${msg}.toString()) }`
+      }
+      if (term.term === 'flow') {
+        return 'run { exitProcess(1) }'
+      }
+      return 'run { break }'
     }
     case 'nxt':
       return 'Unit /* continue */'
@@ -1102,8 +1110,6 @@ function hasHaltCall(input: { term: Term; dep: number }): boolean {
         hasHaltCall({ term: term.msg, dep }) ||
         hasHaltCall({ term: term.val, dep })
       )
-    case 'rst':
-      return hasHaltCall({ term: term.val, dep })
     case 'mat':
       return term.arms.some(([, bod]) => hasHaltCall({ term: bod, dep }))
     case 'swi':

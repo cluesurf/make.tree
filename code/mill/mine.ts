@@ -11,12 +11,14 @@ import type {
   MineRule,
   MineTermRule,
   MineFormRef,
+  MineAnyRule,
   MineCaseRule,
   MineListRule,
   MineMaybeRule,
   MineTextRule,
   MinePathRule,
   MineTakeRule,
+  MineNeedRule,
 } from './form'
 
 // ---- Tree AST types (from parser output) ----
@@ -142,6 +144,8 @@ function walkRule(input: {
       return walkMineTerm({ rule, children, pos, take, ctx })
     case 'mine-form-ref':
       return walkMineFormRef({ rule, children, pos, take, ctx })
+    case 'mine-any':
+      return walkMineAny({ rule, children, pos, take, ctx })
     case 'mine-case':
       return walkMineCase({ rule, children, pos, take, ctx })
     case 'mine-list':
@@ -154,6 +158,8 @@ function walkRule(input: {
       return walkMinePath({ rule, children, pos, take, ctx })
     case 'mine-take':
       return walkMineTake({ rule, children, pos, take, ctx })
+    case 'mine-need':
+      return walkMineNeed({ rule, children, pos, take, ctx })
   }
 }
 
@@ -236,12 +242,12 @@ function walkMineFormRef(input: {
 }
 
 /**
- * mine case
+ * mine any
  *
  * Try each child rule. First match wins.
  */
-function walkMineCase(input: {
-  rule: MineCaseRule
+function walkMineAny(input: {
+  rule: MineAnyRule
   children: PNode[]
   pos: number
   take: TakeMap
@@ -258,6 +264,83 @@ function walkMineCase(input: {
     }
   }
   return { match: false, next: pos }
+}
+
+/**
+ * mine case
+ *
+ * Match children in any order, each child rule at most once.
+ * Scans remaining children trying each unmatched rule until
+ * no more rules match. Rules wrapped in `mine need` must all
+ * be satisfied or the whole case fails.
+ */
+function walkMineCase(input: {
+  rule: MineCaseRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take, ctx } = input
+
+  const matched = new Set<number>()
+  let current = pos
+
+  // Keep scanning children against unmatched rules
+  let progress = true
+  while (progress && current < children.length) {
+    progress = false
+    for (let i = 0; i < rule.list.length; i++) {
+      if (matched.has(i)) continue
+      const child = rule.list[i]!
+      // Unwrap mine-need to get the inner rule
+      const innerRule = child.form === 'mine-need' ? child.rule : child
+      const tryTake: TakeMap = new Map()
+      const result = walkRule({
+        rule: innerRule,
+        children,
+        pos: current,
+        take: tryTake,
+        ctx,
+      })
+      if (result.match) {
+        matched.add(i)
+        for (const [k, v] of tryTake) take.set(k, v)
+        current = result.next
+        progress = true
+        break // restart scan from the new position
+      }
+    }
+  }
+
+  // Check that all mine-need rules were matched
+  for (let i = 0; i < rule.list.length; i++) {
+    const child = rule.list[i]!
+    if (child.form === 'mine-need' && !matched.has(i)) {
+      ctx.errors.push(`required rule not matched in mine case`)
+      return { match: false, next: pos }
+    }
+  }
+
+  return { match: true, next: current }
+}
+
+/**
+ * mine need
+ *
+ * Wrapper that marks a rule as required inside mine case.
+ * Outside of mine case, behaves like a regular rule match.
+ */
+function walkMineNeed(input: {
+  rule: MineNeedRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take, ctx } = input
+  // When encountered outside mine case, just run the inner rule
+  return walkRule({ rule: rule.rule, children, pos, take, ctx })
 }
 
 /**

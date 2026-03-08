@@ -1,7 +1,7 @@
 /**
- * Cross-backend halt/error codegen tests.
+ * Cross-backend bust/error codegen tests.
  *
- * Verifies that halt-test.tree compiles correctly for all backends:
+ * Verifies that halt-test.tree (using bust) compiles correctly for all backends:
  * - TypeScript: throw new Error(...)
  * - Rust: Result<T, Box<dyn Error>> + Err(...)
  * - Kotlin: throw SeedError(...)
@@ -39,11 +39,11 @@ function compileFile(name: string): ReturnType<typeof desugarCard> {
   return desugarCard({ card })
 }
 
-describe('halt codegen: TypeScript', () => {
+describe('bust codegen: TypeScript', () => {
   const { book } = compileFile('halt-test.tree')
   const ts = castTS({ book })
 
-  it('generates throw for halt', () => {
+  it('generates throw for bust', () => {
     expect(ts).toContain('throw')
   })
 
@@ -52,7 +52,7 @@ describe('halt codegen: TypeScript', () => {
   })
 })
 
-describe('halt codegen: Rust', () => {
+describe('bust codegen: Rust', () => {
   const { book } = compileFile('halt-test.tree')
   const rs = castRust({ book })
 
@@ -60,12 +60,12 @@ describe('halt codegen: Rust', () => {
     expect(rs).toContain('fn safe_div(')
   })
 
-  it('generates panic for halt text', () => {
+  it('generates panic for bust text', () => {
     expect(rs).toContain('panic!')
   })
 })
 
-describe('halt codegen: Kotlin', () => {
+describe('bust codegen: Kotlin', () => {
   const { book } = compileFile('halt-test.tree')
   const kt = castKotlin({ book })
 
@@ -78,7 +78,7 @@ describe('halt codegen: Kotlin', () => {
   })
 })
 
-describe('halt codegen: Swift', () => {
+describe('bust codegen: Swift', () => {
   const { book } = compileFile('halt-test.tree')
   const sw = castSwift({ book })
 

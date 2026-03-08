@@ -154,7 +154,6 @@ function collectRefs(input: { term: Term; depth: number; refs: Set<string> }): v
       break
     case 'ins':
     case 'src':
-    case 'rst':
       collectRefs({ term: term.val, depth, refs })
       break
     case 'op2':

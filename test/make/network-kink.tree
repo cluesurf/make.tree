@@ -25,7 +25,7 @@ task kink-note
 task kink-throw
   take code, like text
   take note, like text
-  halt kink
+  bust
     call kink-make
       bind code, read code
       bind note, read note

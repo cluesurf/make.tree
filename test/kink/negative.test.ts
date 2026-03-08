@@ -84,7 +84,7 @@ describe('error formatting', () => {
   })
 })
 
-describe('halt in negative context', () => {
+describe('bust in negative context', () => {
   it('halt-test compiles successfully (not an error)', () => {
     const result = compileFixture('halt-test.tree')
     expect(result.book.has('safe-div')).toBe(true)

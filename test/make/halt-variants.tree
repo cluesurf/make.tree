@@ -6,7 +6,7 @@ task must-be-positive
       bind a, read n
       bind b, mark 0
     hook true
-      halt kink, text <value must be positive>
+      bust text <value must be positive>
     hook false
       send back, read n
 

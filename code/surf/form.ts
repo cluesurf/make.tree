@@ -48,6 +48,16 @@ export type SurfForm = SurfMixin & {
   hold?: Surf[]
 }
 
+export type SurfCaseType = SurfMixin & {
+  form: 'case-type'
+  name: string
+  like: SurfType
+  head: SurfHead[]
+  link: SurfLink[]
+  bind: SurfBind[]
+  hide?: boolean
+}
+
 export type SurfMask = SurfMixin & {
   form: 'mask'
   name: string
@@ -168,12 +178,12 @@ export type SurfBack = SurfMixin & {
 
 export type SurfHalt = SurfMixin & {
   form: 'halt'
-  term?: string
+  term?: 'code' | 'flow' | 'fork'
   sift?: Surf
 }
 
-export type SurfRest = SurfMixin & {
-  form: 'rest'
+export type SurfSendError = SurfMixin & {
+  form: 'send-error'
 }
 
 export type SurfNext = SurfMixin & {
@@ -310,7 +320,7 @@ export type SurfDive = SurfMixin & { form: 'dive', sift?: Surf }
 export type SurfHint = SurfMixin & { form: 'hint-log', sift?: Surf }
 export type SurfTell = SurfMixin & { form: 'tell', sift?: Surf }
 export type SurfKink = SurfMixin & { form: 'kink-log', sift?: Surf }
-export type SurfBust = SurfMixin & { form: 'bust', sift?: Surf }
+export type SurfBust = SurfMixin & { form: 'bust', name?: string, sift?: Surf, bind?: SurfBind[] }
 
 // -- Namespaces --
 
@@ -325,6 +335,7 @@ export type Surf =
   // Definitions
   | SurfTask
   | SurfForm
+  | SurfCaseType
   | SurfMask
   | SurfSuit
   | SurfWear
@@ -345,7 +356,7 @@ export type Surf =
   | SurfCall
   | SurfBack
   | SurfHalt
-  | SurfRest
+  | SurfSendError
   | SurfNext
   | SurfMeet
   | SurfFork

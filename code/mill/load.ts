@@ -134,13 +134,45 @@ function readMineKeyword(fork: PFork): MineRule | undefined {
     return { form: 'mine-form-ref', name: formName }
   }
 
-  if (mineType === 'case') {
-    // mine any
+  if (mineType === 'any') {
+    // mine any - alternatives (first match wins)
     const children = childForks(fork)
     const list: MineRule[] = []
     for (const child of children) {
       const rule = readMineRule(child)
       if (rule) list.push(rule)
+    }
+    return { form: 'mine-any', list }
+  }
+
+  if (mineType === 'case') {
+    // mine case - at-most-one-each, any order
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const kw = forkKeyword(child)
+      if (kw === 'mine') {
+        const innerType = inlineWord(child, 1)
+        if (innerType === 'need') {
+          // mine need - required child inside mine case
+          const needChildren = childForks(child)
+          const needRules: MineRule[] = []
+          for (const nc of needChildren) {
+            const r = readMineRule(nc)
+            if (r) needRules.push(r)
+          }
+          const innerRule: MineRule = needRules.length === 1
+            ? needRules[0]!
+            : { form: 'mine-term', list: needRules }
+          list.push({ form: 'mine-need', rule: innerRule })
+        } else {
+          const rule = readMineRule(child)
+          if (rule) list.push(rule)
+        }
+      } else {
+        const rule = readMineRule(child)
+        if (rule) list.push(rule)
+      }
     }
     return { form: 'mine-case', list }
   }

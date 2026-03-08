@@ -200,17 +200,11 @@ export type TermLog = {
   val: Term
 }
 
-/** Debugger breakpoint (rest) */
-export type TermRst = {
-  form: 'rst'
-  val: Term
-}
-
-/** Halt (panic/throw with message) */
+/** Halt (break, debugger, stop program, or throw) */
 export type TermHlt = {
   form: 'hlt'
   msg: Term
-  term?: 'kink' | 'flow' | 'fork'
+  term?: 'code' | 'flow' | 'fork' | 'bust'
 }
 
 /** Next (continue/skip in loops) */
@@ -246,7 +240,6 @@ export type Term =
   | TermVar
   | TermSrc
   | TermLog
-  | TermRst
   | TermHlt
   | TermNxt
 

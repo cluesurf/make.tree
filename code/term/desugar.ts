@@ -650,8 +650,7 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
     case 'dive':
     case 'hint-log':
     case 'tell':
-    case 'kink-log':
-    case 'bust': {
+    case 'kink-log': {
       const msg = first.sift
         ? desugarSift({ sift: first.sift, ctx })
         : ({ form: 'txt', val: first.form } as Term)
@@ -659,19 +658,28 @@ export function desugarFlow(input: { flow: Surf[]; ctx: Ctx }): Term {
       return { form: 'log', msg, val }
     }
 
-    // Debugger breakpoint
-    case 'rest': {
-      const val = desugarFlow({ flow: rest, ctx })
-      return { form: 'rst', val }
+    // Bust (throw error)
+    case 'bust': {
+      const msg = first.sift
+        ? desugarSift({ sift: first.sift, ctx })
+        : first.name
+          ? ({ form: 'txt', val: first.name } as Term)
+          : ({ form: 'txt', val: 'error' } as Term)
+      return { form: 'hlt', msg, term: 'bust' }
     }
 
-    // Standalone halt (panic/throw)
+    // Halt (break, debugger, stop program)
     case 'halt': {
       const msg = first.sift
         ? desugarSift({ sift: first.sift, ctx })
         : ({ form: 'txt', val: 'halt' } as Term)
-      const term = first.term as 'kink' | 'flow' | 'fork' | undefined
+      const term = first.term as 'code' | 'flow' | 'fork' | undefined
       return { form: 'hlt', msg, term }
+    }
+
+    // Send error (propagate error from call)
+    case 'send-error': {
+      return { form: 'hlt', msg: { form: 'txt', val: 'error' } as Term, term: 'bust' }
     }
 
     // Continue/skip in loops

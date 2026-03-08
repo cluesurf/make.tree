@@ -222,14 +222,19 @@ export function castTerm(input: { term: Term; dep: number; isAsync?: boolean }):
       return `log(${msg}) ${val}`
     }
 
-    case 'rst': {
-      const val = castTerm({ term: term.val, dep, isAsync })
-      return val
-    }
-
     case 'hlt': {
-      const msg = castTerm({ term: term.msg, dep, isAsync })
-      return `log(${msg}) *`
+      if (term.term === 'code') {
+        return '*'
+      }
+      if (term.term === 'bust') {
+        const msg = castTerm({ term: term.msg, dep, isAsync })
+        return `log(${msg}) *`
+      }
+      if (term.term === 'flow') {
+        const msg = castTerm({ term: term.msg, dep, isAsync })
+        return `log(${msg}) *`
+      }
+      return '*'
     }
 
     case 'nxt':

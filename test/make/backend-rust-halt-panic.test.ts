@@ -1,7 +1,7 @@
 /**
- * Rust backend test: standalone halt (panic/throw).
+ * Rust backend test: standalone bust (panic/throw).
  *
- * Tests that the `halt` keyword with a message compiles to
+ * Tests that the `bust` keyword with a message compiles to
  * `panic!()` in Rust and panics at runtime when reached.
  */
 
@@ -81,7 +81,7 @@ function run(input: {
   }
 }
 
-describe('rust: E2E standalone halt (panic)', () => {
+describe('rust: E2E standalone bust (panic)', () => {
   let generatedRust = ''
 
   beforeAll(() => {

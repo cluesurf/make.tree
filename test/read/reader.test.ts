@@ -143,16 +143,16 @@ task example
     }
   })
 
-  it('reads halt kink', () => {
+  it('reads halt code', () => {
     const card = read(`
 task example
-  halt kink
+  halt code
 `)
     const task = find(card, 'task')
     if (task?.form === 'task') {
       const halt = task.flow.find(n => n.form === 'halt')
       if (halt?.form === 'halt') {
-        expect(halt.term).toBe('kink')
+        expect(halt.term).toBe('code')
       }
     }
   })

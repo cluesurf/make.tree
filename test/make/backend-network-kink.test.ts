@@ -63,7 +63,7 @@ describe('network/kink: TypeScript', () => {
     expect(ts).toContain('kinkNote(')
   })
 
-  it('generates kinkThrow with throw statement', () => {
+  it('generates kinkThrow with bust/throw statement', () => {
     expect(ts).toContain('kinkThrow(')
     expect(ts).toContain('throw')
   })

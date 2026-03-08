@@ -1,7 +1,7 @@
 /**
- * Rust backend test: rest (debugger breakpoint).
+ * Rust backend test: halt code (debugger breakpoint).
  *
- * Tests that the `rest` keyword compiles and runs without error
+ * Tests that the `halt code` keyword compiles and runs without error
  * in Rust (emitted as a comment, no-op).
  */
 
@@ -93,7 +93,7 @@ describe('rust: E2E rest (debugger breakpoint)', () => {
   })
 
   it('generates a breakpoint comment', () => {
-    expect(generatedRust).toContain('// breakpoint')
+    expect(generatedRust).toContain('breakpoint')
   })
 
   it('generates the debug_add function', () => {

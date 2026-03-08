@@ -113,7 +113,7 @@ describe('mine walker', () => {
   it('handles mine any (alternatives)', () => {
     const fork = makeFork({ keyword: 'read', inlineWords: ['x'] })
     const rule: MineRule = {
-      form: 'mine-case',
+      form: 'mine-any',
       list: [
         {
           form: 'mine-term',
@@ -250,6 +250,167 @@ describe('mine walker', () => {
       term: 'form',
       list: [
         { form: 'mine-form-ref', name: 'nonexistent' },
+      ],
+    }
+    const ctx = makeCtx()
+    const result = walkMine({ rule, fork, ctx })
+    expect(result).toBeUndefined()
+    expect(ctx.errors.length).toBeGreaterThan(0)
+  })
+
+  it('handles mine case (at-most-one-each, any order)', () => {
+    // task foo
+    //   hide true
+    //   take a
+    //   take b
+    // Both hide and take can appear, but hide at most once, in any order
+    const fork = makeFork({
+      keyword: 'task',
+      inlineWords: ['foo'],
+      children: [
+        makeFork({ keyword: 'take', inlineWords: ['a'] }),
+        makeFork({ keyword: 'hide', inlineWords: ['true'] }),
+        makeFork({ keyword: 'take', inlineWords: ['b'] }),
+      ],
+    })
+    const rule: MineRule = {
+      form: 'mine-term',
+      term: 'task',
+      list: [
+        { form: 'mine-take', name: 'name' },
+        {
+          form: 'mine-case',
+          list: [
+            // hide is optional (at most once)
+            {
+              form: 'mine-term',
+              term: 'hide',
+              list: [{ form: 'mine-take', name: 'hide' }],
+            },
+            // take is repeated (wrapped in mine-list inside mine-case)
+            {
+              form: 'mine-list',
+              rule: {
+                form: 'mine-term',
+                term: 'take',
+                list: [{ form: 'mine-take', name: 'take' }],
+              },
+            },
+          ],
+        },
+      ],
+    }
+    const result = walkMine({ rule, fork, ctx: makeCtx() })
+    expect(result).toBeDefined()
+    expect(result!.get('name')?.form).toBe('text')
+    // hide was found despite being after a take
+    expect(result!.get('hide')?.form).toBe('text')
+    if (result!.get('hide')?.form === 'text') {
+      expect(result!.get('hide')!.val).toBe('true')
+    }
+  })
+
+  it('handles mine case with items in different order', () => {
+    // Same structure but hide comes first
+    const fork = makeFork({
+      keyword: 'task',
+      inlineWords: ['bar'],
+      children: [
+        makeFork({ keyword: 'hide', inlineWords: ['true'] }),
+        makeFork({ keyword: 'take', inlineWords: ['x'] }),
+      ],
+    })
+    const rule: MineRule = {
+      form: 'mine-term',
+      term: 'task',
+      list: [
+        { form: 'mine-take', name: 'name' },
+        {
+          form: 'mine-case',
+          list: [
+            {
+              form: 'mine-list',
+              rule: {
+                form: 'mine-term',
+                term: 'take',
+                list: [{ form: 'mine-take', name: 'take' }],
+              },
+            },
+            {
+              form: 'mine-term',
+              term: 'hide',
+              list: [{ form: 'mine-take', name: 'hide' }],
+            },
+          ],
+        },
+      ],
+    }
+    const result = walkMine({ rule, fork, ctx: makeCtx() })
+    expect(result).toBeDefined()
+    expect(result!.get('hide')?.form).toBe('text')
+    expect(result!.get('take')?.form).toBe('list')
+  })
+
+  it('handles mine need (required in mine case)', () => {
+    // call foo
+    //   read x
+    // name is required via mine need
+    const fork = makeFork({
+      keyword: 'call',
+      inlineWords: ['foo'],
+      children: [
+        makeFork({ keyword: 'read', inlineWords: ['x'] }),
+      ],
+    })
+    const rule: MineRule = {
+      form: 'mine-term',
+      term: 'call',
+      list: [
+        {
+          form: 'mine-case',
+          list: [
+            // name is required
+            {
+              form: 'mine-need',
+              rule: { form: 'mine-take', name: 'name' },
+            },
+            // wait is optional
+            {
+              form: 'mine-term',
+              term: 'wait',
+              list: [{ form: 'mine-take', name: 'wait' }],
+            },
+          ],
+        },
+      ],
+    }
+    const result = walkMine({ rule, fork, ctx: makeCtx() })
+    expect(result).toBeDefined()
+    expect(result!.get('name')?.form).toBe('text')
+    expect(result!.has('wait')).toBe(false)
+  })
+
+  it('fails mine need when required rule not matched', () => {
+    // Empty call with no children
+    const fork = makeFork({ keyword: 'call' })
+    const rule: MineRule = {
+      form: 'mine-term',
+      term: 'call',
+      list: [
+        {
+          form: 'mine-case',
+          list: [
+            // name is required but not present
+            {
+              form: 'mine-need',
+              rule: {
+                form: 'mine-term',
+                term: 'bind',
+                list: [{ form: 'mine-take', name: 'bind' }],
+              },
+            },
+          ],
+        },
       ],
     }
     const ctx = makeCtx()

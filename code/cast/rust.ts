@@ -597,9 +597,6 @@ function collectReturnInfo(input: {
     case 'log':
       collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
       break
-    case 'rst':
-      collectReturnInfo({ term: term.val, ctx, adts, literals, fieldVars })
-      break
     case 'hlt':
       break
     case 'swi':
@@ -829,8 +826,6 @@ function countVarUses(input: { name: string; term: Term; dep: number }): number 
         countVarUses({ name, term: term.msg, dep }) +
         countVarUses({ name, term: term.val, dep })
       )
-    case 'rst':
-      return countVarUses({ name, term: term.val, dep })
     case 'hlt':
       return countVarUses({ name, term: term.msg, dep })
     case 'adt':
@@ -929,9 +924,6 @@ function collectVarUses(input: {
       return
     case 'log':
       collectVarUses({ term: term.msg, dep, map })
-      collectVarUses({ term: term.val, dep, map })
-      return
-    case 'rst':
       collectVarUses({ term: term.val, dep, map })
       return
     case 'hlt':
@@ -1055,7 +1047,6 @@ function collectMutVars(input: { term: Term; dep: number }): Set<string> {
       case 'ann':
       case 'ins':
       case 'src':
-      case 'rst':
         walk(t.val, d, bound)
         return
       case 'hlt':
@@ -1171,8 +1162,6 @@ function hasSelfTailCall(input: {
         dep,
       })
     case 'log':
-      return hasSelfTailCall({ term: term.val, refName, arity, dep })
-    case 'rst':
       return hasSelfTailCall({ term: term.val, refName, arity, dep })
     default:
       return false
@@ -1419,18 +1408,16 @@ function castStmt(input: {
       castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
       return
     }
-    case 'rst': {
-      // Rust has no debugger statement; emit a comment
-      lines.push(`${pad}// breakpoint`)
-      castStmt({ term: term.val, dep, ctx, lines, indent, tail, okWrap, usage, mutVars })
-      return
-    }
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx, usage })
-      if (term.term === 'fork') {
-        lines.push(`${pad}break;`)
-      } else {
+      if (term.term === 'bust') {
+        const msg = castExpr({ term: term.msg, dep, ctx, usage })
         lines.push(`${pad}panic!("{}", ${msg});`)
+      } else if (term.term === 'code') {
+        lines.push(`${pad}// breakpoint`)
+      } else if (term.term === 'flow') {
+        lines.push(`${pad}std::process::exit(1);`)
+      } else {
+        lines.push(`${pad}break;`)
       }
       return
     }
@@ -2010,13 +1997,18 @@ function castExpr(input: {
       const val = castExpr({ term: term.val, dep, ctx, usage })
       return `{ println!("{}", ${msg}); ${val} }`
     }
-    case 'rst': {
-      const val = castExpr({ term: term.val, dep, ctx, usage })
-      return `{ /* breakpoint */ ${val} }`
-    }
     case 'hlt': {
-      const msg = castExpr({ term: term.msg, dep, ctx, usage })
-      return `panic!("{}", ${msg})`
+      if (term.term === 'code') {
+        return '() /* breakpoint */'
+      }
+      if (term.term === 'bust') {
+        const msg = castExpr({ term: term.msg, dep, ctx, usage })
+        return `panic!("{}", ${msg})`
+      }
+      if (term.term === 'flow') {
+        return `std::process::exit(1)`
+      }
+      return '{ break; }'
     }
     case 'nxt':
       return '() /* continue */'
@@ -2110,8 +2102,6 @@ function hasHaltCall(input: { term: Term; dep: number }): boolean {
         hasHaltCall({ term: term.msg, dep }) ||
         hasHaltCall({ term: term.val, dep })
       )
-    case 'rst':
-      return hasHaltCall({ term: term.val, dep })
     case 'hlt':
       return false
     case 'mat':

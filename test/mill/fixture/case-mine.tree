@@ -1,0 +1,85 @@
+
+mine task
+  mine term, term task
+    mine term
+      slot name
+    mine case
+      mine maybe
+        mine term, term hide
+          slot hide
+      mine maybe
+        mine term, term wait
+          slot wait
+      mine need
+        mine list
+          mine form, like take
+            slot take
+      mine list
+        mine form, like flow
+          slot flow
+
+mine take
+  mine term, term take
+    mine term
+      slot name
+    mine maybe
+      mine form, like like
+        slot like
+
+mine like
+  mine term, term like
+    mine term
+      slot name
+
+mine flow
+  mine any
+    mine form, like call
+      slot call
+    mine form, like save
+      slot save
+
+mine call
+  mine term, term call
+    mine term
+      slot name
+    mine case
+      mine maybe
+        mine term, term wait
+          slot wait
+      mine maybe
+        mine term, term risk
+          slot risk
+      mine list
+        mine form, like bind
+          slot bind
+
+mine save
+  mine term, term save
+    mine term
+      slot name
+    mine form, like seed
+      slot seed
+
+mine seed
+  mine any
+    mine form, like mark
+      slot mark
+    mine form, like read
+      slot read
+
+mine mark
+  mine term, term mark
+    mine term
+      slot value
+
+mine read
+  mine term, term read
+    mine term
+      slot name
+
+mine bind
+  mine term, term bind
+    mine term
+      slot name
+    mine form, like seed
+      slot seed

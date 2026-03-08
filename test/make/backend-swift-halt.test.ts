@@ -112,7 +112,7 @@ describe('swift: E2E halt/throws compilation', () => {
     expect(generatedSwift).toContain('throws')
   })
 
-  it('uses throw SeedError for halt', () => {
+  it('uses throw SeedError for bust', () => {
     expect(generatedSwift).toContain('throw SeedError')
   })
 
