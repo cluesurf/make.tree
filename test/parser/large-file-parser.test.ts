@@ -7,7 +7,7 @@
 
 import { resolve } from 'path'
 import { describe, it, expect, beforeAll } from 'vitest'
-import { ChunkedParser } from '@/parser/chunk'
+import { ChunkedParser } from '@/parser/string'
 import { StringParser } from '@/parser/index'
 import { loadGrammar } from '@/parser/grammar-loader'
 import { showTree } from '@/parser/tree-show'
