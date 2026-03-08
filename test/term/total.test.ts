@@ -145,8 +145,8 @@ describe('term/total', () => {
     expect(result.ok).toBe(true)
   })
 
-  describe('firm purity', () => {
-    it('rejects halt (exceptions) in firm functions', () => {
+  describe('fold purity', () => {
+    it('rejects halt (exceptions) in fold functions', () => {
       const term: Term = lam('x', () => ({
         form: 'hlt',
         msg: { form: 'txt', val: 'error' },
@@ -156,14 +156,14 @@ describe('term/total', () => {
       if (!result.ok) expect(result.reason).toContain('cannot throw exceptions')
     })
 
-    it('rejects turn next (nxt) in firm functions', () => {
+    it('rejects turn next (nxt) in fold functions', () => {
       const term: Term = lam('x', () => ({ form: 'nxt' }))
       const result = checkTotal({ name: 'bad', term, book: new Map() })
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.reason).toContain('control flow')
     })
 
-    it('rejects breakpoints (rst) in firm functions', () => {
+    it('rejects breakpoints (rst) in fold functions', () => {
       const term: Term = lam('x', x => ({
         form: 'rst',
         val: x,
@@ -173,7 +173,7 @@ describe('term/total', () => {
       if (!result.ok) expect(result.reason).toContain('breakpoints')
     })
 
-    it('rejects async (.wait) in firm functions', () => {
+    it('rejects async (.wait) in fold functions', () => {
       const term: Term = lam('x', x =>
         app({ form: 'ref', name: '.wait' }, x),
       )
@@ -182,7 +182,7 @@ describe('term/total', () => {
       if (!result.ok) expect(result.reason).toContain('async')
     })
 
-    it('accepts pure firm function', () => {
+    it('accepts pure fold function', () => {
       const term: Term = lam('x', x => x)
       const result = checkTotal({ name: 'id', term, book: new Map() })
       expect(result.ok).toBe(true)

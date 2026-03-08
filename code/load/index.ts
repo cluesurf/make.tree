@@ -8,7 +8,7 @@
 
 import { readCard } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard, type FirmSet, type AsyncMeta } from '@/term/desugar'
+import { desugarCard, type FoldSet, type AsyncMeta } from '@/term/desugar'
 import { resolveStdlib } from '@/stdlib'
 import { extractSkele } from '@/resolve/skeleton'
 import { initResolver, resolveTemplates, type ResolveError } from '@/resolve'
@@ -32,7 +32,7 @@ export type LoadResult = {
   book: Book
   files: string[]
   fileMap: Map<string, string[]>
-  firmSet: FirmSet
+  foldSet: FoldSet
   asyncMeta: AsyncMeta
   dock: DockLoad[]
 }
@@ -45,7 +45,7 @@ export function loadBook(input: {
   const book: Book = new Map()
   const files: string[] = []
   const fileMap = new Map<string, string[]>()
-  const firmSet: FirmSet = new Set()
+  const foldSet: FoldSet = new Set()
   const asyncMeta: AsyncMeta = new Map()
   const dock: DockLoad[] = []
 
@@ -56,12 +56,12 @@ export function loadBook(input: {
     book,
     files,
     fileMap,
-    firmSet,
+    foldSet,
     asyncMeta,
     dock,
   })
 
-  return { book, files, fileMap, firmSet, asyncMeta, dock }
+  return { book, files, fileMap, foldSet, asyncMeta, dock }
 }
 
 function loadFile(input: {
@@ -71,11 +71,11 @@ function loadFile(input: {
   book: Book
   files: string[]
   fileMap: Map<string, string[]>
-  firmSet: FirmSet
+  foldSet: FoldSet
   asyncMeta: AsyncMeta
   dock: DockLoad[]
 }): void {
-  const { file, env, visited, book, files, fileMap, firmSet, asyncMeta, dock } = input
+  const { file, env, visited, book, files, fileMap, foldSet, asyncMeta, dock } = input
 
   if (visited.has(file)) return
   visited.add(file)
@@ -147,7 +147,7 @@ function loadFile(input: {
 
       const resolved = env.resolvePath(file, loadPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta, dock })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, foldSet, asyncMeta, dock })
       }
     }
 
@@ -155,7 +155,7 @@ function loadFile(input: {
       const bearPath = node.path.join('/')
       const resolved = env.resolvePath(file, bearPath)
       if (resolved) {
-        loadFile({ file: resolved, env, visited, book, files, fileMap, firmSet, asyncMeta, dock })
+        loadFile({ file: resolved, env, visited, book, files, fileMap, foldSet, asyncMeta, dock })
       }
     }
   }
@@ -175,8 +175,8 @@ function loadFile(input: {
     book.set(name, term)
     fileNames.push(name)
   }
-  for (const name of fileResult.firmSet) {
-    firmSet.add(name)
+  for (const name of fileResult.foldSet) {
+    foldSet.add(name)
   }
   for (const [name, val] of fileResult.asyncMeta) {
     asyncMeta.set(name, val)
@@ -250,7 +250,7 @@ export function loadPackage(input: {
   // Phase 5: Expand and desugar with all names and trees known
   const book: Book = new Map()
   const fileMap = new Map<string, string[]>()
-  const firmSet: FirmSet = new Set()
+  const foldSet: FoldSet = new Set()
   const asyncMeta: AsyncMeta = new Map()
   const dock: DockLoad[] = []
   const processedStdlib = new Set<string>()
@@ -316,8 +316,8 @@ export function loadPackage(input: {
       book.set(name, term)
       fileNames.push(name)
     }
-    for (const name of fileResult.firmSet) {
-      firmSet.add(name)
+    for (const name of fileResult.foldSet) {
+      foldSet.add(name)
     }
     for (const [name, val] of fileResult.asyncMeta) {
       asyncMeta.set(name, val)
@@ -329,7 +329,7 @@ export function loadPackage(input: {
     book,
     files: allFiles,
     fileMap,
-    firmSet,
+    foldSet,
     asyncMeta,
     dock,
     resolveErrors: resolved.errors,

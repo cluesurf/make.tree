@@ -9,7 +9,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { readCard, readCardTolerant } from '@/read'
 import { expandFuse } from '@/fuse'
-import { desugarCard, desugarCardTolerant, type AsyncMeta, type FirmSet } from '@/term/desugar'
+import { desugarCard, desugarCardTolerant, type AsyncMeta, type FoldSet } from '@/term/desugar'
 import { check } from '@/term/check'
 import { checkTotal } from '@/term/total'
 import { castBook as castTS, castBookToFiles as castTSFiles } from '@/cast/typescript'
@@ -67,13 +67,13 @@ export function compile(input: {
   const { file, env, target } = input
 
   const result = loadBook({ file, env })
-  const { book, files, firmSet, asyncMeta, dock } = result
+  const { book, files, foldSet, asyncMeta, dock } = result
 
   const dockNames = extractDockNames({ dock: dock ?? [] })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const errors = checkBook({ book, firmSet })
-  const erased = eraseProofs({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
+  const erased = eraseProofs({ book, foldSet })
   const optimized = optimizeBook({ book: erased })
   const code = generate({ book: optimized, target, dock, asyncMeta })
 
@@ -91,10 +91,10 @@ export function compileToFiles(input: {
   const { file, env } = input
 
   const result = loadBook({ file, env })
-  const { book, files, fileMap, firmSet } = result
+  const { book, files, fileMap, foldSet } = result
 
-  const errors = checkBook({ book, firmSet })
-  const erased = eraseProofs({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
+  const erased = eraseProofs({ book, foldSet })
   const optimized = optimizeBook({ book: erased })
   const codeFiles = castTSFiles({ book: optimized, fileMap })
 
@@ -114,13 +114,13 @@ export function compilePackage(input: {
   const { file, env, target } = input
 
   const result = loadPackage({ file, env })
-  const { book, files, firmSet, asyncMeta, resolveErrors, dock } = result
+  const { book, files, foldSet, asyncMeta, resolveErrors, dock } = result
 
   const dockNames = extractDockNames({ dock: dock ?? [] })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const errors = checkBook({ book, firmSet })
-  const erased = eraseProofs({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
+  const erased = eraseProofs({ book, foldSet })
   const optimized = optimizeBook({ book: erased })
   const code = generate({ book: optimized, target, asyncMeta })
 
@@ -162,13 +162,13 @@ export function compilePackageHybrid(input: {
   const { file, env, nativeTarget } = input
 
   const result = loadPackage({ file, env })
-  const { book, files, firmSet, asyncMeta, dock } = result
+  const { book, files, foldSet, asyncMeta, dock } = result
 
   const dockNames = extractDockNames({ dock: dock ?? [] })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const errors = checkBook({ book, firmSet })
-  const erased = eraseProofs({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
+  const erased = eraseProofs({ book, foldSet })
   const optimized = optimizeBook({ book: erased })
   const hybrid = castHybrid({
     book: optimized,
@@ -202,12 +202,12 @@ export function compileText(input: {
   const rawCard = readCard({ tree: lead.tree, file })
   const card = expandFuse({ card: rawCard })
   const dock = extractDockLoads({ card })
-  const { book, asyncMeta, firmSet } = desugarCard({ card })
+  const { book, asyncMeta, foldSet } = desugarCard({ card })
 
   const dockNames = extractDockNames({ dock })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const errors = checkBook({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
   const optimized = optimizeBook({ book })
   const code = generate({ book: optimized, target, dock, asyncMeta })
 
@@ -237,13 +237,13 @@ export function compileTextTolerant(input: {
 
   const card = expandFuse({ card: rawCard })
   const dock = extractDockLoads({ card })
-  const { book, asyncMeta, firmSet, errors: desugarErrors } = desugarCardTolerant({ card })
+  const { book, asyncMeta, foldSet, errors: desugarErrors } = desugarCardTolerant({ card })
   allErrors.push(...desugarErrors)
 
   const dockNames = extractDockNames({ dock })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const checkErrors = checkBook({ book, firmSet })
+  const checkErrors = checkBook({ book, foldSet })
   allErrors.push(...checkErrors)
 
   const optimized = optimizeBook({ book })
@@ -446,7 +446,7 @@ export function compileIncremental(input: {
   // We always re-desugar from cached SurfCards, which is fast enough.
   const book: Book = new Map()
   let asyncMeta: AsyncMeta | undefined
-  const firmSet: FirmSet = new Set()
+  const foldSet: FoldSet = new Set()
   const allDock: DockLoad[] = []
 
   for (const [f, card] of cards) {
@@ -469,8 +469,8 @@ export function compileIncremental(input: {
         asyncMeta.set(name, val)
       }
     }
-    for (const name of result.firmSet) {
-      firmSet.add(name)
+    for (const name of result.foldSet) {
+      foldSet.add(name)
     }
   }
 
@@ -478,7 +478,7 @@ export function compileIncremental(input: {
   const dockNames = extractDockNames({ dock: allDock })
   const purityMap = analyzePurity({ book, asyncMeta, dockNames })
 
-  const errors = checkBook({ book, firmSet })
+  const errors = checkBook({ book, foldSet })
   const optimized = optimizeBook({ book })
   const code = generate({ book: optimized, target, dock: allDock, asyncMeta })
 
@@ -492,11 +492,11 @@ export function compileIncremental(input: {
 
 /**
  * Type-check every definition in a book.
- * Also runs totality checking for definitions marked with `firm true`.
+ * Also runs totality checking for definitions marked with `fold well`.
  * Returns Kink errors for any type mismatches or totality failures.
  */
-function checkBook(input: { book: Book; firmSet?: FirmSet }): Kink[] {
-  const { book, firmSet } = input
+function checkBook(input: { book: Book; foldSet?: FoldSet }): Kink[] {
+  const { book, foldSet } = input
   const allErrors: Kink[] = []
   const names = [...book.keys()]
 
@@ -511,8 +511,8 @@ function checkBook(input: { book: Book; firmSet?: FirmSet }): Kink[] {
       allErrors.push(...errors)
     }
 
-    // Totality check for firm definitions
-    if (firmSet?.has(name)) {
+    // Totality check for fold definitions
+    if (foldSet?.has(name)) {
       const totalResult = checkTotal({ name, term, book })
       if (!totalResult.ok) {
         allErrors.push(

@@ -231,7 +231,7 @@ describe('error cases', () => {
     })
 
     it('valid code literal', () => {
-      expectNoError({ text: 'foo #b101\n' })
+      expectNoError({ text: 'foo 0b101\n' })
     })
 
     it('valid path', () => {
@@ -267,7 +267,7 @@ describe('error cases', () => {
     })
 
     it('valid hex code', () => {
-      expectNoError({ text: 'color #xff\n' })
+      expectNoError({ text: 'color 0xff\n' })
     })
 
     it('valid multiple top level', () => {

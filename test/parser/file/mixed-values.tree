@@ -2,7 +2,7 @@
 bind count, 42
 bind name, <hello>
 bind path, ./foo/bar
-bind code, #b101
+bind code, 0b101
 
 ---
 
@@ -17,4 +17,4 @@ bind
   ./foo/bar
 bind
   code
-  #b101
+  0b101

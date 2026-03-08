@@ -230,6 +230,61 @@ function readMineKeyword(fork: PFork): MineRule | undefined {
     return { form: 'mine-path', list }
   }
 
+  if (mineType === 'number') {
+    // mine number - match PSize or PComb
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const rule = readMineRule(child)
+      if (rule) list.push(rule)
+    }
+    return { form: 'mine-number', list }
+  }
+
+  if (mineType === 'code') {
+    // mine code - match PCode (0x, 0b, 0o literals)
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const rule = readMineRule(child)
+      if (rule) list.push(rule)
+    }
+    return { form: 'mine-code', list }
+  }
+
+  if (mineType === 'load-path') {
+    // mine load-path - ./foo, @foo, /foo (no optional ?)
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const rule = readMineRule(child)
+      if (rule) list.push(rule)
+    }
+    return { form: 'mine-load-path', list }
+  }
+
+  if (mineType === 'read-path') {
+    // mine read-path - foo, foo/bar, foo?/bar (allows ?)
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const rule = readMineRule(child)
+      if (rule) list.push(rule)
+    }
+    return { form: 'mine-read-path', list }
+  }
+
+  if (mineType === 'save-path') {
+    // mine save-path - foo, foo/bar (no optional ?)
+    const children = childForks(fork)
+    const list: MineRule[] = []
+    for (const child of children) {
+      const rule = readMineRule(child)
+      if (rule) list.push(rule)
+    }
+    return { form: 'mine-save-path', list }
+  }
+
   // Unknown mine type: try treating as a top-level inline term match
   // e.g., `mine term` with no comma separator
   if (!mineType) {

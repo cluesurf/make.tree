@@ -285,7 +285,7 @@ function readForm(fork: PFork): SurfForm {
   const wear: SurfWear[] = []
   let like: SurfType | undefined
   let hide: boolean | undefined
-  let firm: boolean | undefined
+  let fold: boolean | undefined
   const hold: Surf[] = []
 
   for (const child of childForks(fork, 2)) {
@@ -312,11 +312,13 @@ function readForm(fork: PFork): SurfForm {
       case 'like':
         like = readType(child)
         break
-      case 'hide':
-        hide = childWord(child, 1) === 'true'
+      case 'mark': {
+        const markVal = childWord(child, 1)
+        if (markVal === 'private') hide = true
         break
-      case 'firm':
-        firm = childWord(child, 1) === 'true'
+      }
+      case 'fold':
+        fold = childWord(child, 1) === 'well'
         break
       case 'hold': {
         const holdSift = readSiftFromChild(child)
@@ -335,7 +337,7 @@ function readForm(fork: PFork): SurfForm {
   const result: SurfForm = { form: 'form', name, head, link, case: cases, bond, task, wear, site }
   if (like) result.like = like
   if (hide) result.hide = hide
-  if (firm) result.firm = firm
+  if (fold) result.fold = fold
   if (hold.length > 0) result.hold = hold
   return result
 }
@@ -363,9 +365,11 @@ function readCaseType(fork: PFork): SurfCaseType {
       case 'bind':
         bind.push(readBind(child))
         break
-      case 'hide':
-        hide = childWord(child, 1) === 'true'
+      case 'mark': {
+        const markVal = childWord(child, 1)
+        if (markVal === 'private') hide = true
         break
+      }
       default: {
         // Treat unknown keywords as prefilled values (head, code, hint, etc.)
         const val = readSiftFromChild(child)
@@ -402,7 +406,7 @@ function readTask(fork: PFork): SurfTask {
   let risk: boolean | undefined
   let wait: boolean | undefined
   let hide: boolean | undefined
-  let firm: boolean | undefined
+  let fold: boolean | undefined
   let alias: string | undefined
 
   for (const child of childForks(fork, 2)) {
@@ -421,17 +425,15 @@ function readTask(fork: PFork): SurfTask {
       case 'task':
         task.push(readTask(child))
         break
-      case 'risk':
-        risk = childWord(child, 1) === 'true'
+      case 'mark': {
+        const markVal = childWord(child, 1)
+        if (markVal === 'unsafe') risk = true
+        else if (markVal === 'async') wait = true
+        else if (markVal === 'private') hide = true
         break
-      case 'wait':
-        wait = childWord(child, 1) === 'true'
-        break
-      case 'hide':
-        hide = childWord(child, 1) === 'true'
-        break
-      case 'firm':
-        firm = childWord(child, 1) === 'true'
+      }
+      case 'fold':
+        fold = childWord(child, 1) === 'well'
         break
       case 'name':
         alias = childKnitText(child, 1) ?? childWord(child, 1)
@@ -449,7 +451,7 @@ function readTask(fork: PFork): SurfTask {
   if (risk) result.risk = risk
   if (wait) result.wait = wait
   if (hide) result.hide = hide
-  if (firm) result.firm = firm
+  if (fold) result.fold = fold
   if (alias) result.alias = alias
   return result
 }
@@ -909,7 +911,7 @@ function readCall(fork: PFork, extraChildren: PFork[]): SurfCall {
     const kw = headWord(child)
     if (kw === 'bind') binds.push(readBind(child))
     else if (kw === 'halt') halt = true
-    else if (kw === 'wait') wait = childWord(child, 1) === 'true'
+    else if (kw === 'mark' && childWord(child, 1) === 'async') wait = true
     else if (kw === 'take') {
       callbackBase.push(readBase(child))
     }
@@ -1040,8 +1042,8 @@ function readLoad(fork: PFork): SurfLoad {
       find.push(readFind(child))
     } else if (kw === 'name') {
       name = childWord(child, 1)
-    } else if (kw === 'host') {
-      dock = childWord(child, 1) === 'true'
+    } else if (kw === 'mark' && childWord(child, 1) === 'native') {
+      dock = true
     } else if (kw === 'load') {
       // Nested load: load /sub/path → resolves relative to parent
       nestedLoads.push(readLoad(child))

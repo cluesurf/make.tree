@@ -7,7 +7,7 @@
 import { extractSkele, type FileSkele, type NameSkele } from './skeleton'
 import { initResolver, resolveTemplates, type ResolverState } from './index'
 import type { Book, Term } from '@/term/form'
-import type { FirmSet } from '@/term/desugar'
+import type { FoldSet } from '@/term/desugar'
 
 export type IncrementalState = {
   resolver: ResolverState
@@ -15,7 +15,7 @@ export type IncrementalState = {
   reverseDeps: Map<string, Set<string>>
   cachedBooks: Map<string, Map<string, Term>>
   book: Book
-  firmSet: FirmSet
+  foldSet: FoldSet
 }
 
 export function createIncrementalState(input: {
@@ -27,7 +27,7 @@ export function createIncrementalState(input: {
     reverseDeps: new Map(),
     cachedBooks: new Map(),
     book: new Map(),
-    firmSet: new Set(),
+    foldSet: new Set(),
   }
 }
 

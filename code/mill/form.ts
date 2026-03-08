@@ -31,6 +31,11 @@ export type MineRule =
   | MinePathRule
   | MineTakeRule
   | MineNeedRule
+  | MineNumberRule
+  | MineCodeRule
+  | MineLoadPathRule
+  | MineReadPathRule
+  | MineSavePathRule
 
 /**
  * mine term [, term X]
@@ -139,6 +144,61 @@ export type MineTakeRule = {
 export type MineNeedRule = {
   form: 'mine-need'
   rule: MineRule
+}
+
+/**
+ * mine number
+ *
+ * Match a numeric literal (PSize or PComb).
+ * Extracts the numeric value.
+ */
+export type MineNumberRule = {
+  form: 'mine-number'
+  list: MineRule[]
+}
+
+/**
+ * mine code
+ *
+ * Match a code literal (PCode, e.g. 0x1F, 0b1010, 0o755).
+ * Extracts the numeric value and mold (base indicator).
+ */
+export type MineCodeRule = {
+  form: 'mine-code'
+  list: MineRule[]
+}
+
+/**
+ * mine load-path
+ *
+ * Match an import-style path: ./foo/bar, @foo/bar, ./{foo}/bar, /foo/bar.
+ * Does NOT allow optional markers (foo?).
+ */
+export type MineLoadPathRule = {
+  form: 'mine-load-path'
+  list: MineRule[]
+}
+
+/**
+ * mine read-path
+ *
+ * Match a read-access path: foo, foo/bar, {foo}/bar, foo?/bar.
+ * Allows optional markers (?).
+ */
+export type MineReadPathRule = {
+  form: 'mine-read-path'
+  list: MineRule[]
+}
+
+/**
+ * mine save-path
+ *
+ * Match a save/write path: foo, foo/bar, {foo}/bar.
+ * Does NOT allow optional markers (foo?).
+ */
+export type MineSavePathRule = {
+  form: 'mine-save-path'
+  list: MineRule[]
 }
 
 // ---- Mint Rules ----

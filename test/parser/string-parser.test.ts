@@ -101,7 +101,7 @@ describe('StringParser', () => {
     })
 
     it('should parse code literal', () => {
-      assertParse('foo #b101\n', 'foo\n  #b101')
+      assertParse('foo 0b101\n', 'foo\n  0b101')
     })
   })
 

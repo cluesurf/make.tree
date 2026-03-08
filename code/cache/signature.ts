@@ -93,7 +93,7 @@ function formSignature(input: { form: SurfForm }): unknown {
     })),
     like: input.form.like,
     hide: input.form.hide,
-    firm: input.form.firm,
+    fold: input.form.fold,
   }
 }
 

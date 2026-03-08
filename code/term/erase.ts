@@ -2,7 +2,7 @@
  * Proof erasure pass.
  *
  * Removes proof-only definitions from the Book before code generation.
- * Proofs are functions marked `firm true` whose return type is a proof
+ * Proofs are functions marked `fold well` whose return type is a proof
  * type (Equal, Void, Unit, Decidable, Sigma). These exist only for
  * compile-time verification and have zero runtime cost.
  *
@@ -100,13 +100,13 @@ function getReturnType(input: { term: Term }): Term | null {
  * 2. It is annotated (has a type) so we can determine the return type
  *
  * Definitions without type annotations are kept (runtime code).
- * The firmSet is used as a hint: firm definitions are more likely proofs.
+ * The foldSet is used as a hint: fold definitions are more likely proofs.
  */
 export function eraseProofs(input: {
   book: Book
-  firmSet?: Set<string>
+  foldSet?: Set<string>
 }): Book {
-  const { book, firmSet } = input
+  const { book, foldSet } = input
   const erased = new Set<string>()
 
   // First pass: identify proof definitions

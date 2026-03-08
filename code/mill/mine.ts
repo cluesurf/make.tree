@@ -19,6 +19,11 @@ import type {
   MinePathRule,
   MineTakeRule,
   MineNeedRule,
+  MineNumberRule,
+  MineCodeRule,
+  MineLoadPathRule,
+  MineReadPathRule,
+  MineSavePathRule,
 } from './form'
 
 // ---- Tree AST types (from parser output) ----
@@ -160,6 +165,16 @@ function walkRule(input: {
       return walkMineTake({ rule, children, pos, take, ctx })
     case 'mine-need':
       return walkMineNeed({ rule, children, pos, take, ctx })
+    case 'mine-number':
+      return walkMineNumber({ rule, children, pos, take, ctx })
+    case 'mine-code':
+      return walkMineCode({ rule, children, pos, take, ctx })
+    case 'mine-load-path':
+      return walkMineLoadPath({ rule, children, pos, take, ctx })
+    case 'mine-read-path':
+      return walkMineReadPath({ rule, children, pos, take, ctx })
+    case 'mine-save-path':
+      return walkMineSavePath({ rule, children, pos, take, ctx })
   }
 }
 
@@ -553,6 +568,202 @@ function walkMineTake(input: {
   }
 
   return { match: false, next: pos }
+}
+
+/**
+ * mine number
+ *
+ * Match a numeric literal (PSize for integers, PComb for decimals).
+ * Extracts the numeric value.
+ */
+function walkMineNumber(input: {
+  rule: MineNumberRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take } = input
+  const child = children[pos]
+  if (!child) return { match: false, next: pos }
+
+  let value: number | undefined
+
+  if (child.form === 'tree-size') {
+    value = child.bond
+  } else if (child.form === 'tree-comb') {
+    value = child.bond
+  }
+
+  if (value === undefined) return { match: false, next: pos }
+
+  for (const sub of rule.list) {
+    if (sub.form === 'mine-take') {
+      take.set(sub.name, { form: 'mark', val: value })
+    }
+  }
+
+  return { match: true, next: pos + 1 }
+}
+
+/**
+ * mine code
+ *
+ * Match a code literal (PCode node, e.g. 0x1F, 0b1010, 0o755).
+ */
+function walkMineCode(input: {
+  rule: MineCodeRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take } = input
+  const child = children[pos]
+  if (!child) return { match: false, next: pos }
+
+  if (child.form !== 'tree-code') return { match: false, next: pos }
+
+  for (const sub of rule.list) {
+    if (sub.form === 'mine-take') {
+      take.set(sub.name, { form: 'mark', val: child.bond })
+    }
+  }
+
+  return { match: true, next: pos + 1 }
+}
+
+/**
+ * mine load-path
+ *
+ * Match an import-style path: ./foo/bar, @foo/bar, ./{foo}/bar, /foo/bar.
+ * Rejects paths with optional markers (?).
+ */
+function walkMineLoadPath(input: {
+  rule: MineLoadPathRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take } = input
+  const child = children[pos]
+  if (!child) return { match: false, next: pos }
+
+  let pathText = extractPathText(child)
+  if (!pathText) return { match: false, next: pos }
+
+  // Load paths must start with ./, @, or /
+  if (!pathText.startsWith('./') && !pathText.startsWith('@') && !pathText.startsWith('/')) {
+    return { match: false, next: pos }
+  }
+
+  // Load paths must NOT contain optional markers
+  if (pathText.includes('?')) {
+    return { match: false, next: pos }
+  }
+
+  const segments = pathText.split('/')
+
+  for (const sub of rule.list) {
+    if (sub.form === 'mine-take') {
+      take.set(sub.name, { form: 'path', val: segments })
+    }
+  }
+
+  return { match: true, next: pos + 1 }
+}
+
+/**
+ * mine read-path
+ *
+ * Match a read-access path: foo, foo/bar, {foo}/bar, foo?/bar.
+ * Allows optional markers (?).
+ */
+function walkMineReadPath(input: {
+  rule: MineReadPathRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take } = input
+  const child = children[pos]
+  if (!child) return { match: false, next: pos }
+
+  let pathText = extractPathText(child)
+  if (!pathText) return { match: false, next: pos }
+
+  // Read paths must NOT start with ./, @, or /
+  if (pathText.startsWith('./') || pathText.startsWith('@') || pathText.startsWith('/')) {
+    return { match: false, next: pos }
+  }
+
+  const segments = pathText.split('/')
+
+  for (const sub of rule.list) {
+    if (sub.form === 'mine-take') {
+      take.set(sub.name, { form: 'path', val: segments })
+    }
+  }
+
+  return { match: true, next: pos + 1 }
+}
+
+/**
+ * mine save-path
+ *
+ * Match a save/write path: foo, foo/bar, {foo}/bar.
+ * Does NOT allow optional markers (?).
+ */
+function walkMineSavePath(input: {
+  rule: MineSavePathRule
+  children: PNode[]
+  pos: number
+  take: TakeMap
+  ctx: MineCtx
+}): WalkResult {
+  const { rule, children, pos, take } = input
+  const child = children[pos]
+  if (!child) return { match: false, next: pos }
+
+  let pathText = extractPathText(child)
+  if (!pathText) return { match: false, next: pos }
+
+  // Save paths must NOT start with ./, @, or /
+  if (pathText.startsWith('./') || pathText.startsWith('@') || pathText.startsWith('/')) {
+    return { match: false, next: pos }
+  }
+
+  // Save paths must NOT contain optional markers
+  if (pathText.includes('?')) {
+    return { match: false, next: pos }
+  }
+
+  const segments = pathText.split('/')
+
+  for (const sub of rule.list) {
+    if (sub.form === 'mine-take') {
+      take.set(sub.name, { form: 'path', val: segments })
+    }
+  }
+
+  return { match: true, next: pos + 1 }
+}
+
+/** Extract path text from a PNode (cord, knit, or fork). */
+function extractPathText(child: PNode): string | undefined {
+  if (child.form === 'tree-cord') {
+    return child.leaf.text
+  } else if (child.form === 'tree-knit') {
+    return knitToText(child)
+  } else if (child.form === 'tree-fork') {
+    const knit = child.nest[0]
+    if (knit && knit.form === 'tree-knit') {
+      return knitToText(knit)
+    }
+  }
+  return undefined
 }
 
 // ---- Helpers ----

@@ -658,8 +658,8 @@ describe('term/desugar', () => {
     })
   })
 
-  describe('firm form → self-type encoding', () => {
-    it('firm form produces self-type encoding (Ann Slf)', () => {
+  describe('fold form → self-type encoding', () => {
+    it('fold form produces self-type encoding (Ann Slf)', () => {
       const natForm: SurfForm = {
         form: 'form',
         name: 'nat',
@@ -674,15 +674,15 @@ describe('term/desugar', () => {
         bond: [],
         task: [],
         wear: [],
-        firm: true,
+        fold: true,
         site,
       }
 
       const card: SurfCard = { file: 'test.tree', list: [natForm] }
-      const { book, firmSet } = desugarCard({ card })
+      const { book, foldSet } = desugarCard({ card })
 
-      // Form name in firm set
-      expect(firmSet.has('nat')).toBe(true)
+      // Form name in fold set
+      expect(foldSet.has('nat')).toBe(true)
 
       // Type definition is self-type (Ann with Slf val)
       const natDef = book.get('nat')
@@ -703,7 +703,7 @@ describe('term/desugar', () => {
       expect(succDef!.form).toBe('ann')
     })
 
-    it('firm form constructors type-check', () => {
+    it('fold form constructors type-check', () => {
       const natForm: SurfForm = {
         form: 'form',
         name: 'nat',
@@ -718,7 +718,7 @@ describe('term/desugar', () => {
         bond: [],
         task: [],
         wear: [],
-        firm: true,
+        fold: true,
         site,
       }
 
@@ -734,7 +734,7 @@ describe('term/desugar', () => {
       expect(succResult).not.toBeNull()
     })
 
-    it('non-firm form produces ADT encoding', () => {
+    it('non-fold form produces ADT encoding', () => {
       const boolForm: SurfForm = {
         form: 'form',
         name: 'bool',

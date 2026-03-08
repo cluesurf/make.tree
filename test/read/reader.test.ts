@@ -173,28 +173,28 @@ task example
   })
 })
 
-describe('firm modifier', () => {
-  it('reads firm on task', () => {
+describe('fold modifier', () => {
+  it('reads fold on task', () => {
     const card = read(`
 task stable-api
-  firm true
+  fold well
   send back, mark 0
 `)
     const task = find(card, 'task')
     if (task?.form === 'task') {
-      expect(task.firm).toBe(true)
+      expect(task.fold).toBe(true)
     }
   })
 
-  it('reads firm on form', () => {
+  it('reads fold on form', () => {
     const card = read(`
 form public-type
-  firm true
+  fold well
   link value, like u64
 `)
     const form = find(card, 'form')
     if (form?.form === 'form') {
-      expect(form.firm).toBe(true)
+      expect(form.fold).toBe(true)
     }
   })
 })

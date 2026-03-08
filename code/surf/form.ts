@@ -29,7 +29,7 @@ export type SurfTask = SurfMixin & {
   risk?: boolean
   wait?: boolean
   hide?: boolean
-  firm?: boolean
+  fold?: boolean
   alias?: string
 }
 
@@ -44,7 +44,7 @@ export type SurfForm = SurfMixin & {
   wear: SurfWear[]
   like?: SurfType
   hide?: boolean
-  firm?: boolean
+  fold?: boolean
   hold?: Surf[]
 }
 

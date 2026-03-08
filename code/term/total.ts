@@ -1,5 +1,5 @@
 /**
- * Totality checking for functions marked with `firm true`.
+ * Totality checking for functions marked with `fold well`.
  *
  * Checks two properties:
  * 1. Structural recursion: all recursive calls use a structurally
@@ -35,8 +35,8 @@ export function checkTotal(input: {
   // Unwrap Ann
   const body = unwrapAnn(term)
 
-  // Check purity: firm functions cannot contain side effects
-  const purityResult = checkFirmPurity({ term: body, name })
+  // Check purity: fold functions cannot contain side effects
+  const purityResult = checkFoldPurity({ term: body, name })
   if (!purityResult.ok) return purityResult
 
   // Collect all parameter names from outer lambdas
@@ -440,10 +440,10 @@ function checkPatternCompleteness(input: {
 }
 
 /**
- * Check that a firm definition contains no side effects.
+ * Check that a fold definition contains no side effects.
  * Proofs must be pure: no exceptions, async, FFI, or control flow.
  */
-function checkFirmPurity(input: {
+function checkFoldPurity(input: {
   term: Term
   name: string
 }): TotalResult {
@@ -454,19 +454,19 @@ function checkFirmPurity(input: {
       case 'hlt':
         return {
           ok: false,
-          reason: `firm function '${name}' cannot throw exceptions`,
+          reason: `fold function '${name}' cannot throw exceptions`,
           term: t,
         }
       case 'nxt':
         return {
           ok: false,
-          reason: `firm function '${name}' cannot use control flow (turn next)`,
+          reason: `fold function '${name}' cannot use control flow (turn next)`,
           term: t,
         }
       case 'rst':
         return {
           ok: false,
-          reason: `firm function '${name}' cannot use breakpoints (rest flow)`,
+          reason: `fold function '${name}' cannot use breakpoints (rest flow)`,
           term: t,
         }
       case 'app': {
@@ -474,7 +474,7 @@ function checkFirmPurity(input: {
         if (t.func.form === 'ref' && t.func.name === '.wait') {
           return {
             ok: false,
-            reason: `firm function '${name}' cannot use async (wait true)`,
+            reason: `fold function '${name}' cannot use async (wait true)`,
             term: t,
           }
         }

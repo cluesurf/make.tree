@@ -54,8 +54,8 @@ type Ctx = {
 /** Async metadata: maps task names to whether they are async. */
 export type AsyncMeta = Map<string, boolean>
 
-/** Set of definition names marked with `firm true` (totality checked). */
-export type FirmSet = Set<string>
+/** Set of definition names marked with `fold well` (totality checked). */
+export type FoldSet = Set<string>
 
 /** Set of task names that have no `send back` (void return). */
 export type VoidMeta = Set<string>
@@ -73,11 +73,11 @@ function flowHasBack(flow: Surf[]): boolean {
 }
 
 /** Desugar a surface-level file (card) to a Book of Core Term definitions. */
-export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; voidMeta: VoidMeta } {
+export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; foldSet: FoldSet; voidMeta: VoidMeta } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
-  const firmSet: FirmSet = new Set()
+  const foldSet: FoldSet = new Set()
   const voidMeta: VoidMeta = new Set()
 
   // First pass: detect wear task name collisions so we can prefix
@@ -116,15 +116,15 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
       voidMeta.add(node.name)
     }
 
-    // Collect firm metadata from task and form definitions
-    if (node.form === 'task' && (node as SurfTask).firm) {
-      firmSet.add(node.name)
+    // Collect fold metadata from task and form definitions
+    if (node.form === 'task' && (node as SurfTask).fold) {
+      foldSet.add(node.name)
     }
-    if (node.form === 'form' && (node as SurfForm).firm) {
-      firmSet.add(node.name)
+    if (node.form === 'form' && (node as SurfForm).fold) {
+      foldSet.add(node.name)
       // Register self-type encoded constructors in the book
       const desc = surfFormToAdtDesc(node as SurfForm)
-      // Check positivity for firm forms (soundness requirement)
+      // Check positivity for fold forms (soundness requirement)
       const posResult = checkPositivity({ adt: desc })
       if (!posResult.ok) {
         throw new Error(posResult.reason)
@@ -145,7 +145,7 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
         const ctx: Ctx = { scope: new Map(), meta }
         book.set(t.name, desugarTask({ task: t, ctx }))
         if (t.wait) asyncMeta.set(t.name, true)
-        if (t.firm) firmSet.add(t.name)
+        if (t.fold) foldSet.add(t.name)
       }
     }
 
@@ -172,25 +172,25 @@ export function desugarCard(input: { card: SurfCard }): { book: Book; asyncMeta:
         if (child.form === 'task' && (child as SurfTask).wait) {
           asyncMeta.set(`${bookNode.name}/${child.name}`, true)
         }
-        if (child.form === 'task' && (child as SurfTask).firm) {
-          firmSet.add(`${bookNode.name}/${child.name}`)
+        if (child.form === 'task' && (child as SurfTask).fold) {
+          foldSet.add(`${bookNode.name}/${child.name}`)
         }
       }
     }
   }
 
-  return { book, asyncMeta, firmSet, voidMeta }
+  return { book, asyncMeta, foldSet, voidMeta }
 }
 
 /**
  * Error-tolerant desugar: wraps each definition in try-catch.
  * Failed definitions produce errors but don't prevent others from being desugared.
  */
-export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; firmSet: FirmSet; voidMeta: VoidMeta; errors: Kink[] } {
+export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; asyncMeta: AsyncMeta; foldSet: FoldSet; voidMeta: VoidMeta; errors: Kink[] } {
   const book: Book = new Map()
   const meta = { next: 1000 }
   const asyncMeta: AsyncMeta = new Map()
-  const firmSet: FirmSet = new Set()
+  const foldSet: FoldSet = new Set()
   const voidMeta: VoidMeta = new Set()
   const errors: Kink[] = []
 
@@ -217,11 +217,11 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
       if (node.form === 'task' && !flowHasBack((node as SurfTask).flow)) {
         voidMeta.add(node.name)
       }
-      if (node.form === 'task' && (node as SurfTask).firm) {
-        firmSet.add(node.name)
+      if (node.form === 'task' && (node as SurfTask).fold) {
+        foldSet.add(node.name)
       }
-      if (node.form === 'form' && (node as SurfForm).firm) {
-        firmSet.add(node.name)
+      if (node.form === 'form' && (node as SurfForm).fold) {
+        foldSet.add(node.name)
         const desc = surfFormToAdtDesc(node as SurfForm)
         const posResult = checkPositivity({ adt: desc })
         if (!posResult.ok) {
@@ -248,7 +248,7 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
           const ctx: Ctx = { scope: new Map(), meta }
           book.set(t.name, desugarTask({ task: t, ctx }))
           if (t.wait) asyncMeta.set(t.name, true)
-          if (t.firm) firmSet.add(t.name)
+          if (t.fold) foldSet.add(t.name)
         }
       }
 
@@ -271,8 +271,8 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
             if (child.form === 'task' && (child as SurfTask).wait) {
               asyncMeta.set(`${bookNode.name}/${child.name}`, true)
             }
-            if (child.form === 'task' && (child as SurfTask).firm) {
-              firmSet.add(`${bookNode.name}/${child.name}`)
+            if (child.form === 'task' && (child as SurfTask).fold) {
+              foldSet.add(`${bookNode.name}/${child.name}`)
             }
           } catch (e) {
             errors.push(
@@ -300,7 +300,7 @@ export function desugarCardTolerant(input: { card: SurfCard }): { book: Book; as
     }
   }
 
-  return { book, asyncMeta, firmSet, voidMeta, errors }
+  return { book, asyncMeta, foldSet, voidMeta, errors }
 }
 
 /** Desugar all tasks inside a wear block into the book.
@@ -333,8 +333,8 @@ function desugarDef(input: {
     case 'task':
       return { name: surf.name, term: desugarTask({ task: surf, ctx }) }
     case 'form':
-      // firm forms use self-type encoding for dependent types and proofs
-      if ((surf as SurfForm).firm) {
+      // fold forms use self-type encoding for dependent types and proofs
+      if ((surf as SurfForm).fold) {
         return { name: surf.name, term: desugarFormSelfType({ form: surf as SurfForm }) }
       }
       return { name: surf.name, term: desugarForm({ form: surf, ctx }) }
@@ -508,7 +508,7 @@ function surfFormToAdtDesc(form: SurfForm): AdtDesc {
 }
 
 /**
- * Desugar a form with `firm true` to self-type encoding.
+ * Desugar a form with `fold well` to self-type encoding.
  * Returns the annotated self-type definition (Ann(Slf{...}, Set)).
  * Constructors are registered separately in desugarCard.
  */
