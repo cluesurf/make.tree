@@ -1,0 +1,7 @@
+
+load ./foo/bar
+
+---
+
+load
+  ./foo/bar

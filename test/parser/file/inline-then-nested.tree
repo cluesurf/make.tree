@@ -1,0 +1,15 @@
+
+form user, like base
+  take name
+  take age
+
+---
+
+form
+  user
+  like
+    base
+  take
+    name
+  take
+    age

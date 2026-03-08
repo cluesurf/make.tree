@@ -1,0 +1,17 @@
+
+form user
+  take name, like text
+  take age, like i32
+
+---
+
+form
+  user
+  take
+    name
+    like
+      text
+  take
+    age
+    like
+      i32

@@ -48,7 +48,19 @@ function assertFixture(name: string) {
 }
 
 describe('fixtures', () => {
-  // ---- Working fixtures (basic grammar) ----
+  // ---- Basic term fixtures ----
+
+  it('single-term.tree', () => {
+    assertFixture('single-term.tree')
+  })
+
+  it('two-terms.tree', () => {
+    assertFixture('two-terms.tree')
+  })
+
+  it('multiple-top-level.tree', () => {
+    assertFixture('multiple-top-level.tree')
+  })
 
   it('all.tree', () => {
     assertFixture('all.tree')
@@ -58,12 +70,114 @@ describe('fixtures', () => {
     assertFixture('line.tree')
   })
 
+  // ---- Nesting fixtures ----
+
+  it('deep-nesting.tree', () => {
+    assertFixture('deep-nesting.tree')
+  })
+
+  it('siblings.tree', () => {
+    assertFixture('siblings.tree')
+  })
+
+  it('complex-nesting.tree', () => {
+    assertFixture('complex-nesting.tree')
+  })
+
   it('nesting-basic.tree', () => {
     assertFixture('nesting-basic.tree')
   })
 
   it('nesting-basic-revert.tree', () => {
     assertFixture('nesting-basic-revert.tree')
+  })
+
+  // ---- Inline value fixtures ----
+
+  it('inline-number.tree', () => {
+    assertFixture('inline-number.tree')
+  })
+
+  it('inline-negative-number.tree', () => {
+    assertFixture('inline-negative-number.tree')
+  })
+
+  it('inline-float.tree', () => {
+    assertFixture('inline-float.tree')
+  })
+
+  it('inline-code-literal.tree', () => {
+    assertFixture('inline-code-literal.tree')
+  })
+
+  it('inline-path.tree', () => {
+    assertFixture('inline-path.tree')
+  })
+
+  it('inline-template.tree', () => {
+    assertFixture('inline-template.tree')
+  })
+
+  it('number-varieties.tree', () => {
+    assertFixture('number-varieties.tree')
+  })
+
+  it('code-binary.tree', () => {
+    assertFixture('code-binary.tree')
+  })
+
+  // ---- Comma and paren fixtures ----
+
+  it('comma-separated.tree', () => {
+    assertFixture('comma-separated.tree')
+  })
+
+  it('comma-three.tree', () => {
+    assertFixture('comma-three.tree')
+  })
+
+  it('parenthesized.tree', () => {
+    assertFixture('parenthesized.tree')
+  })
+
+  it('nested-parens.tree', () => {
+    assertFixture('nested-parens.tree')
+  })
+
+  // ---- Name fixtures ----
+
+  it('hyphenated-names.tree', () => {
+    assertFixture('hyphenated-names.tree')
+  })
+
+  it('at-path.tree', () => {
+    assertFixture('at-path.tree')
+  })
+
+  // ---- Mixed fixtures ----
+
+  it('mixed-values.tree', () => {
+    assertFixture('mixed-values.tree')
+  })
+
+  it('nested-inline-and-children.tree', () => {
+    assertFixture('nested-inline-and-children.tree')
+  })
+
+  it('inline-then-nested.tree', () => {
+    assertFixture('inline-then-nested.tree')
+  })
+
+  it('sibling-trees.tree', () => {
+    assertFixture('sibling-trees.tree')
+  })
+
+  it('comment-between.tree', () => {
+    assertFixture('comment-between.tree')
+  })
+
+  it('template-escaped.tree', () => {
+    assertFixture('template-escaped.tree')
   })
 
   // ---- Pending fixtures (need grammar extensions) ----

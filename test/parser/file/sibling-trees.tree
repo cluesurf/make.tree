@@ -1,0 +1,22 @@
+
+form dog
+  take name
+  take breed
+form cat
+  take name
+  take color
+
+---
+
+form
+  dog
+  take
+    name
+  take
+    breed
+form
+  cat
+  take
+    name
+  take
+    color

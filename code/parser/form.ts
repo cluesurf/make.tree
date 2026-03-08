@@ -104,3 +104,18 @@ export type AstNode = {
   form: string
   [key: string]: unknown
 }
+
+// ---- Text Edit (for incremental reparsing) ----
+
+export type TextEdit = {
+  start: number
+  end: number
+  newText: string
+}
+
+// ---- Source Range ----
+
+export type SourceRange = {
+  start: number
+  end: number
+}

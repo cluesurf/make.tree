@@ -2,8 +2,7 @@
  * Error/negative tests for the string parser.
  *
  * Tests that invalid input produces parse errors.
- * Includes fixtures from deck/tree/test/file/kink/ plus
- * additional edge cases for thorough coverage.
+ * Includes fixtures from file/kink/ plus additional edge cases.
  */
 
 import { readFileSync } from 'fs'
@@ -60,7 +59,7 @@ function expectNoError(input: { text: string }) {
 describe('error cases', () => {
   // ---- Kink fixtures (loaded from file/kink/*.tree) ----
 
-  describe('kink fixtures', () => {
+  describe('kink fixtures (original)', () => {
     it('invalid-leading-space.tree', () => {
       assertKinkFixture('invalid-leading-space.tree')
     })
@@ -82,29 +81,99 @@ describe('error cases', () => {
     })
   })
 
-  // ---- Invalid first character ----
-
-  describe('invalid first character', () => {
-    it('uppercase letter', () => {
-      expectError({ text: 'Foo\n' })
+  describe('kink fixtures (indentation)', () => {
+    it('tab-indent.tree', () => {
+      assertKinkFixture('tab-indent.tree')
     })
 
-    it('digit as first character', () => {
-      expectError({ text: '1abc\n' })
+    it('odd-spaces.tree', () => {
+      assertKinkFixture('odd-spaces.tree')
     })
 
-    it('dash as first character', () => {
-      expectError({ text: '-foo\n' })
+    it('double-indent-jump.tree', () => {
+      assertKinkFixture('double-indent-jump.tree')
     })
 
-    it('dot without slash', () => {
-      expectError({ text: '.foo\n' })
+    it('triple-indent-jump.tree', () => {
+      assertKinkFixture('triple-indent-jump.tree')
     })
 
-    it('comma', () => {
-      expectError({ text: ',foo\n' })
+    it('leading spaces on first line', () => {
+      expectError({ text: '  foo\n' })
+    })
+  })
+
+  describe('kink fixtures (invalid first character)', () => {
+    it('uppercase-start.tree', () => {
+      assertKinkFixture('uppercase-start.tree')
     })
 
+    it('digit-start.tree', () => {
+      assertKinkFixture('digit-start.tree')
+    })
+
+    it('colon-start.tree', () => {
+      assertKinkFixture('colon-start.tree')
+    })
+
+    it('dot-without-slash.tree', () => {
+      assertKinkFixture('dot-without-slash.tree')
+    })
+
+    it('bare-hash.tree', () => {
+      assertKinkFixture('bare-hash.tree')
+    })
+  })
+
+  describe('kink fixtures (delimiters)', () => {
+    it('unclosed-template.tree', () => {
+      assertKinkFixture('unclosed-template.tree')
+    })
+
+    it('unclosed-paren.tree', () => {
+      assertKinkFixture('unclosed-paren.tree')
+    })
+
+    it('unmatched-close-paren.tree', () => {
+      assertKinkFixture('unmatched-close-paren.tree')
+    })
+
+    it('unmatched-close-angle.tree', () => {
+      assertKinkFixture('unmatched-close-angle.tree')
+    })
+  })
+
+  describe('kink fixtures (inline values)', () => {
+    it('double-space.tree', () => {
+      assertKinkFixture('double-space.tree')
+    })
+
+    it('trailing-comma.tree', () => {
+      assertKinkFixture('trailing-comma.tree')
+    })
+
+    it('leading-comma.tree', () => {
+      assertKinkFixture('leading-comma.tree')
+    })
+
+    it('empty-parens.tree', () => {
+      assertKinkFixture('empty-parens.tree')
+    })
+
+    it('comma-no-space.tree', () => {
+      assertKinkFixture('comma-no-space.tree')
+    })
+  })
+
+  describe('whitespace errors', () => {
+    it('whitespace-only line', () => {
+      expectError({ text: '   \n' })
+    })
+  })
+
+  // ---- Additional inline error cases ----
+
+  describe('additional invalid first character', () => {
     it('close paren', () => {
       expectError({ text: ')foo\n' })
     })
@@ -113,93 +182,19 @@ describe('error cases', () => {
       expectError({ text: '>foo\n' })
     })
 
-    it('colon', () => {
-      expectError({ text: ':foo\n' })
+    it('comma', () => {
+      expectError({ text: ',foo\n' })
     })
 
-    it('hash without valid code', () => {
-      // # followed by space is a comment, but bare # with nothing is not
-      expectError({ text: '#\n' })
-    })
-  })
-
-  // ---- Indentation errors ----
-
-  describe('indentation errors', () => {
-    it('tab indentation', () => {
-      expectError({ text: 'foo\n\tbar\n' })
-    })
-
-    it('odd number of spaces', () => {
-      expectError({ text: 'foo\n bar\n' })
-    })
-
-    it('triple indent jump (0 to 3)', () => {
-      expectError({ text: 'foo\n      bar\n' })
-    })
-
-    it('double indent jump (0 to 2)', () => {
-      expectError({ text: 'foo\n    bar\n' })
-    })
-
-    it('only whitespace line', () => {
-      expectError({ text: '   \n' })
-    })
-
-    it('leading spaces on first line', () => {
-      expectError({ text: '  foo\n' })
+    it('dash as first character', () => {
+      expectError({ text: '-foo\n' })
     })
   })
 
-  // ---- Unclosed delimiters ----
+  // ---- Edge cases (valid inputs) ----
 
-  describe('unclosed delimiters', () => {
-    it('unclosed template', () => {
-      expectError({ text: 'foo <hello\n' })
-    })
-
-    it('unclosed parenthesis', () => {
-      expectError({ text: 'foo(bar\n' })
-    })
-
-    it('unmatched close paren after term', () => {
-      expectError({ text: 'foo bar)\n' })
-    })
-
-    it('unmatched close angle after term', () => {
-      expectError({ text: 'foo bar>\n' })
-    })
-  })
-
-  // ---- Invalid inline values ----
-
-  describe('invalid inline values', () => {
-    it('comma without space after', () => {
-      expectError({ text: 'foo bar,baz\n' })
-    })
-
-    it('double space separator', () => {
-      expectError({ text: 'foo  bar\n' })
-    })
-
-    it('trailing comma', () => {
-      expectError({ text: 'foo bar,\n' })
-    })
-
-    it('leading comma', () => {
-      expectError({ text: 'foo , bar\n' })
-    })
-
-    it('empty parens', () => {
-      expectError({ text: 'foo()\n' })
-    })
-  })
-
-  // ---- Edge cases ----
-
-  describe('edge cases', () => {
+  describe('valid edge cases', () => {
     it('completely empty input', () => {
-      // Empty input should parse as empty document, no error
       expectNoError({ text: '' })
     })
 
@@ -261,6 +256,26 @@ describe('error cases', () => {
 
     it('valid comment between terms', () => {
       expectNoError({ text: 'foo\n# comment\nbar\n' })
+    })
+
+    it('valid hyphenated name', () => {
+      expectNoError({ text: 'foo-bar baz-qux\n' })
+    })
+
+    it('valid at-path', () => {
+      expectNoError({ text: 'load @cluesurf/base\n' })
+    })
+
+    it('valid hex code', () => {
+      expectNoError({ text: 'color #xff\n' })
+    })
+
+    it('valid multiple top level', () => {
+      expectNoError({ text: 'alpha\nbeta\ngamma\n' })
+    })
+
+    it('valid siblings', () => {
+      expectNoError({ text: 'parent\n  child1\n  child2\n' })
     })
   })
 

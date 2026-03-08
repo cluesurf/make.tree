@@ -1,0 +1,5 @@
+.foo
+
+---
+
+Dot without slash is not a valid path

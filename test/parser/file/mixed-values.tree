@@ -1,0 +1,20 @@
+
+bind count, 42
+bind name, <hello>
+bind path, ./foo/bar
+bind code, #b101
+
+---
+
+bind
+  count
+  42
+bind
+  name
+  <hello>
+bind
+  path
+  ./foo/bar
+bind
+  code
+  #b101
