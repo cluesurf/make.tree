@@ -135,7 +135,7 @@ function readMineKeyword(fork: PFork): MineRule | undefined {
   }
 
   if (mineType === 'case') {
-    // mine case
+    // mine any
     const children = childForks(fork)
     const list: MineRule[] = []
     for (const child of children) {

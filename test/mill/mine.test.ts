@@ -110,7 +110,7 @@ describe('mine walker', () => {
     expect(result!.get('task')?.form).toBe('list')
   })
 
-  it('handles mine case (alternatives)', () => {
+  it('handles mine any (alternatives)', () => {
     const fork = makeFork({ keyword: 'read', inlineWords: ['x'] })
     const rule: MineRule = {
       form: 'mine-case',

@@ -54,7 +54,7 @@ export type MineFormRef = {
 }
 
 /**
- * mine case
+ * mine any
  *
  * Try each child rule in order. Use the first that matches.
  */
