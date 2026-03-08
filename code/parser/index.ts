@@ -28,7 +28,9 @@ import type {
   AstNode,
   ParseResult,
   ParseError,
+  CstTree,
 } from './form'
+import { CstBuilder } from './cst'
 
 export class StringParser {
   private mineDefs: Map<string, MineDef>
@@ -72,6 +74,7 @@ export class StringParser {
       farthestPos: 0,
       farthestExpected: [],
       recovery: this.recovery,
+      lastErrorEnd: 0,
     }
 
     const mintDef = this.mintDefs.get(this.entry)
@@ -107,6 +110,23 @@ export class StringParser {
 
     return { output: result.node, errors }
   }
+
+  /**
+   * Parse and return a full CST (Concrete Syntax Tree) that preserves
+   * every byte of the original source including whitespace, comments,
+   * and delimiters as trivia attached to tokens.
+   *
+   * The CST supports round-tripping: cstToText(cst) === text
+   */
+  parseCst(input: { text: string, file: string }): { cst: CstTree, errors: ParseError[] } {
+    const result = this.parse(input)
+    const cst = buildCstFromAst({
+      ast: result.output,
+      source: input.text,
+      file: input.file,
+    })
+    return { cst, errors: result.errors }
+  }
 }
 
 // ---- Internal types ----
@@ -121,6 +141,7 @@ type ParseCtx = {
   farthestPos: number
   farthestExpected: string[]
   recovery: boolean
+  lastErrorEnd: number
 }
 
 /** Line offset table for O(log n) line/col lookup. */
@@ -454,26 +475,38 @@ function walkRepeat(input: {
     if (!result.match) {
       restoreSlots({ slots, saved: savedSlots })
 
-      // Error recovery: if we're in the top-level repeat and recovery is on,
-      // skip to next newline and insert an error node
+      // Error recovery: skip to next newline and insert an error node.
+      // Secondary error suppression: don't report errors within an
+      // already-reported error region.
       if (ctx.recovery && count >= min && current < ctx.text.length) {
-        const nextNewline = ctx.text.indexOf('\n', current)
-        if (nextNewline > current) {
-          const lc = posToLineCol({ lineIndex: ctx.lineIndex, pos: current })
-          const skipped = ctx.text.slice(current, nextNewline + 1)
-          ctx.errors.push({
-            message: `Skipped invalid input: ${JSON.stringify(skipped.trim())}`,
-            line: lc.line, col: lc.col, pos: current,
-          })
-          const errorNode: AstNode = {
-            form: 'error',
-            text: skipped.trim(),
-            range: { start: current, end: nextNewline + 1 },
+        if (current >= ctx.lastErrorEnd) {
+          const nextNewline = ctx.text.indexOf('\n', current)
+          if (nextNewline > current) {
+            const lc = posToLineCol({ lineIndex: ctx.lineIndex, pos: current })
+            const skipped = ctx.text.slice(current, nextNewline + 1)
+            ctx.errors.push({
+              message: `Skipped invalid input: ${JSON.stringify(skipped.trim())}`,
+              line: lc.line, col: lc.col, pos: current,
+            })
+            const errorNode: AstNode = {
+              form: 'error',
+              text: skipped.trim(),
+              range: { start: current, end: nextNewline + 1 },
+            }
+            addToSlot({ slots, name: 'list', value: errorNode })
+            ctx.lastErrorEnd = nextNewline + 1
+            current = nextNewline + 1
+            count++
+            continue
           }
-          addToSlot({ slots, name: 'list', value: errorNode })
-          current = nextNewline + 1
-          count++
-          continue
+        } else {
+          // Inside suppressed region: skip to next newline silently
+          const nextNewline = ctx.text.indexOf('\n', current)
+          if (nextNewline > current) {
+            current = nextNewline + 1
+            count++
+            continue
+          }
         }
       }
 
@@ -588,4 +621,209 @@ function resolveCall(input: {
   }
 }
 
+// ---- Indent helper ----
+
+function indentAtPosition(input: { text: string, pos: number }): number {
+  const { text, pos } = input
+  let lineStart = pos
+  while (lineStart > 0 && text[lineStart - 1] !== '\n') {
+    lineStart--
+  }
+  let indent = 0
+  while (lineStart + indent < text.length && text[lineStart + indent] === ' ') {
+    indent++
+  }
+  return indent
+}
+
+/**
+ * Find the next recovery point after an error.
+ * Scans forward to find the next newline, then continues until
+ * it finds a line at same or lesser indentation.
+ */
+function findRecoveryPos(input: {
+  text: string
+  pos: number
+  indent: number
+}): number {
+  const { text, pos, indent } = input
+
+  // First: skip to end of the current line
+  let i = pos
+  while (i < text.length && text[i] !== '\n') {
+    i++
+  }
+  if (i < text.length) i++ // skip the newline
+
+  // Now scan line by line to find one at same or lesser indent
+  while (i < text.length) {
+    // Check indentation of this line
+    let lineIndent = 0
+    while (i + lineIndent < text.length && text[i + lineIndent] === ' ') {
+      lineIndent++
+    }
+    // Skip blank lines
+    if (i + lineIndent < text.length && text[i + lineIndent] === '\n') {
+      i = i + lineIndent + 1
+      continue
+    }
+    // Found a non-blank line
+    if (lineIndent <= indent) {
+      return i // recovery point: start of this line
+    }
+    // Line is deeper, skip it
+    while (i < text.length && text[i] !== '\n') i++
+    if (i < text.length) i++ // skip newline
+  }
+
+  return i // end of text
+}
+
+// ---- CST Builder (post-processing from AST + source) ----
+
+/**
+ * Build a full-fidelity CST from an AST and the original source text.
+ * Fills in gaps between AST node ranges with trivia tokens.
+ */
+function buildCstFromAst(input: {
+  ast: AstNode | undefined
+  source: string
+  file: string
+}): CstTree {
+  const { ast, source } = input
+  const builder = new CstBuilder({ source })
+
+  if (!ast || !ast.range) {
+    // No AST: wrap entire source as a single error
+    if (source.length > 0) {
+      builder.error({ start: 0, end: source.length, expected: ['valid input'] })
+    }
+    return builder.build({ form: 'tree-document' })
+  }
+
+  // Emit any trivia before the AST starts
+  emitTrivia({ builder, source, start: 0, end: (ast.range as { start: number }).start })
+
+  // Walk the AST tree and emit CST nodes
+  emitAstNode({ builder, source, node: ast })
+
+  // Emit any trivia after the AST ends
+  emitTrivia({ builder, source, start: (ast.range as { end: number }).end, end: source.length })
+
+  return builder.build({ form: 'tree-document' })
+}
+
+function emitAstNode(input: {
+  builder: CstBuilder
+  source: string
+  node: AstNode
+}): void {
+  const { builder, source, node } = input
+  const range = node.range as { start: number, end: number } | undefined
+  if (!range) return
+
+  // Check if this node has children (list field)
+  const children = normalizeChildren(node)
+
+  if (children.length === 0) {
+    // Leaf node: emit as a token
+    builder.token({ kind: node.form, start: range.start, end: range.end })
+    return
+  }
+
+  // Branch node: emit as a tree with children
+  builder.startNode({ form: node.form, start: range.start })
+
+  let cursor = range.start
+  for (const child of children) {
+    const childRange = child.range as { start: number, end: number } | undefined
+    if (!childRange) continue
+
+    // Emit trivia between cursor and child start
+    if (childRange.start > cursor) {
+      emitTrivia({ builder, source, start: cursor, end: childRange.start })
+    }
+
+    emitAstNode({ builder, source, node: child })
+    cursor = childRange.end
+  }
+
+  // Emit trivia after last child
+  if (cursor < range.end) {
+    emitTrivia({ builder, source, start: cursor, end: range.end })
+  }
+
+  builder.finishNode({ end: range.end })
+}
+
+/**
+ * Emit trivia (whitespace, comments, newlines) for a gap in the source.
+ */
+function emitTrivia(input: {
+  builder: CstBuilder
+  source: string
+  start: number
+  end: number
+}): void {
+  const { builder, source, start, end } = input
+  if (start >= end) return
+
+  let i = start
+  while (i < end) {
+    if (source[i] === '\n') {
+      builder.trivia({ form: 'newline', start: i, end: i + 1 })
+      i++
+    } else if (source[i] === '#' && i + 1 < end && source[i + 1] === ' ') {
+      // Comment: # ... until newline
+      const commentStart = i
+      while (i < end && source[i] !== '\n') i++
+      builder.trivia({ form: 'comment', start: commentStart, end: i })
+    } else if (source[i] === ' ' || source[i] === '\t' || source[i] === '\r') {
+      const wsStart = i
+      while (i < end && (source[i] === ' ' || source[i] === '\t' || source[i] === '\r')) i++
+      builder.trivia({ form: 'whitespace', start: wsStart, end: i })
+    } else {
+      // Non-trivia gap: emit as a token (delimiter, etc.)
+      const tokStart = i
+      while (i < end && source[i] !== '\n' && source[i] !== ' ' && source[i] !== '\t') i++
+      if (i > tokStart) {
+        builder.token({ kind: 'delimiter', start: tokStart, end: i })
+      }
+    }
+  }
+}
+
+/**
+ * Extract child AstNodes from an AstNode's fields.
+ * Handles both single children and arrays (list fields).
+ */
+function normalizeChildren(node: AstNode): AstNode[] {
+  const result: AstNode[] = []
+
+  // Check common fields that hold children
+  for (const key of Object.keys(node)) {
+    if (key === 'form' || key === 'range' || key === 'text') continue
+    const val = node[key]
+    if (Array.isArray(val)) {
+      for (const item of val) {
+        if (item && typeof item === 'object' && 'form' in item && 'range' in item) {
+          result.push(item as AstNode)
+        }
+      }
+    } else if (val && typeof val === 'object' && 'form' in val && 'range' in val) {
+      result.push(val as AstNode)
+    }
+  }
+
+  // Sort by start position
+  result.sort((a, b) => {
+    const aRange = a.range as { start: number }
+    const bRange = b.range as { start: number }
+    return aRange.start - bRange.start
+  })
+
+  return result
+}
+
 export type { MineDef, MintDef, MineRule, AstNode, ParseResult, ParseError } from './form'
+export type { CstTree, CstToken, CstTrivia, CstError, CstMissing, CstNode } from './form'

@@ -119,3 +119,66 @@ export type SourceRange = {
   start: number
   end: number
 }
+
+// ---- CST (Concrete Syntax Tree) ----
+
+/**
+ * A CST node is either a tree (branch) or a token (leaf).
+ * The CST preserves every byte of the original source.
+ */
+export type CstNode = CstTree | CstToken | CstError | CstMissing
+
+/**
+ * A branch node containing ordered children.
+ * Its text is the concatenation of all descendant tokens.
+ */
+export type CstTree = {
+  form: string
+  children: CstNode[]
+  range: SourceRange
+}
+
+/**
+ * A leaf token with exact source text and optional trivia.
+ * Leading trivia = whitespace/comments before this token.
+ * Trailing trivia = whitespace after this token on the same line.
+ */
+export type CstToken = {
+  form: 'token'
+  kind: string
+  text: string
+  range: SourceRange
+  lead: CstTrivia[]
+  tail: CstTrivia[]
+}
+
+/**
+ * Trivia: whitespace, comments, or newlines between tokens.
+ * Attached to adjacent tokens per Roslyn conventions.
+ */
+export type CstTrivia = {
+  form: 'whitespace' | 'comment' | 'newline'
+  text: string
+  range: SourceRange
+}
+
+/**
+ * An error node wrapping tokens that could not be parsed.
+ * Contains the actual tokens so no source text is lost.
+ */
+export type CstError = {
+  form: 'error'
+  children: CstNode[]
+  range: SourceRange
+  expected: string[]
+}
+
+/**
+ * A zero-width placeholder for a required element that was missing.
+ * Allows the rest of the tree to parse successfully.
+ */
+export type CstMissing = {
+  form: 'missing'
+  expected: string
+  range: SourceRange
+}
